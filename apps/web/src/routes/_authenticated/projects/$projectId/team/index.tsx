@@ -652,6 +652,9 @@ function MemberRoleDialog({
 			replaceMemberRoles(projectId, member.id, roleIds),
 		onError: (err: unknown) => {
 			const code = getApiErrorCode(err);
+			void queryClient.invalidateQueries({
+				queryKey: projectMembersQueryOptions(projectId).queryKey,
+			});
 			setError(
 				code === ApiErrorCode.ProjectMemberNotFound
 					? t("team.roleChip.errors.memberNotFound")
@@ -663,13 +666,13 @@ function MemberRoleDialog({
 							: t("team.roleChip.errors.changeFailed"),
 			);
 		},
-		onSuccess: () => {
-			handleOpenChange(false);
-		},
-		onSettled: () => {
-			queryClient.invalidateQueries({
+		// Close once the list has the new roles, so the badges never flash the
+		// old ones behind a closing dialog.
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({
 				queryKey: projectMembersQueryOptions(projectId).queryKey,
 			});
+			handleOpenChange(false);
 		},
 	});
 

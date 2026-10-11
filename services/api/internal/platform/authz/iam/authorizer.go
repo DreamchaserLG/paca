@@ -285,6 +285,18 @@ func (a *Authorizer) ListScopes(ctx context.Context, p Principal, action string,
 // (those with a PlatformRootFor) on their platform root resource and each
 // plugin's own actions on plugin/<pluginID>.
 func (a *Authorizer) EffectiveActions(ctx context.Context, p Principal, projectID string) ([]string, error) {
+	return a.effectiveActions(ctx, p, projectID, true)
+}
+
+// ProjectWideActions returns the registered actions the principal may perform
+// on project/<projectID> itself, leaving out those allowed only on some
+// resource inside it (a single task, one sprint). Unlike EffectiveActions it
+// is fit to authorize project-wide delivery, such as realtime rooms.
+func (a *Authorizer) ProjectWideActions(ctx context.Context, p Principal, projectID string) ([]string, error) {
+	return a.effectiveActions(ctx, p, projectID, false)
+}
+
+func (a *Authorizer) effectiveActions(ctx context.Context, p Principal, projectID string, includeChild bool) ([]string, error) {
 	if !p.valid() {
 		return nil, nil
 	}
@@ -311,7 +323,7 @@ func (a *Authorizer) EffectiveActions(ctx context.Context, p Principal, projectI
 		if err != nil {
 			return nil, err
 		}
-		if r.Allowed || (projectID != "" && possiblyAllowedOnChild(grants, action, projectID)) {
+		if r.Allowed || (includeChild && projectID != "" && possiblyAllowedOnChild(grants, action, projectID)) {
 			out = append(out, action)
 		}
 	}

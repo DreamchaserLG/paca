@@ -736,3 +736,26 @@ func TestEffectiveActionsKindScoped(t *testing.T) {
 		t.Errorf("other project contributes nothing: %v", got)
 	}
 }
+
+// A grant limited to one task shows the Tasks UI (EffectiveActions) but does
+// not give project-wide access (ProjectWideActions), which realtime rooms need.
+func TestProjectWideActionsExcludesChildOnlyGrants(t *testing.T) {
+	g := []Grant{
+		{RoleID: "r1", ProjectID: "p1", Policy: pol(allow("tasks:read", "project/p1/task/t1", nil), allow("docs:read", "project/p1/*", nil))},
+	}
+	a, _ := newTestAuthorizer(g)
+	all, err := a.EffectiveActions(context.Background(), u1, "p1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"docs:read", "tasks:read"}; !reflect.DeepEqual(all, want) {
+		t.Fatalf("EffectiveActions got %v want %v", all, want)
+	}
+	wide, err := a.ProjectWideActions(context.Background(), u1, "p1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"docs:read"}; !reflect.DeepEqual(wide, want) {
+		t.Fatalf("ProjectWideActions got %v want %v", wide, want)
+	}
+}

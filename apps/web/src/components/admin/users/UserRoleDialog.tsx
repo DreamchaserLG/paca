@@ -31,12 +31,13 @@ export function UserRoleDialog({
 }: UserRoleDialogProps) {
 	const { t } = useTranslation("admin");
 	const rolesQuery = useQuery({ ...platformRolesQueryOptions, enabled: open });
-	// A project template (project/*) only works attached per project; given
-	// platform-wide it would reach every project.
-	const roles = (rolesQuery.data ?? []).filter(
-		(r) => !isProjectTemplate(r.policy),
-	);
 	const currentIds = user.roles.map((r) => r.id);
+	// A project template (project/*) only works attached per project; given
+	// platform-wide it would reach every project. One the user already holds
+	// stays listed, so saving never drops a role the person could not see.
+	const roles = (rolesQuery.data ?? []).filter(
+		(r) => !isProjectTemplate(r.policy) || currentIds.includes(r.id),
+	);
 
 	const { assign, isPending, error, clearError } = useAssignUserRole({
 		userId: user.id,
@@ -59,7 +60,7 @@ export function UserRoleDialog({
 			roles={roles}
 			status={
 				roles.length === 0 ? (
-					<RolesQueryBoundary query={rolesQuery}>
+					<RolesQueryBoundary query={{ ...rolesQuery, data: roles }}>
 						{() => null}
 					</RolesQueryBoundary>
 				) : undefined
@@ -72,6 +73,8 @@ export function UserRoleDialog({
 			error={error}
 			onPick={clearError}
 			onSave={assign}
+			// Only called once the picks differ from the held roles, so the
+			// own-account notice appears with a real change, not on open.
 			warnings={({ roles: picked }) => (
 				<>
 					{picked.some(

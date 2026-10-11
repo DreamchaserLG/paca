@@ -235,7 +235,7 @@ describe("UsersTable", () => {
 			});
 
 			await userEvent.click(
-				screen.getAllByRole("button", { name: "Change role" })[1],
+				screen.getAllByRole("button", { name: /^Change role/ })[1],
 			);
 
 			expect(onChangeRole).toHaveBeenCalledTimes(1);
@@ -246,7 +246,7 @@ describe("UsersTable", () => {
 			renderTable([baseUser], { canWrite: false, canAssignRole: true });
 
 			expect(
-				screen.getByRole("button", { name: "Change role" }),
+				screen.getByRole("button", { name: /^Change role/ }),
 			).toBeInTheDocument();
 			expect(screen.queryByTitle("Edit user")).not.toBeInTheDocument();
 		});
@@ -256,7 +256,7 @@ describe("UsersTable", () => {
 
 			expect(screen.getByTitle("Edit user")).toBeInTheDocument();
 			expect(
-				screen.queryByRole("button", { name: "Change role" }),
+				screen.queryByRole("button", { name: /^Change role/ }),
 			).not.toBeInTheDocument();
 		});
 	});

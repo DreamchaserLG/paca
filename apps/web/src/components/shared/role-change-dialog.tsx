@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -77,9 +77,21 @@ export function RoleChangeDialog<T extends RoleOption>({
 }: RoleChangeDialogProps<T>) {
 	const { t } = useTranslation("shared");
 	// null until the person touches the list: it then shows the roles held.
-	const [picked, setPicked] = useState<string[] | null>(null);
+	// `base` is the held roles the picks were made against: if they change
+	// underneath (a refetch, another admin), the picks no longer apply.
+	const heldKey = [...currentIds].sort().join(",");
+	const [pick, setPick] = useState<{ base: string; ids: string[] } | null>(
+		null,
+	);
+	const picked = pick && pick.base === heldKey ? pick.ids : null;
 	const ids = picked ?? currentIds;
 	const change = picked && !sameSet(picked, currentIds) ? picked : null;
+
+	// The parent can close the dialog without going through onOpenChange
+	// (after a successful save); the next opening starts from the held roles.
+	useEffect(() => {
+		if (!open) setPick(null);
+	}, [open]);
 
 	const added = roles.filter(
 		(r) => ids.includes(r.id) && !currentIds.includes(r.id),
@@ -89,7 +101,7 @@ export function RoleChangeDialog<T extends RoleOption>({
 	);
 
 	const handleOpenChange = (next: boolean) => {
-		if (!next) setPicked(null);
+		if (!next) setPick(null);
 		onOpenChange(next);
 	};
 
@@ -124,12 +136,12 @@ export function RoleChangeDialog<T extends RoleOption>({
 								roles={roles}
 								values={ids}
 								currentRoleIds={currentIds}
-								label={title}
+								label={`${title}: ${person.name}`}
 								badgeClass={badgeClass}
 								minSelected={minSelected}
 								disabled={isPending}
 								onChange={(next) => {
-									setPicked(next);
+									setPick({ base: heldKey, ids: next });
 									onPick?.();
 								}}
 							/>

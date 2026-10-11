@@ -1052,23 +1052,7 @@ function ProjectNav() {
 	);
 }
 
-const ANON_HIDDEN_SEGMENTS = new Set([
-	"agents",
-	"environments",
-	"conversations",
-	"automation",
-	"team",
-	"activity",
-	"settings",
-]);
-
-function ProjectNavItems({
-	projectId,
-	isAnonymous,
-}: {
-	projectId: string;
-	isAnonymous?: boolean;
-}) {
+function ProjectNavItems({ projectId }: { projectId: string }) {
 	const { t } = useTranslation("appShell");
 	const location = useRouterState({ select: (s) => s.location.pathname });
 	const { hasProjectPermission } = useProjectPermissions(projectId);
@@ -1130,8 +1114,6 @@ function ProjectNavItems({
 				<SidebarGroupContent>
 					<SidebarMenu>
 						{PROJECT_NAV_ITEMS.filter((item) => {
-							if (isAnonymous && ANON_HIDDEN_SEGMENTS.has(item.segment))
-								return false;
 							const required = PERMISSION_GATED_SEGMENTS[item.segment];
 							if (!required) return true;
 							if (item.segment === "settings" && hasVisiblePluginSettingsTab)
@@ -1250,13 +1232,7 @@ function PluginAdminPages({ navItems }: { navItems: PluginNavRegistration[] }) {
 }
 
 // ── Project Interactions Section ───────────────────────────────────────────────
-function ProjectInteractionsSection({
-	projectId,
-	isAnonymous,
-}: {
-	projectId: string;
-	isAnonymous?: boolean;
-}) {
+function ProjectInteractionsSection({ projectId }: { projectId: string }) {
 	const { t } = useTranslation("appShell");
 	const location = useRouterState({ select: (s) => s.location.pathname });
 	const { hasPermission } = usePermissions();
@@ -1370,7 +1346,7 @@ function ProjectInteractionsSection({
 		e: React.DragEvent,
 		interactionId: string,
 	) => {
-		if (!canEditTasks || isAnonymous) return;
+		if (!canEditTasks) return;
 		if (!e.dataTransfer.types.includes("application/x-paca-task-id")) return;
 		e.preventDefault();
 		e.dataTransfer.dropEffect = "move";
@@ -1410,8 +1386,7 @@ function ProjectInteractionsSection({
 	});
 
 	// Hide entire section if user lacks the "View Sprints" permission
-	// (anonymous visitors on public projects can always view interactions)
-	if (!canViewSprints && !isAnonymous) return null;
+	if (!canViewSprints) return null;
 
 	const openSprints = sprints
 		.filter((s) => s.status === "active")
@@ -1753,9 +1728,7 @@ export function AppSidebar() {
 	// from core workspace administration.
 	const showPluginsSection = showAdminSection && adminPluginNavItems.length > 0;
 	const isProjectContext = !!projectId;
-	const isAnonymous = !user;
-	// The docs tree is only listed for members who can read docs (anonymous
-	// visitors of a public project always can).
+	// The docs tree is only listed for members who can read docs.
 	const { hasProjectPermission } = useProjectPermissions(projectId ?? "");
 	const canReadDocs =
 		hasPermission("docs:read") || hasProjectPermission("docs:read");
@@ -1810,14 +1783,9 @@ export function AppSidebar() {
 					<>
 						{user && <ProjectNav />}
 						{user && <SidebarSeparator />}
-						<ProjectInteractionsSection
-							projectId={projectId}
-							isAnonymous={isAnonymous}
-						/>
+						<ProjectInteractionsSection projectId={projectId} />
 						<SidebarSeparator />
-						{(canReadDocs || isAnonymous) && (
-							<DocsSidebarSection projectId={projectId} />
-						)}
+						{canReadDocs && <DocsSidebarSection projectId={projectId} />}
 						<SidebarSeparator />
 						<ExtensionPoint
 							point="sidebar.project.section"
@@ -1825,7 +1793,7 @@ export function AppSidebar() {
 						/>
 						<SidebarSeparator />
 						<PluginProjectPages projectId={projectId} />
-						<ProjectNavItems projectId={projectId} isAnonymous={isAnonymous} />
+						<ProjectNavItems projectId={projectId} />
 					</>
 				) : (
 					<>

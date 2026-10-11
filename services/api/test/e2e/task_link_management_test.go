@@ -392,7 +392,7 @@ func TestE2ETaskLinkManagement_Authorization(t *testing.T) {
 	assignPlatformRole(t, env, readonlyUsername, readonlyRoleName)
 
 	writeClient, writeToken := taskMemberLogin(t, env, writeUser, "tasklinkwrite1")
-	seedTaskMemberUser(t, env, readUser, "tasklinkread1")
+	seedUser(t, env, readUser, "tasklinkread1", "Task Link Reader")
 	readClient, readToken := taskMemberLogin(t, env, readUser, "tasklinkread1")
 	readonlyClient, readonlyToken := taskMemberLogin(t, env, readonlyUsername, "readonlypass")
 
@@ -400,6 +400,15 @@ func TestE2ETaskLinkManagement_Authorization(t *testing.T) {
 	projID := createProjectForTasksViaAPI(t, env, writeClient, writeToken)
 	taskID1 := createTaskViaAPI(t, env, writeClient, writeToken, projID, "Task Write 1")
 	taskID2 := createTaskViaAPI(t, env, writeClient, writeToken, projID, "Task Write 2")
+
+	// The read user reads through a project role. A workspace-wide
+	// projects:read opens the project itself, never what is inside it.
+	readerRoleID := createProjectRoleViaAPI(t, env, writeClient, writeToken, projID, "task-reader", "projects:read", "tasks:read")
+	readerUser, err := env.userRepo.FindByUsername(env.ctx, readUser)
+	if err != nil {
+		t.Fatalf("find read user: %v", err)
+	}
+	addMemberViaAPI(t, env, writeClient, writeToken, projID, readerUser.ID.String(), readerRoleID)
 
 	var linkID string
 

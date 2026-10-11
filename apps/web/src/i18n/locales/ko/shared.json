@@ -92,7 +92,6 @@
 			"loadingMore": "불러오는 중…"
 		},
 		"projectCard": {
-			"public": "공개",
 			"noDescription": "설명 없음"
 		},
 		"gettingStarted": {
@@ -152,11 +151,6 @@
 			"descriptionLabel": "설명",
 			"optionalHint": "(선택사항)",
 			"descriptionPlaceholder": "이 프로젝트는 어떤 프로젝트인가요?",
-			"publicProject": {
-				"label": "공개 프로젝트",
-				"publicHint": "링크가 있는 모든 사람이 이 프로젝트를 볼 수 있습니다. 익명 사용자는 읽기 전용 권한을 갖습니다.",
-				"privateHint": "팀 멤버만 이 프로젝트에 접근할 수 있습니다."
-			},
 			"cancel": "취소",
 			"submit": "프로젝트 생성",
 			"errors": {

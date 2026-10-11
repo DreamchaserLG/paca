@@ -96,7 +96,6 @@
 			"loadingMore": "Загрузка…"
 		},
 		"projectCard": {
-			"public": "Публичный",
 			"noDescription": "Без описания"
 		},
 		"gettingStarted": {
@@ -156,11 +155,6 @@
 			"descriptionLabel": "Описание",
 			"optionalHint": "(необязательно)",
 			"descriptionPlaceholder": "О чём этот проект?",
-			"publicProject": {
-				"label": "Публичный проект",
-				"publicHint": "Любой, у кого есть ссылка, сможет просматривать этот проект. Анонимным пользователям доступен только просмотр.",
-				"privateHint": "Доступ есть только у участников команды."
-			},
 			"cancel": "Отмена",
 			"submit": "Создать проект",
 			"errors": {

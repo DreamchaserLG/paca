@@ -144,7 +144,7 @@ In the **Auth** column, actions joined by `+` are all required, and the action a
 | `GET` | `/api/v1/projects/:projectId/exports` | Access token (fresh) + `project:export` | List the project's recent exports, newest first. |
 | `GET` | `/api/v1/projects/:projectId/exports/:exportId` | Access token (fresh) + `project:export` | Get one export's status and file metadata. |
 | `GET` | `/api/v1/projects/:projectId/exports/:exportId/download` | Access token (fresh) + `project:export` | Get a short-lived presigned URL for a completed export's zip. `409 PROJECT_EXPORT_NOT_READY` until it is `completed`; `410 PROJECT_EXPORT_EXPIRED` after the retention window. |
-| `GET` | `/api/v1/projects/:projectId/members` | Access token (fresh) + `project.members:read` (or global `projects:read`); anonymous on a public project | List project members. |
+| `GET` | `/api/v1/projects/:projectId/members` | Access token (fresh) + `project.members:read` | List project members. |
 | `POST` | `/api/v1/projects/:projectId/members` | Access token (fresh) + `project.members:write` | Add a user (`user_id`) or invite a global agent (`agent_id`) to a project with `role_ids` (at least one, else `400 ROLE_REQUIRED`; each role must be one the caller could grant). |
 | `PATCH` | `/api/v1/projects/:projectId/members/:memberId` | Access token (fresh) + `project.members:write` | Update a member's `description`. Roles are changed with `PUT .../roles`. |
 | `DELETE` | `/api/v1/projects/:projectId/members/:memberId` | Access token (fresh) + `project.members:write` | Remove a member from a project. |
@@ -156,40 +156,40 @@ In the **Auth** column, actions joined by `+` are all required, and the action a
 | `GET` | `/api/v1/projects/:projectId/roles/:roleId` | Access token (fresh) + `roles:read` | Get a project role. |
 | `PUT` | `/api/v1/projects/:projectId/roles/:roleId` | Access token (fresh) + `roles:write` | Replace a project role's name, description and policy. |
 | `DELETE` | `/api/v1/projects/:projectId/roles/:roleId` | Access token (fresh) + `roles:write` | Delete a project role. |
-| `GET` | `/api/v1/projects/:projectId/task-types` | Access token (fresh) + `tasks:read` (or global `projects:read`); anonymous on a public project | List task type definitions. System types (`is_system = true`) are included in the response but are marked as non-editable. |
+| `GET` | `/api/v1/projects/:projectId/task-types` | Access token (fresh) + `tasks:read` | List task type definitions. System types (`is_system = true`) are included in the response but are marked as non-editable. |
 | `POST` | `/api/v1/projects/:projectId/task-types` | Access token (fresh) + `project.settings.task_types:write` | Create a task type (e.g. story, bug, chore). Cannot be used to create system types (Epic, Subtask) — returns `400 TASK_TYPE_SYSTEM_TYPE_NOT_ALLOWED`. |
 | `PATCH` | `/api/v1/projects/:projectId/task-types/:typeId` | Access token (fresh) + `project.settings.task_types:write` | Update a task type. Returns `409 TASK_TYPE_IS_SYSTEM` if the target type is a system type. |
 | `DELETE` | `/api/v1/projects/:projectId/task-types/:typeId` | Access token (fresh) + `project.settings.task_types:write` | Delete a task type. Returns `409 TASK_TYPE_IS_SYSTEM` if the target type is a system type, and `409 TASK_TYPE_IS_DEFAULT` if it is the project's default type. |
 | `PUT` | `/api/v1/projects/:projectId/task-types/:typeId/set-default` | Access token (fresh) + `project.settings.task_types:write` | Make a task type the default that new tasks get, clearing the flag on the previous default. |
-| `GET` | `/api/v1/projects/:projectId/task-statuses` | Access token (fresh) + `tasks:read` (or global `projects:read`); anonymous on a public project | List workflow statuses in board order. |
+| `GET` | `/api/v1/projects/:projectId/task-statuses` | Access token (fresh) + `tasks:read` | List workflow statuses in board order. |
 | `POST` | `/api/v1/projects/:projectId/task-statuses` | Access token (fresh) + `project.settings.task_statuses:write` | Create a workflow status. |
 | `PATCH` | `/api/v1/projects/:projectId/task-statuses/:statusId` | Access token (fresh) + `project.settings.task_statuses:write` | Update a workflow status. |
 | `DELETE` | `/api/v1/projects/:projectId/task-statuses/:statusId` | Access token (fresh) + `project.settings.task_statuses:write` | Delete a workflow status. Returns `409 TASK_STATUS_IS_DEFAULT` if it is the project's default status. |
 | `PUT` | `/api/v1/projects/:projectId/task-statuses/:statusId/set-default` | Access token (fresh) + `project.settings.task_statuses:write` | Make a status the default that new tasks start in, clearing the flag on the previous default. |
-| `GET` | `/api/v1/projects/:projectId/sprints` | Access token (fresh) + `sprints:read` (or global `projects:read`); anonymous on a public project | List sprints for a project ordered by creation date. |
+| `GET` | `/api/v1/projects/:projectId/sprints` | Access token (fresh) + `sprints:read` | List sprints for a project ordered by creation date. |
 | `POST` | `/api/v1/projects/:projectId/sprints` | Access token (fresh) + `sprints:write` | Quick-create a sprint with a system-generated default name ("Sprint N"). No request body required. The sprint is created with `status = planned`. |
-| `GET` | `/api/v1/projects/:projectId/sprints/:sprintId` | Access token (fresh) + `sprints:read` (or global `projects:read`); anonymous on a public project | Get sprint details (goal, dates, status). |
+| `GET` | `/api/v1/projects/:projectId/sprints/:sprintId` | Access token (fresh) + `sprints:read` | Get sprint details (goal, dates, status). |
 | `PATCH` | `/api/v1/projects/:projectId/sprints/:sprintId` | Access token (fresh) + `sprints:write` | Update sprint metadata (name, goal, start_date, end_date). Cannot be used to change `status`; use the dedicated lifecycle actions instead. |
 | `DELETE` | `/api/v1/projects/:projectId/sprints/:sprintId` | Access token (fresh) + `sprints:write` | Delete a sprint. Fails with `409 SPRINT_IS_ACTIVE` if the sprint is currently active. |
 | `POST` | `/api/v1/projects/:projectId/sprints/:sprintId/start` | Access token (fresh) + `sprints:write` | Start a planned sprint: set name, goal, start date, and due date, then transition `status` to `active`. Multiple sprints may be active simultaneously. Fails with `409 SPRINT_NOT_PLANNED` if the sprint is not in `planned` state. |
 | `POST` | `/api/v1/projects/:projectId/sprints/:sprintId/complete` | Access token (fresh) + `sprints:write` | Complete an active sprint: transition `status` to `completed` and move all incomplete tasks to the specified sprint (or back to no-sprint if `move_to_sprint_id` is `null`). Fails with `409 SPRINT_NOT_ACTIVE` if the sprint is not in `active` state. |
 | `GET` | `/api/v1/projects/:projectId/views?context=sprint&sprint_id=:sprintId` | Access token (fresh) + `sprints:read` | List saved view configurations. `context` must be `sprint`, `backlog`, or `timeline`; the `sprint` context requires `sprint_id`. |
 | `POST` | `/api/v1/projects/:projectId/views?context=sprint&sprint_id=:sprintId` | Access token (fresh) + `sprints:write` | Create a saved view configuration. `context` must be `sprint`, `backlog`, or `timeline`; the `sprint` context requires `sprint_id`. Sprint creation seeds one Board and one Table view with `column_by = status`, the current sprint selected, and non-system task types. Project creation seeds one backlog Table view with `column_by = sprint` plus one timeline Roadmap view filtered to Epics. |
-| `GET` | `/api/v1/projects/:projectId/views/:viewId` | Access token (fresh) + `views:read` (or global `projects:read`); anonymous on a public project | Get a single view configuration. |
+| `GET` | `/api/v1/projects/:projectId/views/:viewId` | Access token (fresh) + `views:read` | Get a single view configuration. |
 | `PATCH` | `/api/v1/projects/:projectId/views/:viewId` | Access token (fresh) + `views:write` | Update a view's name or config. |
 | `DELETE` | `/api/v1/projects/:projectId/views/:viewId` | Access token (fresh) + `views:write` | Delete a view. Fails with `409 VIEW_IS_LAST_VIEW` if it is the only remaining view. |
 | `PUT` | `/api/v1/projects/:projectId/views/positions?context=sprint&sprint_id=:sprintId` | Access token (fresh) + `sprints:write` | Reorder all views for the given context. `context` must be `sprint` (with `sprint_id`), `backlog`, or `timeline`. Body: `{ "view_ids": ["<uuid>", ...] }` — must include every view ID in the desired tab order. Returns `400 VIEW_REORDER_INVALID` if the list is missing or contains unknown IDs. |
-| `GET` | `/api/v1/projects/:projectId/views/:viewId/task-positions` | Access token (fresh) + `tasks:read` (or global `projects:read`); anonymous on a public project | List manual task ordering positions within a view. |
+| `GET` | `/api/v1/projects/:projectId/views/:viewId/task-positions` | Access token (fresh) + `tasks:read` | List manual task ordering positions within a view. |
 | `PUT` | `/api/v1/projects/:projectId/views/:viewId/task-positions/:taskId` | Access token (fresh) + `tasks:write` | Set or update the manual position of a task within a view. |
 | `PUT` | `/api/v1/projects/:projectId/views/:viewId/task-positions` | Access token (fresh) + `tasks:write` | Bulk-upsert manual positions of multiple tasks within a view. |
-| `GET` | `/api/v1/projects/:projectId/tasks` | Access token (fresh) + `tasks:read` (or global `projects:read`); anonymous on a public project | List tasks through one shared endpoint. Supported filters include `sprint_id`, `sprint_ids`, `status_id`, `status_ids`, `assignee_id`, `assignee_ids`, `task_type_ids`, and `parent_task_id`. `sprint_id=null` is still supported for unscheduled-only backlog queries. Timeline pages should use `task_type_ids` to request Epic tasks, and manual ordering should be read from `/views/:viewId/task-positions`. |
+| `GET` | `/api/v1/projects/:projectId/tasks` | Access token (fresh) + `tasks:read` | List tasks through one shared endpoint. Supported filters include `sprint_id`, `sprint_ids`, `status_id`, `status_ids`, `assignee_id`, `assignee_ids`, `task_type_ids`, and `parent_task_id`. `sprint_id=null` is still supported for unscheduled-only backlog queries. Timeline pages should use `task_type_ids` to request Epic tasks, and manual ordering should be read from `/views/:viewId/task-positions`. |
 | `POST` | `/api/v1/projects/:projectId/tasks` | Access token (fresh) + `tasks:write` | Create a task. |
-| `GET` | `/api/v1/projects/:projectId/tasks/:taskId` | Access token (fresh) + `tasks:read` (or global `projects:read`); anonymous on a public project | Get task detail. |
+| `GET` | `/api/v1/projects/:projectId/tasks/:taskId` | Access token (fresh) + `tasks:read` | Get task detail. |
 | `PATCH` | `/api/v1/projects/:projectId/tasks/:taskId` | Access token (fresh) + `tasks:write` | Update a task. |
 | `DELETE` | `/api/v1/projects/:projectId/tasks/:taskId` | Access token (fresh) + `tasks:write` | Soft-delete a task. |
-| `GET` | `/api/v1/projects/:projectId/custom-fields` | Access token (fresh) + `tasks:read` (or global `projects:read`); anonymous on a public project | List custom field definitions for a project. |
+| `GET` | `/api/v1/projects/:projectId/custom-fields` | Access token (fresh) + `tasks:read` | List custom field definitions for a project. |
 | `POST` | `/api/v1/projects/:projectId/custom-fields` | Access token (fresh) + `project.settings.custom_fields:write` | Create a custom field definition. |
-| `GET` | `/api/v1/projects/:projectId/custom-fields/:fieldId` | Access token (fresh) + `tasks:read` (or global `projects:read`); anonymous on a public project | Get a custom field definition by ID. |
+| `GET` | `/api/v1/projects/:projectId/custom-fields/:fieldId` | Access token (fresh) + `tasks:read` | Get a custom field definition by ID. |
 | `PATCH` | `/api/v1/projects/:projectId/custom-fields/:fieldId` | Access token (fresh) + `project.settings.custom_fields:write` | Update a custom field definition. |
 | `DELETE` | `/api/v1/projects/:projectId/custom-fields/:fieldId` | Access token (fresh) + `project.settings.custom_fields:write` | Delete a custom field definition. |
 | `GET` | `/api/v1/projects/:projectId/github` | Access token (fresh) + `projects:write` | Get the GitHub integration for a project (token presence only — the PAT value is never returned). Returns `404 GITHUB_INTEGRATION_NOT_FOUND` when no integration is configured. |
@@ -1682,7 +1682,7 @@ Sub-resources of tasks that are not yet implemented.
 |---|---|---|
 | `GET` | `/api/v1/projects/:projectId/tasks/:taskId/children` | List child tasks under a parent task. |
 | `POST` | `/api/v1/projects/:projectId/tasks/:taskId/children` | Create a child task under the specified parent task. |
-| `GET` | `/api/v1/projects/:projectId/tasks/:taskId/activities` | Access token (fresh) + `tasks:read` (or global `projects:read`); anonymous on a public project |
+| `GET` | `/api/v1/projects/:projectId/tasks/:taskId/activities` | Access token (fresh) + `tasks:read` |
 | `POST` | `/api/v1/projects/:projectId/tasks/:taskId/activities` | Add a task activity entry such as comment, status change note, or system event. |
 | `GET` | `/api/v1/projects/:projectId/tasks/:taskId/time-logs` | List time logs recorded against a task. |
 | `POST` | `/api/v1/projects/:projectId/tasks/:taskId/time-logs` | Record time spent on a task. |

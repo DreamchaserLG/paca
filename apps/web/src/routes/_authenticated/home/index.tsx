@@ -11,10 +11,8 @@ import {
 	Calendar,
 	FolderKanban,
 	GitMerge,
-	Globe,
 	Layers,
 	Loader2,
-	Lock,
 	Plus,
 	Users,
 	Zap,
@@ -40,7 +38,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ApiErrorCode, getApiErrorCode } from "@/lib/api-error";
@@ -94,7 +91,6 @@ function CreateProjectDialog({
 	const [name, setName] = useState("");
 	const [description, setDescription] = useState("");
 	const [prefix, setPrefix] = useState("");
-	const [isPublic, setIsPublic] = useState(false);
 	const [prefixTouched, setPrefixTouched] = useState(false);
 	const [nameError, setNameError] = useState<string | null>(null);
 	const [prefixError, setPrefixError] = useState<string | null>(null);
@@ -104,7 +100,6 @@ function CreateProjectDialog({
 		setName("");
 		setDescription("");
 		setPrefix("");
-		setIsPublic(false);
 		setPrefixTouched(false);
 		setNameError(null);
 		setPrefixError(null);
@@ -118,7 +113,6 @@ function CreateProjectDialog({
 				name: name.trim(),
 				description: description.trim() || undefined,
 				task_id_prefix: prefix.trim() || undefined,
-				is_public: isPublic,
 			});
 		},
 		onSuccess: async () => {
@@ -266,35 +260,6 @@ function CreateProjectDialog({
 							className="resize-none"
 						/>
 					</div>
-					<div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 px-4 py-3">
-						<div className="flex items-start gap-3">
-							<div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 border border-primary/15">
-								{isPublic ? (
-									<Globe className="size-4 text-primary" />
-								) : (
-									<Lock className="size-4 text-primary" />
-								)}
-							</div>
-							<div>
-								<Label
-									htmlFor="is-public"
-									className="font-medium cursor-pointer"
-								>
-									{t("home.createDialog.publicProject.label")}
-								</Label>
-								<p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-									{isPublic
-										? t("home.createDialog.publicProject.publicHint")
-										: t("home.createDialog.publicProject.privateHint")}
-								</p>
-							</div>
-						</div>
-						<Switch
-							id="is-public"
-							checked={isPublic}
-							onCheckedChange={setIsPublic}
-						/>
-					</div>
 					{error ? (
 						<p className="text-xs text-destructive bg-destructive/10 rounded-lg px-3 py-2">
 							{error}
@@ -361,15 +326,6 @@ function ProjectCard({ project }: { project: Project }) {
 						<p className="font-[Syne] text-sm font-bold truncate leading-snug">
 							{project.name}
 						</p>
-						{project.is_public && (
-							<Badge
-								variant="secondary"
-								className="gap-1 px-1.5 py-0 text-xs font-medium border border-border/60 shrink-0"
-							>
-								<Globe className="size-3" />
-								{t("home.projectCard.public")}
-							</Badge>
-						)}
 					</div>
 					{project.description ? (
 						<p className="mt-0.5 text-xs text-muted-foreground line-clamp-2 leading-relaxed">

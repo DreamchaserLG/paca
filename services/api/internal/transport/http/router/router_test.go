@@ -96,9 +96,6 @@ func (s *stubProjectSvc) ListAccessible(context.Context, uuid.UUID, int, int) ([
 func (s *stubProjectSvc) GetByID(context.Context, uuid.UUID) (*projectdom.Project, error) {
 	return nil, projectdom.ErrNotFound
 }
-func (s *stubProjectSvc) IsProjectPublic(context.Context, uuid.UUID) (bool, error) {
-	return false, nil
-}
 func (s *stubProjectSvc) Create(context.Context, projectdom.CreateProjectInput) (*projectdom.Project, error) {
 	return nil, nil
 }

@@ -10,7 +10,7 @@ Interactive diagram: [https://dbdiagram.io/d/Paca-69c212ae78c6c4bc7a4fc190](http
 |---|---|
 | `000001_init.sql` | Full consolidated baseline schema (v0.1.x): `global_roles`, `users`, `projects` (with `task_id_prefix`), `project_roles`, `project_members`, `task_types`, `task_statuses`, `sprints`, `sprint_views` (with `view_context`), `view_task_positions`, `custom_field_definitions`, `task_counters`, `tasks`, `files`, `task_attachments`, `task_activities`, `doc_folders`, `documents`, `doc_snapshots`, `doc_activities`, `notifications`, `api_keys`, `plugins`, `plugin_extension_settings`, and seed data. |
 | `000002_add_story_points.sql` | Adds `story_points INTEGER` (nullable, >= 0) to `tasks`. |
-| `000003_add_project_is_public.sql` | Adds `is_public BOOLEAN` to `projects` for anonymous read access. |
+| `000003_add_project_is_public.sql` | Adds `is_public BOOLEAN` to `projects` for anonymous read access. Dropped again by `000065_drop_project_is_public.sql`. |
 | `000004_add_plugins.sql` | Adds `plugins` and `plugin_extension_settings` tables for the plugin system. |
 | `000005_migrate_checklists_to_plugin.sql` | Drops legacy `task_checklists` and `task_checklist_items` tables (moved to `com.paca.checklist` plugin). |
 | `000006_add_plugin_view_type.sql` | Extends `sprint_views.view_type` CHECK to allow `'plugin'` as a valid view type. |
@@ -26,6 +26,7 @@ Interactive diagram: [https://dbdiagram.io/d/Paca-69c212ae78c6c4bc7a4fc190](http
 | `000066_relax_legacy_role_columns.sql` | Makes `users.role_id` and `project_members.project_role_id` nullable: new accounts and members get their roles from `role_attachments` only. |
 | `000067_project_role_resources.sql` | Rewrites the policies of project-owned roles so every resource lies inside the owning project (`project/*` becomes `project/<id>`, `*` becomes `project/<id>/*`, outside resources are dropped). |
 | `000068_add_roles_assign.sql` | Changing a member's roles now needs only `roles:assign`. Adds `roles:assign` to every `Allow` statement that grants `project.members:write` (or `project.members:*`) on resources that reach role resources, so existing roles keep that ability. Idempotent; updates `roles.updated_at` only for changed roles. |
+| `000065_drop_project_is_public.sql` | Drops `projects.is_public`. There is no public mode: every project route needs a signed-in caller whose roles allow the action, so the flag (which only let anonymous visitors in) and its data are removed. |
 
 *(Migrations between `000008` and `000017`/`000022`/`000031` that touch other subsystems — tasks, sprints, docs, notifications, etc. — are omitted here; see `services/api/migrations/` for the full, authoritative list.)*
 
@@ -98,7 +99,6 @@ Table projects {
   description text [not null, default: '']
   task_id_prefix varchar [not null, default: '', note: 'Short uppercase alphanumeric tag prepended to task_number to form human-readable task ID, e.g. "PACA" → "PACA-1"']
   settings jsonb [not null, default: '{}']
-  is_public boolean [not null, default: false, note: 'Allows anonymous read access when true']
   created_by uuid [ref: > users.id]
   created_at timestamp
 }

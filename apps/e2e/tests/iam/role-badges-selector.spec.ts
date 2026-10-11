@@ -187,14 +187,17 @@ test.describe("Role badges on the users list", () => {
 		const tooltip = page.locator('[data-slot="tooltip-content"]');
 		await expect(tooltip).toContainText(description);
 
-		// A role without one says so; the default built-in role names its kind.
+		// The default built-in role names its kind and carries the description it
+		// ships with.
 		const userBadge = rowOf(page, plain.username).getByText("USER", {
 			exact: true,
 		});
 		await hoverBadge(page, userBadge);
 		await expect(tooltip).toContainText("Built-in");
 		await expect(tooltip).toContainText("Default");
-		await expect(tooltip).toContainText("No description");
+		await expect(tooltip).toContainText(
+			"The role every new account starts with.",
+		);
 	});
 
 	test("The role filter narrows the list to users holding a role, and Clear filters resets it", async ({

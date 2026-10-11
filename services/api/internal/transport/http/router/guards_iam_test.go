@@ -62,7 +62,6 @@ type iamGateCase struct {
 	grants        []iam.Grant
 	storeErr      error
 	authenticated bool
-	publicProject bool
 	envID         string // defaults to a fresh id
 	want          int
 }
@@ -73,8 +72,7 @@ type iamGateCase struct {
 func runIAMGate(t *testing.T, projectID string, tc iamGateCase, build func(g guards) func(http.Handler) http.Handler) int {
 	t.Helper()
 	g := newGuards(Deps{
-		IAM:                  newTestIAM(&iamUserStore{grants: tc.grants, err: tc.storeErr}),
-		ProjectVisibilitySvc: visibilityFake{public: tc.publicProject},
+		IAM: newTestIAM(&iamUserStore{grants: tc.grants, err: tc.storeErr}),
 	})
 	tokens := jwttoken.New("test-secret", 15*time.Minute, 24*time.Hour)
 	r := chi.NewRouter()
@@ -141,25 +139,38 @@ func TestGuardsIAM_Project(t *testing.T) {
 		{name: "project role grants it", grants: []iam.Grant{projectRole(p, allow([]string{"sprints:write"}, "project/"+p+"/*"))}, authenticated: true, want: http.StatusNoContent},
 		{name: "project role in another project does not", grants: []iam.Grant{projectRole(uuid.NewString(), allow([]string{"sprints:write"}, "project/*"))}, authenticated: true, want: http.StatusForbidden},
 		{name: "no grants", authenticated: true, want: http.StatusForbidden},
-		{name: "anonymous on a public project still needs to log in", publicProject: true, want: http.StatusUnauthorized},
 	}, func(g guards) func(http.Handler) http.Handler { return g.Project(iam.ActionSprintsWrite) })
 }
 
-// ProjectOrPublic: projects:read on the project collection ("project", the
-// global group) or the actions on the project; anonymous callers see public
-// projects only.
-func TestGuardsIAM_ProjectOrPublic(t *testing.T) {
+// ProjectOrWorkspace: projects:read on the project collection ("project", the
+// workspace-wide group) or the actions on the project. Anonymous callers are
+// refused.
+func TestGuardsIAM_ProjectOrWorkspace(t *testing.T) {
 	p := uuid.NewString()
 	runIAMGateCases(t, p, []iamGateCase{
 		{name: "migrated global projects.read", grants: []iam.Grant{platformRole(allow([]string{"projects:read"}, testPlatformRoots...))}, authenticated: true, want: http.StatusNoContent},
 		{name: "global sprints:read alone does not", grants: []iam.Grant{platformRole(allow([]string{"sprints:read"}, testPlatformRoots...))}, authenticated: true, want: http.StatusForbidden},
 		{name: "project role grants it", grants: []iam.Grant{projectRole(p, allow([]string{"sprints:read"}, "project/"+p+"/*"))}, authenticated: true, want: http.StatusNoContent},
 		{name: "project projects:read does not stand in for the collection", grants: []iam.Grant{projectRole(p, allow([]string{"projects:read"}, "project/"+p+"/*"))}, authenticated: true, want: http.StatusForbidden},
-		{name: "anonymous, public project", publicProject: true, want: http.StatusNoContent},
-		{name: "anonymous, private project", want: http.StatusUnauthorized},
-		{name: "logged in with nothing is refused even on a public project", authenticated: true, publicProject: true, want: http.StatusForbidden},
+		{name: "anonymous", want: http.StatusUnauthorized},
 		{name: "authorizer failure is 500", storeErr: errors.New("db down"), authenticated: true, want: http.StatusInternalServerError},
-	}, func(g guards) func(http.Handler) http.Handler { return g.ProjectOrPublic(iam.ActionSprintsRead) })
+	}, func(g guards) func(http.Handler) http.Handler { return g.ProjectOrWorkspace(iam.ActionSprintsRead) })
+}
+
+// A Deny on one task still applies to a holder of the workspace-wide
+// projects:read: reading a task by id is judged on the task alone.
+func TestGuardsIAM_TaskReadIgnoresWorkspaceProjectsRead(t *testing.T) {
+	p := uuid.NewString()
+	runIAMGateCases(t, p, []iamGateCase{
+		{name: "workspace projects:read does not open a task", grants: []iam.Grant{platformRole(allow([]string{"projects:read"}, testPlatformRoots...))}, authenticated: true, want: http.StatusForbidden},
+		{name: "star holder with a Deny on the project's tasks", grants: []iam.Grant{
+			platformRole(allow([]string{"*"}, "*")),
+			platformRole(deny([]string{"tasks:read"}, "project/"+p+"/*")),
+		}, authenticated: true, want: http.StatusForbidden},
+		{name: "star holder otherwise", grants: []iam.Grant{platformRole(allow([]string{"*"}, "*"))}, authenticated: true, want: http.StatusNoContent},
+	}, func(g guards) func(http.Handler) http.Handler {
+		return g.ProjectEntity("environment", "environmentId", resTask, iam.ActionTasksRead)
+	})
 }
 
 // Environment gates authorize against project/P/environment/E, so a

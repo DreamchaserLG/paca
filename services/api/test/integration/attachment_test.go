@@ -286,18 +286,17 @@ func buildAttachmentTestRouter(attachRepo *fakeAttachmentRepo, store *fakeStorag
 	log := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	return router.New(router.Deps{
-		TokenManager:         tm,
-		IAM:                  newIAM(permStore),
-		ProjectVisibilitySvc: projectService,
-		Health:               handler.NewHealthHandler(),
-		Auth:                 handler.NewAuthHandler(authService, testCookieCfg),
-		User:                 handler.NewUserHandler(userService),
-		Project:              handler.NewProjectHandler(projectService, newIAM(permStore)),
-		Task:                 handler.NewTaskHandler(taskService, viewService, active),
-		Sprint:               handler.NewSprintHandler(sprintService, viewService),
-		View:                 handler.NewViewHandler(viewService),
-		Attachment:           handler.NewAttachmentHandler(attachmentService),
-		Log:                  log,
+		TokenManager: tm,
+		IAM:          newIAM(permStore),
+		Health:       handler.NewHealthHandler(),
+		Auth:         handler.NewAuthHandler(authService, testCookieCfg),
+		User:         handler.NewUserHandler(userService),
+		Project:      handler.NewProjectHandler(projectService, newIAM(permStore)),
+		Task:         handler.NewTaskHandler(taskService, viewService, active),
+		Sprint:       handler.NewSprintHandler(sprintService, viewService),
+		View:         handler.NewViewHandler(viewService),
+		Attachment:   handler.NewAttachmentHandler(attachmentService),
+		Log:          log,
 	})
 }
 
@@ -343,11 +342,10 @@ func buildProjectAvatarTestRouter(attachRepo *fakeAttachmentRepo, store *fakeSto
 	log := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	return router.New(router.Deps{
-		TokenManager:         tm,
-		IAM:                  newIAM(permStore),
-		ProjectVisibilitySvc: projectService,
-		Health:               handler.NewHealthHandler(),
-		Auth:                 handler.NewAuthHandler(authService, testCookieCfg),
+		TokenManager: tm,
+		IAM:          newIAM(permStore),
+		Health:       handler.NewHealthHandler(),
+		Auth:         handler.NewAuthHandler(authService, testCookieCfg),
 		Project: handler.NewProjectHandler(projectService, newIAM(permStore),
 			handler.WithProjectAvatarService(attachmentService)),
 		Log: log,

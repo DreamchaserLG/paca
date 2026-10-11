@@ -181,8 +181,8 @@ r.With(require.Environment(iam.ActionEnvironmentsConnect)).Post("/ssh-keys", h.A
 |---|---|
 | `Global(a...)` | each action's platform root (`user/*`, `role/*`, `settings`, ...) |
 | `Project(a...)` | `project/{projectId}` (list and create routes, project-wide settings) |
-| `ProjectOrPublic(a...)` | as `Project`, or `projects:read` on `project`; an *anonymous* caller is admitted when the project is public |
-| `ProjectEntity(kind, idParam, ...)` and `ProjectEntityOrPublic` | `project/{projectId}/<kind>/{id}`: tasks, docs, sprints, views, workflows, annotations, conversations |
+| `ProjectOrWorkspace(a...)` | `GET /projects/{projectId}` only: `projects:read` on `project` (the workspace-wide grant) or the actions on `project/{projectId}` |
+| `ProjectEntity(kind, idParam, ...)` and `TaskByNumber` | `project/{projectId}/<kind>/{id}`: tasks, docs, sprints, views, workflows, annotations, conversations |
 | `Environment(a...)` | `project/{projectId}/environment/{environmentId}` |
 | `AgentUse(a...)` | `project/{projectId}/agent/{agentId}` (chat sessions of an agent) |
 | `ChatEnvironment()`, `SessionEnvironment()` | `environments:read` on the environment a chat will run in |
@@ -252,7 +252,7 @@ Choosing roles for an account or agent is a separate request made once it exists
 
 ## Behaviors worth knowing
 
-- On a public project, an anonymous visitor can read what a logged-in user with no roles on it cannot: `ProjectOrPublic` consults the public flag only for callers who are not authenticated.
+- There are no public projects and no anonymous access to project data: every project route needs a signed-in caller. The workspace-wide `projects:read` on `project` shows the project itself (`GET /projects/{projectId}`, and the project list), never what is inside it: tasks, documents, sprints and the rest are judged on their own resources, so a `Deny` or an `Allow` limited to some children always applies.
 - `GET /projects` decides between "all projects" and "my projects" from the authenticated subject user even for agent-key requests (the shared bot user, seeded `SUPER_ADMIN`), unlike the gates above, which use the agent's own roles.
 - Restricting an agent or environment is no special feature: it is an ordinary `Deny` role (see the guide). Migration 000064 does **not** convert legacy restricted agents/environments: they become open to everyone their roles allow, and an administrator recreates each restriction with a `Deny` role (see the [guide](../guides/roles-and-policies.md#restrict-an-agent) and the [release notes](../releases/2026-10-iam-authorization.md#recreate-your-restrictions)).
 

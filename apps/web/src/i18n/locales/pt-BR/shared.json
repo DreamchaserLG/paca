@@ -92,7 +92,6 @@
 			"loadingMore": "Carregando mais…"
 		},
 		"projectCard": {
-			"public": "Público",
 			"noDescription": "Sem descrição"
 		},
 		"gettingStarted": {
@@ -152,11 +151,6 @@
 			"descriptionLabel": "Descrição",
 			"optionalHint": "(opcional)",
 			"descriptionPlaceholder": "Sobre o que é este projeto?",
-			"publicProject": {
-				"label": "Projeto público",
-				"publicHint": "Qualquer pessoa com o link pode visualizar este projeto. Usuários anônimos têm acesso somente leitura.",
-				"privateHint": "Apenas membros da equipe podem acessar este projeto."
-			},
 			"cancel": "Cancelar",
 			"submit": "Criar projeto",
 			"errors": {

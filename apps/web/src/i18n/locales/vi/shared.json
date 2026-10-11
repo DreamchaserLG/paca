@@ -92,7 +92,6 @@
 			"loadingMore": "Đang tải thêm…"
 		},
 		"projectCard": {
-			"public": "Công khai",
 			"noDescription": "Không có mô tả"
 		},
 		"gettingStarted": {
@@ -152,11 +151,6 @@
 			"descriptionLabel": "Mô tả",
 			"optionalHint": "(tùy chọn)",
 			"descriptionPlaceholder": "Dự án này nói về điều gì?",
-			"publicProject": {
-				"label": "Dự án công khai",
-				"publicHint": "Bất kỳ ai có liên kết đều có thể xem dự án này. Người dùng ẩn danh chỉ có quyền xem.",
-				"privateHint": "Chỉ thành viên đội nhóm mới có thể truy cập dự án này."
-			},
 			"cancel": "Hủy",
 			"submit": "Tạo dự án",
 			"errors": {

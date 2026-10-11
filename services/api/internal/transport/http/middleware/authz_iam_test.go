@@ -253,7 +253,7 @@ func TestResourceResolvers(t *testing.T) {
 	}
 }
 
-func TestRequirePublicProjectOrActions(t *testing.T) {
+func TestRequireAnyActions(t *testing.T) {
 	projectID := uuid.New()
 	userID := uuid.New()
 	user := iam.Principal{Type: "user", ID: userID.String()}
@@ -265,7 +265,6 @@ func TestRequirePublicProjectOrActions(t *testing.T) {
 		name          string
 		grants        []iam.Grant
 		authenticated bool
-		public        bool
 		path          string
 		want          int
 	}{
@@ -273,11 +272,10 @@ func TestRequirePublicProjectOrActions(t *testing.T) {
 		{name: "project role holding the action", authenticated: true, grants: []iam.Grant{projectGrant(projectID.String(), iam.Statement{Effect: iam.EffectAllow, Actions: []string{"tasks:read"}, Resources: []string{p + "/*"}})}, want: http.StatusNoContent},
 		{name: "global tasks:read on platform roots only", authenticated: true, grants: []iam.Grant{platformGrant([]string{"tasks:read"}, []string{"user/*", "role/*", "project"})}, want: http.StatusForbidden},
 		{name: "star holder", authenticated: true, grants: []iam.Grant{platformGrant([]string{"*"}, []string{"*"})}, want: http.StatusNoContent},
-		{name: "nothing held, public project: logged in does not fall back", authenticated: true, public: true, want: http.StatusForbidden},
+		{name: "nothing held", authenticated: true, want: http.StatusForbidden},
 		{name: "global group still admits on malformed project id", authenticated: true, path: "/projects/zzz", grants: []iam.Grant{platformGrant([]string{"projects:read"}, []string{"project"})}, want: http.StatusNoContent},
 		{name: "malformed project id and nothing held", authenticated: true, path: "/projects/zzz", want: http.StatusBadRequest},
-		{name: "anonymous on public project", public: true, want: http.StatusNoContent},
-		{name: "anonymous on private project", want: http.StatusUnauthorized},
+		{name: "anonymous", want: http.StatusUnauthorized},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -286,7 +284,7 @@ func TestRequirePublicProjectOrActions(t *testing.T) {
 			if tc.authenticated {
 				mws = append(mws, asCaller(userID, uuid.Nil))
 			}
-			mws = append(mws, RequirePublicProjectOrActions(publicFake{public: tc.public}, a,
+			mws = append(mws, RequireAnyActions(a,
 				[]ActionCheck{{Action: "projects:read", Resource: StaticResource("project")}},
 				[]ActionCheck{{Action: "tasks:read", Resource: ProjectResource("projectId")}},
 			))
@@ -300,10 +298,6 @@ func TestRequirePublicProjectOrActions(t *testing.T) {
 		})
 	}
 }
-
-type publicFake struct{ public bool }
-
-func (f publicFake) IsProjectPublic(context.Context, uuid.UUID) (bool, error) { return f.public, nil }
 
 func errorCode(t *testing.T, rec *httptest.ResponseRecorder) string {
 	t.Helper()

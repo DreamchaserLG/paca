@@ -24,18 +24,10 @@ func (s *scopedStore) ListGrants(context.Context, iam.Principal) ([]iam.Grant, e
 	return roleGrants(s.global, s.project), nil
 }
 
-// visibilityFake reports every project as public or private.
-type visibilityFake struct{ public bool }
-
-func (v visibilityFake) IsProjectPublic(context.Context, uuid.UUID) (bool, error) {
-	return v.public, nil
-}
-
 type gateCase struct {
 	name          string
 	store         scopedStore
 	authenticated bool
-	publicProject bool
 	want          int
 }
 
@@ -46,8 +38,7 @@ type gateCase struct {
 func runGate(t *testing.T, tc gateCase, build func(g guards) func(http.Handler) http.Handler) int {
 	t.Helper()
 	g := newGuards(Deps{
-		IAM:                  newTestIAM(&tc.store),
-		ProjectVisibilitySvc: visibilityFake{public: tc.publicProject},
+		IAM: newTestIAM(&tc.store),
 	})
 	tokens := jwttoken.New("test-secret", 15*time.Minute, 24*time.Hour)
 	router := chi.NewRouter()
@@ -97,23 +88,33 @@ func TestGuards_Project(t *testing.T) {
 		{name: "the global wildcard does", store: scopedStore{global: []iam.Action{actionAll}}, authenticated: true, want: http.StatusNoContent},
 		{name: "no grants", authenticated: true, want: http.StatusForbidden},
 		{name: "anonymous", want: http.StatusUnauthorized},
-		{name: "anonymous on a public project still needs to log in", publicProject: true, want: http.StatusUnauthorized},
 	}, func(g guards) func(http.Handler) http.Handler {
 		return g.Project(iam.ActionSprintsWrite)
 	})
 }
 
-// ProjectOrPublic admits an authenticated caller who holds the permission in
-// the project or projects.read globally, and an anonymous caller when the
-// project is public. Being logged in does not fall back to the public flag.
-func TestGuards_ProjectOrPublic(t *testing.T) {
+// ProjectOrWorkspace admits an authenticated caller who holds the permission in
+// the project or projects.read globally, and nobody who is not signed in.
+func TestGuards_ProjectOrWorkspace(t *testing.T) {
 	runGateCases(t, []gateCase{
-		{name: "anonymous, public project", publicProject: true, want: http.StatusNoContent},
-		{name: "anonymous, private project", want: http.StatusUnauthorized},
+		{name: "anonymous", want: http.StatusUnauthorized},
 		{name: "global projects.read", store: scopedStore{global: []iam.Action{iam.ActionProjectsRead}}, authenticated: true, want: http.StatusNoContent},
 		{name: "project role grants it", store: scopedStore{project: []iam.Action{iam.ActionSprintsRead}}, authenticated: true, want: http.StatusNoContent},
-		{name: "logged in with nothing is refused even on a public project", authenticated: true, publicProject: true, want: http.StatusForbidden},
+		{name: "logged in with nothing is refused", authenticated: true, want: http.StatusForbidden},
 	}, func(g guards) func(http.Handler) http.Handler {
-		return g.ProjectOrPublic(iam.ActionSprintsRead)
+		return g.ProjectOrWorkspace(iam.ActionSprintsRead)
+	})
+}
+
+// Opening what is inside a project never rides on the workspace-wide
+// projects:read: the same grant that opens the project itself does not open its
+// sprints, so a Deny or an Allow limited to some children always applies.
+func TestGuards_ProjectContentsIgnoreWorkspaceProjectsRead(t *testing.T) {
+	runGateCases(t, []gateCase{
+		{name: "global projects.read does not open the sprints", store: scopedStore{global: []iam.Action{iam.ActionProjectsRead}}, authenticated: true, want: http.StatusForbidden},
+		{name: "project role grants it", store: scopedStore{project: []iam.Action{iam.ActionSprintsRead}}, authenticated: true, want: http.StatusNoContent},
+		{name: "anonymous", want: http.StatusUnauthorized},
+	}, func(g guards) func(http.Handler) http.Handler {
+		return g.Project(iam.ActionSprintsRead)
 	})
 }

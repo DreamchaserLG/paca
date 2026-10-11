@@ -390,7 +390,6 @@ func (h *ProjectHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		Name:         req.Name,
 		Description:  req.Description,
 		TaskIDPrefix: req.TaskIDPrefix,
-		IsPublic:     req.IsPublic,
 		Settings:     req.Settings,
 		CreatedBy:    createdBy,
 	})
@@ -426,7 +425,6 @@ func (h *ProjectHandler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 		Name:         req.Name,
 		Description:  req.Description,
 		TaskIDPrefix: req.TaskIDPrefix,
-		IsPublic:     req.IsPublic,
 		Settings:     req.Settings,
 	})
 	if err != nil {

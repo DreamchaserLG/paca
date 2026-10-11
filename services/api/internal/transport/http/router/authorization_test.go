@@ -1,7 +1,6 @@
 package router
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -14,7 +13,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 
 	"github.com/Paca-AI/api/internal/config"
 	"github.com/Paca-AI/api/internal/platform/authz/iam"
@@ -140,12 +138,6 @@ var openRouteGroups = []struct {
 	},
 }
 
-// privateProjects reports every project as non-public, so anonymous callers
-// can never be admitted through the public-project path.
-type privateProjects struct{}
-
-func (privateProjects) IsProjectPublic(context.Context, uuid.UUID) (bool, error) { return false, nil }
-
 // routeUnderTest is one registered route, rebuilt to run its real middleware
 // chain against a stub endpoint.
 type routeUnderTest struct {
@@ -162,39 +154,38 @@ func (rt routeUnderTest) key() string { return rt.method + " " + rt.pattern }
 // exactly as it does in the real router, so scope resolvers behave the same.
 // Running the real handlers instead is not an option: with no services behind
 // them they panic, some in goroutines of their own.
-func allRoutes(t *testing.T, authorizer *iam.Authorizer, visibility privateProjects) []routeUnderTest {
+func allRoutes(t *testing.T, authorizer *iam.Authorizer) []routeUnderTest {
 	t.Helper()
 
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	router := New(Deps{
-		TokenManager:         jwttoken.New("test-secret", 15*time.Minute, 24*time.Hour),
-		IAM:                  authorizer,
-		ProjectVisibilitySvc: visibility,
-		Health:               handler.NewHealthHandler(),
-		Version:              handler.NewVersionHandler(config.ReleaseConfig{}, nil, log),
-		Auth:                 handler.NewAuthHandler(nil, handler.CookieConfig{}),
-		User:                 handler.NewUserHandler(nil),
-		Role:                 handler.NewRoleHandler(nil),
-		RoleAttachments:      noRoleAttachments{},
-		Project:              handler.NewProjectHandler(nil, authorizer),
-		Task:                 handler.NewTaskHandler(nil, nil, nil),
-		Sprint:               handler.NewSprintHandler(nil, nil),
-		View:                 handler.NewViewHandler(nil),
-		Attachment:           handler.NewAttachmentHandler(nil),
-		Document:             handler.NewDocumentHandler(nil, nil),
-		DocFile:              handler.NewDocFileHandler(nil),
-		Notification:         handler.NewNotificationHandler(nil),
-		APIKey:               handler.NewAPIKeyHandler(nil),
-		Plugin:               handler.NewPluginHandler(nil, nil, nil),
-		Skills:               handler.NewSkillsHandler(nil, ""),
-		Agent:                handler.NewAgentHandler(nil, "", "", ""),
-		Environment:          handler.NewEnvironmentHandler(nil, ""),
-		ProjectExport:        handler.NewProjectExportHandler(nil),
-		Annotation:           handler.NewAnnotationHandler(nil),
-		Conversation:         handler.NewConversationHandler(nil),
-		Automation:           handler.NewAutomationHandler(nil),
-		Settings:             handler.NewSettingsHandler(nil),
-		Log:                  log,
+		TokenManager:    jwttoken.New("test-secret", 15*time.Minute, 24*time.Hour),
+		IAM:             authorizer,
+		Health:          handler.NewHealthHandler(),
+		Version:         handler.NewVersionHandler(config.ReleaseConfig{}, nil, log),
+		Auth:            handler.NewAuthHandler(nil, handler.CookieConfig{}),
+		User:            handler.NewUserHandler(nil),
+		Role:            handler.NewRoleHandler(nil),
+		RoleAttachments: noRoleAttachments{},
+		Project:         handler.NewProjectHandler(nil, authorizer),
+		Task:            handler.NewTaskHandler(nil, nil, nil),
+		Sprint:          handler.NewSprintHandler(nil, nil),
+		View:            handler.NewViewHandler(nil),
+		Attachment:      handler.NewAttachmentHandler(nil),
+		Document:        handler.NewDocumentHandler(nil, nil),
+		DocFile:         handler.NewDocFileHandler(nil),
+		Notification:    handler.NewNotificationHandler(nil),
+		APIKey:          handler.NewAPIKeyHandler(nil),
+		Plugin:          handler.NewPluginHandler(nil, nil, nil),
+		Skills:          handler.NewSkillsHandler(nil, ""),
+		Agent:           handler.NewAgentHandler(nil, "", "", ""),
+		Environment:     handler.NewEnvironmentHandler(nil, ""),
+		ProjectExport:   handler.NewProjectExportHandler(nil),
+		Annotation:      handler.NewAnnotationHandler(nil),
+		Conversation:    handler.NewConversationHandler(nil),
+		Automation:      handler.NewAutomationHandler(nil),
+		Settings:        handler.NewSettingsHandler(nil),
+		Log:             log,
 	})
 	routes, ok := router.(chi.Routes)
 	if !ok {
@@ -247,7 +238,7 @@ func errorCodeOf(rec *httptest.ResponseRecorder) string {
 // registered without a gate therefore fails here, instead of shipping open.
 func TestEveryRouteIsGuarded(t *testing.T) {
 	authorizer := newTestIAM(&staticPermissionStore{}) // holds nothing
-	routes := allRoutes(t, authorizer, privateProjects{})
+	routes := allRoutes(t, authorizer)
 	token := issueAccessTokenForRouterTests(t)
 
 	open := map[string]bool{}
@@ -339,7 +330,7 @@ func TestRoleAssignmentIsSeparatePrivilege(t *testing.T) {
 	for _, grants := range candidates {
 		authorizer := newTestIAM(&scopedStore{global: grants})
 		byKey := map[string]routeUnderTest{}
-		for _, rt := range allRoutes(t, authorizer, privateProjects{}) {
+		for _, rt := range allRoutes(t, authorizer) {
 			byKey[rt.key()] = rt
 		}
 
@@ -402,7 +393,7 @@ func TestSettingTheDefaultRoleIsRoleDefinitionWork(t *testing.T) {
 	for _, tc := range candidates {
 		authorizer := newTestIAM(&scopedStore{global: tc.grants})
 		byKey := map[string]routeUnderTest{}
-		for _, rt := range allRoutes(t, authorizer, privateProjects{}) {
+		for _, rt := range allRoutes(t, authorizer) {
 			byKey[rt.key()] = rt
 		}
 

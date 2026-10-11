@@ -31,7 +31,6 @@ import (
 // resource.
 type guards struct {
 	iam        *iam.Authorizer
-	visibility httpmw.ProjectVisibilityChecker
 	agentEnvs  httpmw.AgentEnvironmentLookup
 	sessionEnv httpmw.SessionEnvironmentLookup
 	// roleAttachments backs the assignment gates (which roles a request adds
@@ -45,7 +44,7 @@ type guards struct {
 
 func newGuards(deps Deps) guards {
 	return guards{
-		iam: deps.IAM, visibility: deps.ProjectVisibilitySvc, agentEnvs: deps.AgentEnvironments,
+		iam: deps.IAM, agentEnvs: deps.AgentEnvironments,
 		sessionEnv: deps.SessionEnvironments, roleAttachments: deps.RoleAttachments, members: deps.MemberPrincipals, taskNumbers: deps.TaskNumbers,
 	}
 }
@@ -131,14 +130,15 @@ func (g guards) Project(actions ...iam.Action) func(http.Handler) http.Handler {
 	return markGate(resProject, g.actions(httpmw.ProjectResource("projectId"), actions))
 }
 
-// ProjectOrPublic gates a read-only project route that can also be served
-// without a project role. An authenticated caller is admitted by being
-// allowed the actions on project/{projectId}, or projects:read on the project
-// collection "project" (the platform-wide projects:read). A caller who is not
-// authenticated is admitted when the project is public; being logged in does
-// not fall back to the public flag.
-func (g guards) ProjectOrPublic(actions ...iam.Action) func(http.Handler) http.Handler {
-	return markGate(resProject, httpmw.RequirePublicProjectOrActions(g.visibility, g.iam,
+// ProjectOrWorkspace gates the one route that shows a project itself
+// (GET /projects/{projectId}). An authenticated caller is admitted by
+// projects:read on the project collection ("project", the workspace-wide
+// grant that also lists every project) or by the actions on
+// project/{projectId}. It exists for that route only: opening a project's
+// contents (tasks, documents, ...) never rides on the workspace-wide grant, so
+// a Deny on a child, or an Allow limited to some children, always applies.
+func (g guards) ProjectOrWorkspace(actions ...iam.Action) func(http.Handler) http.Handler {
+	return markGate(resProject, httpmw.RequireAnyActions(g.iam,
 		[]httpmw.ActionCheck{{Action: iam.ActionProjectsRead, Resource: httpmw.StaticResource("project")}},
 		actionChecks(httpmw.ProjectResource("projectId"), actions),
 	))
@@ -151,17 +151,6 @@ func (g guards) ProjectOrPublic(actions ...iam.Action) func(http.Handler) http.H
 // express. resource is the template reported to the coverage test.
 func (g guards) ProjectEntity(kind, idParam, resource string, actions ...iam.Action) func(http.Handler) http.Handler {
 	return markGate(resource, g.actions(httpmw.ProjectChildResource("projectId", kind, idParam), actions))
-}
-
-// ProjectEntityOrPublic is ProjectEntity for a read-only route that can also
-// be served without a project role (see ProjectOrPublic): the platform-wide
-// projects:read or the actions on the entity admit an authenticated caller,
-// and anyone is admitted to a public project.
-func (g guards) ProjectEntityOrPublic(kind, idParam, resource string, actions ...iam.Action) func(http.Handler) http.Handler {
-	return markGate(resource, httpmw.RequirePublicProjectOrActions(g.visibility, g.iam,
-		[]httpmw.ActionCheck{{Action: iam.ActionProjectsRead, Resource: httpmw.StaticResource("project")}},
-		actionChecks(httpmw.ProjectChildResource("projectId", kind, idParam), actions),
-	))
 }
 
 // TaskCreate authorizes creating a task with the sprint, status, type and
@@ -212,14 +201,11 @@ func (g guards) DocChange() func(http.Handler) http.Handler {
 		httpmw.ProjectChildResource("projectId", "doc", "docId"), httpmw.DocAttrs, false))
 }
 
-// TaskByNumberOrPublic is ProjectEntityOrPublic for the route that addresses a
-// task by its project-scoped number: the number is resolved to the task, which
-// the actions are then authorized on.
-func (g guards) TaskByNumberOrPublic(actions ...iam.Action) func(http.Handler) http.Handler {
-	return markGate(resTask, httpmw.RequirePublicProjectOrActions(g.visibility, g.iam,
-		[]httpmw.ActionCheck{{Action: iam.ActionProjectsRead, Resource: httpmw.StaticResource("project")}},
-		actionChecks(httpmw.TaskByNumberResource(g.taskNumbers, "projectId", "taskNumber"), actions),
-	))
+// TaskByNumber is ProjectEntity for the route that addresses a task by its
+// project-scoped number: the number is resolved to the task, which the actions
+// are then authorized on.
+func (g guards) TaskByNumber(actions ...iam.Action) func(http.Handler) http.Handler {
+	return markGate(resTask, g.actions(httpmw.TaskByNumberResource(g.taskNumbers, "projectId", "taskNumber"), actions))
 }
 
 // Environment requires the actions on one environment:

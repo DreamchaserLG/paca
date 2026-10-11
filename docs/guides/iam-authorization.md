@@ -300,7 +300,7 @@ Upgrading from the old flat-permission model is a breaking release with one-way 
 - **401**: no or invalid credentials.
 - **403 `FORBIDDEN`**: authenticated, but the gate refused. The caller's roles lack a required action on that resource, or a `Deny` matches. A caller with no roles gets 403 on every guarded route. Gates run before the handler, so 403 does not mean the thing exists.
 - **404**: the gate passed and the entity is not there (or is not in that project), for example `ROLE_NOT_FOUND` for a role id from another project.
-- A public project lets *anonymous* visitors read what a signed-in user with no roles on it cannot.
+- There are no public projects: a caller who is not signed in gets 401 on every project route.
 
 ### Common errors
 

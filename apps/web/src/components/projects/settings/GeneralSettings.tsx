@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Globe, Loader2, Lock } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AvatarUpload } from "@/components/shared/avatar-upload";
@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiErrorCode, getApiErrorCode } from "@/lib/api-error";
 import {
@@ -30,7 +29,6 @@ export function GeneralSettings({
 	const [name, setName] = useState(project?.name ?? "");
 	const [description, setDescription] = useState(project?.description ?? "");
 	const [prefix, setPrefix] = useState(project?.task_id_prefix ?? "");
-	const [isPublic, setIsPublic] = useState(project?.is_public ?? false);
 	const [nameError, setNameError] = useState<string | null>(null);
 	const [prefixError, setPrefixError] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
@@ -42,7 +40,6 @@ export function GeneralSettings({
 				name: name.trim(),
 				description: description.trim(),
 				task_id_prefix: prefix.trim() || undefined,
-				is_public: isPublic,
 			}),
 		onSuccess: async (updated) => {
 			await queryClient.invalidateQueries({
@@ -53,7 +50,6 @@ export function GeneralSettings({
 			setName(updated.name);
 			setDescription(updated.description);
 			setPrefix(updated.task_id_prefix);
-			setIsPublic(updated.is_public);
 			setError(null);
 			setNameError(null);
 			setPrefixError(null);
@@ -81,8 +77,7 @@ export function GeneralSettings({
 	const isDirty =
 		name.trim() !== (project?.name ?? "") ||
 		description.trim() !== (project?.description ?? "") ||
-		prefix.trim() !== (project?.task_id_prefix ?? "") ||
-		isPublic !== (project?.is_public ?? false);
+		prefix.trim() !== (project?.task_id_prefix ?? "");
 
 	const initials = getProjectInitials(project?.name ?? "");
 
@@ -200,34 +195,6 @@ export function GeneralSettings({
 						rows={3}
 						disabled={!canEdit}
 						className="resize-none"
-					/>
-				</div>
-
-				<div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 px-4 py-3">
-					<div className="flex items-start gap-3">
-						<div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 border border-primary/15">
-							{isPublic ? (
-								<Globe className="size-4 text-primary" />
-							) : (
-								<Lock className="size-4 text-primary" />
-							)}
-						</div>
-						<div>
-							<Label htmlFor="is-public" className="font-medium cursor-pointer">
-								{t("settings.general.publicProjectLabel")}
-							</Label>
-							<p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-								{isPublic
-									? t("settings.general.publicProjectHintPublic")
-									: t("settings.general.publicProjectHintPrivate")}
-							</p>
-						</div>
-					</div>
-					<Switch
-						id="is-public"
-						checked={isPublic}
-						onCheckedChange={setIsPublic}
-						disabled={!canEdit}
 					/>
 				</div>
 

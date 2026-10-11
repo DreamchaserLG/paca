@@ -22,7 +22,6 @@ type projectRecord struct {
 	Name            string     `db:"name"`
 	Description     string     `db:"description"`
 	TaskIDPrefix    string     `db:"task_id_prefix"`
-	IsPublic        bool       `db:"is_public"`
 	Settings        []byte     `db:"settings"`
 	AvatarKey       *string    `db:"avatar_key"`
 	AvatarThumbKey  *string    `db:"avatar_thumb_key"`
@@ -70,8 +69,8 @@ func NewProjectRepository(db *sqlx.DB) *ProjectRepository {
 	return &ProjectRepository{db: db}
 }
 
-const projectSelectCols = `id, name, description, task_id_prefix, is_public, settings, avatar_key, avatar_thumb_key, created_by, created_at, deleted_at, jev_api_key_secret, jev_base_url, jev_model`
-const projectSelectColsQualified = `projects.id, projects.name, projects.description, projects.task_id_prefix, projects.is_public, projects.settings, projects.avatar_key, projects.avatar_thumb_key, projects.created_by, projects.created_at, projects.deleted_at, projects.jev_api_key_secret, projects.jev_base_url, projects.jev_model`
+const projectSelectCols = `id, name, description, task_id_prefix, settings, avatar_key, avatar_thumb_key, created_by, created_at, deleted_at, jev_api_key_secret, jev_base_url, jev_model`
+const projectSelectColsQualified = `projects.id, projects.name, projects.description, projects.task_id_prefix, projects.settings, projects.avatar_key, projects.avatar_thumb_key, projects.created_by, projects.created_at, projects.deleted_at, projects.jev_api_key_secret, projects.jev_base_url, projects.jev_model`
 
 // --- Projects ---------------------------------------------------------------
 
@@ -166,9 +165,9 @@ func (r *ProjectRepository) Create(ctx context.Context, p *projectdom.Project, s
 	}
 	return WithTx(ctx, r.db, func(tx *sqlx.Tx) error {
 		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO projects (id, name, description, task_id_prefix, is_public, settings, created_by, created_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-			rec.ID, rec.Name, rec.Description, rec.TaskIDPrefix, rec.IsPublic,
+			INSERT INTO projects (id, name, description, task_id_prefix, settings, created_by, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			rec.ID, rec.Name, rec.Description, rec.TaskIDPrefix,
 			rec.Settings, rec.CreatedBy, rec.CreatedAt,
 		); err != nil {
 			if isUniqueViolation(err) {
@@ -229,10 +228,10 @@ func (r *ProjectRepository) Update(ctx context.Context, p *projectdom.Project) e
 	}
 
 	result, err := r.db.ExecContext(ctx, `
-		UPDATE projects SET name=$1, description=$2, task_id_prefix=$3, is_public=$4, settings=$5,
-		  avatar_key=$6, avatar_thumb_key=$7, created_by=$8
-		WHERE id=$9`,
-		p.Name, p.Description, p.TaskIDPrefix, p.IsPublic, settings,
+		UPDATE projects SET name=$1, description=$2, task_id_prefix=$3, settings=$4,
+		  avatar_key=$5, avatar_thumb_key=$6, created_by=$7
+		WHERE id=$8`,
+		p.Name, p.Description, p.TaskIDPrefix, settings,
 		p.AvatarKey, p.AvatarThumbKey, createdBy, p.ID.String(),
 	)
 	if err != nil {
@@ -651,7 +650,6 @@ func toProjectEntity(rec *projectRecord) (*projectdom.Project, error) {
 		Name:            rec.Name,
 		Description:     rec.Description,
 		TaskIDPrefix:    rec.TaskIDPrefix,
-		IsPublic:        rec.IsPublic,
 		Settings:        settings,
 		AvatarKey:       rec.AvatarKey,
 		AvatarThumbKey:  rec.AvatarThumbKey,
@@ -679,7 +677,6 @@ func fromProjectEntity(p *projectdom.Project) (*projectRecord, error) {
 		Name:         p.Name,
 		Description:  p.Description,
 		TaskIDPrefix: p.TaskIDPrefix,
-		IsPublic:     p.IsPublic,
 		Settings:     settings,
 		CreatedBy:    createdBy,
 		CreatedAt:    p.CreatedAt,

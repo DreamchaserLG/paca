@@ -781,18 +781,17 @@ func buildTaskTestRouterWithSprints(taskRepo *fakeTaskRepo, sprintRepo *fakeSpri
 	log := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	return router.New(router.Deps{
-		TokenManager:         tm,
-		IAM:                  newIAM(store),
-		ProjectVisibilitySvc: projectService,
-		TaskNumbers:          taskRepo,
-		Health:               handler.NewHealthHandler(),
-		Auth:                 handler.NewAuthHandler(authService, testCookieCfg),
-		User:                 handler.NewUserHandler(userService),
-		Project:              handler.NewProjectHandler(projectService, newIAM(store)),
-		Task:                 handler.NewTaskHandler(taskService, viewService, activityService),
-		Sprint:               handler.NewSprintHandler(sprintService, viewService),
-		View:                 handler.NewViewHandler(viewService),
-		Log:                  log,
+		TokenManager: tm,
+		IAM:          newIAM(store),
+		TaskNumbers:  taskRepo,
+		Health:       handler.NewHealthHandler(),
+		Auth:         handler.NewAuthHandler(authService, testCookieCfg),
+		User:         handler.NewUserHandler(userService),
+		Project:      handler.NewProjectHandler(projectService, newIAM(store)),
+		Task:         handler.NewTaskHandler(taskService, viewService, activityService),
+		Sprint:       handler.NewSprintHandler(sprintService, viewService),
+		View:         handler.NewViewHandler(viewService),
+		Log:          log,
 	})
 }
 

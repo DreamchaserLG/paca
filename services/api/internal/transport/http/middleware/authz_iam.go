@@ -39,20 +39,15 @@ func RequireActions(a *iam.Authorizer, checks ...ActionCheck) func(http.Handler)
 	}
 }
 
-// RequirePublicProjectOrActions serves a read-only project route that may
-// also be reached without a project role. An authenticated caller must pass
-// every check of at least one group (groups are tried in order; a group whose
-// resource cannot be resolved is skipped, and if no group admits the caller
-// the first such error is returned instead of a plain 403); being logged in
-// does not fall back to the public flag. A caller who is not authenticated is
-// admitted only when the {projectId} project is public (401 otherwise).
-func RequirePublicProjectOrActions(checker ProjectVisibilityChecker, a *iam.Authorizer, groups ...[]ActionCheck) func(http.Handler) http.Handler {
+// RequireAnyActions admits the caller who passes every check of at least one
+// group. Groups are tried in order; a group whose resource cannot be resolved
+// is skipped, and if no group admits the caller the first such error is
+// returned instead of a plain 403. Use it only where two different resources
+// legitimately open the same route; a single-resource route uses
+// RequireActions.
+func RequireAnyActions(a *iam.Authorizer, groups ...[]ActionCheck) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if ClaimsFrom(r) == nil {
-				servePublicProject(w, r, checker, next)
-				return
-			}
 			var firstResolveErr error
 			for _, group := range groups {
 				allowed, err := authorizeAll(r, a, group)

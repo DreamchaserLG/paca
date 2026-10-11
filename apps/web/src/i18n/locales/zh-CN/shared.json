@@ -92,7 +92,6 @@
 			"loadingMore": "正在加载…"
 		},
 		"projectCard": {
-			"public": "公开",
 			"noDescription": "暂无描述"
 		},
 		"gettingStarted": {
@@ -152,11 +151,6 @@
 			"descriptionLabel": "描述",
 			"optionalHint": "（可选）",
 			"descriptionPlaceholder": "这个项目是关于什么的？",
-			"publicProject": {
-				"label": "公开项目",
-				"publicHint": "任何拥有链接的人都可以查看此项目。匿名用户拥有只读权限。",
-				"privateHint": "仅团队成员可以访问此项目。"
-			},
 			"cancel": "取消",
 			"submit": "创建项目",
 			"errors": {

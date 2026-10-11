@@ -2,7 +2,6 @@ package integration_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -38,10 +37,6 @@ type roleAPIEnv struct {
 	tokens *jwttoken.Manager
 }
 
-type publicProjects struct{}
-
-func (publicProjects) IsProjectPublic(context.Context, uuid.UUID) (bool, error) { return false, nil }
-
 func newRoleAPIEnv(t *testing.T) *roleAPIEnv {
 	t.Helper()
 	sqlDB := newMigrationTestDB(t) // skips without PACA_TEST_PG_DSN
@@ -54,13 +49,12 @@ func newRoleAPIEnv(t *testing.T) *roleAPIEnv {
 	svc := rolesvc.New(roleRepo, authz, authz, authz.Registry(), authz.Schema())
 	tokens := jwttoken.New("test-secret", 15*time.Minute, 24*time.Hour)
 	srv := router.New(router.Deps{
-		TokenManager:         tokens,
-		IAM:                  authz,
-		ProjectVisibilitySvc: publicProjects{},
-		Health:               handler.NewHealthHandler(),
-		Role:                 handler.NewRoleHandler(svc),
-		RoleAttachments:      httpmw.NewRoleServiceAttachments(svc),
-		Log:                  slog.New(slog.NewTextHandler(io.Discard, nil)),
+		TokenManager:    tokens,
+		IAM:             authz,
+		Health:          handler.NewHealthHandler(),
+		Role:            handler.NewRoleHandler(svc),
+		RoleAttachments: httpmw.NewRoleServiceAttachments(svc),
+		Log:             slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
 	env := &roleAPIEnv{t: t, db: db, authz: authz, server: srv, tokens: tokens}
 	return env

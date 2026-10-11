@@ -9,7 +9,7 @@ Feature: The edges of the authorization model
 
     Background:
       Given the user already has a stored authenticated admin session
-      And a private project with a task
+      And a project with a task
 
     Scenario: A private project and every workspace route answer 401
       Then reads and writes without credentials answer 401 on projects, admin, roles and permission routes
@@ -17,16 +17,13 @@ Feature: The edges of the authorization model
     Scenario: A malformed or forged token is 401
       Then tokens "garbage", "a.b.c" and an empty one answer 401 on project and admin routes
 
-    Scenario: A public project can be read by anyone, and only read
-      Given the project is made public
-      Then an anonymous caller reads the project, tasks, sprints, docs, members and statuses
-      But creating a task, editing the project, reading its roles, listing projects and admin routes answer 401
-      When the project is made private again
-      Then the anonymous read answers 401
+    Scenario: There is no public mode
+      When a client sends the retired "is_public" flag on a project
+      Then the project does not report it
+      And an anonymous caller still answers 401 on the project, members, statuses, tasks, sprints, docs and views
 
-    Scenario: Being signed in does not fall back to the public flag
-      Given the project is public
-      Then a signed-in user with no role on it answers 403 where an anonymous visitor reads
+    Scenario: A signed-in user with no role on the project is refused
+      Then reading the project and its tasks answers 403
 
     Scenario: A non-UUID project id is a 400
       Then project routes with "not-a-uuid" answer 400 for a signed-in caller
@@ -56,8 +53,12 @@ Feature: The edges of the authorization model
       Then the other project and the admin surface answer 403
 
     Scenario: Deny on a project beats a workspace-wide full-access role
+      Given full access with a Deny of tasks:read and tasks:write on project 2
+      Then project 1 lists tasks, project 2 answers 403 for listing, creating and editing tasks but still opens its sprints
+
+    Scenario: A Deny of tasks:read also stops by-id reads
       Given full access with a Deny of tasks:read on project 2
-      Then project 1 lists tasks, project 2 answers 403 for tasks but still opens its sprints
+      Then opening a task of project 2, with its activities, links and attachments, answers 403
 
   Rule: The built-in ADMIN role runs the workspace but not the roles
 
@@ -70,8 +71,8 @@ Feature: The edges of the authorization model
       But creating or editing a role, assigning SUPER_ADMIN and changing the default role answer 403
 
     Scenario: ADMIN reads every project but holds no role inside one
-      Then it lists a project it is not a member of
-      But creating a task or a sprint there answers 403
+      Then it lists and opens a project it is not a member of
+      But listing or opening its tasks, and creating a task or a sprint there, answer 403
 
   Rule: Access ends when the membership or the account does
 

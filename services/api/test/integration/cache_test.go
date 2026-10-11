@@ -63,15 +63,14 @@ func buildCachedTaskRouter(t *testing.T, taskRepo *fakeTaskRepo, store *projectP
 	log := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	r := router.New(router.Deps{
-		TokenManager:         tm,
-		IAM:                  newIAM(store),
-		ProjectVisibilitySvc: projectService,
-		Health:               handler.NewHealthHandler(),
-		Auth:                 handler.NewAuthHandler(authService, testCookieCfg),
-		User:                 handler.NewUserHandler(userService),
-		Project:              handler.NewProjectHandler(projectService, newIAM(store)),
-		Task:                 handler.NewTaskHandler(cachedTaskSvc, viewService, activityService),
-		Log:                  log,
+		TokenManager: tm,
+		IAM:          newIAM(store),
+		Health:       handler.NewHealthHandler(),
+		Auth:         handler.NewAuthHandler(authService, testCookieCfg),
+		User:         handler.NewUserHandler(userService),
+		Project:      handler.NewProjectHandler(projectService, newIAM(store)),
+		Task:         handler.NewTaskHandler(cachedTaskSvc, viewService, activityService),
+		Log:          log,
 	})
 	return r, cacheStore
 }

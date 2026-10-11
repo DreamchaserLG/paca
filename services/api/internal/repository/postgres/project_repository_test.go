@@ -26,7 +26,6 @@ func openProjectRepoTestDB(t *testing.T) *sqlx.DB {
 			name         TEXT    NOT NULL,
 			description  TEXT    NOT NULL DEFAULT '',
 			task_id_prefix TEXT  NOT NULL DEFAULT '',
-			is_public    INTEGER NOT NULL DEFAULT 0,
 			settings     BLOB    NOT NULL DEFAULT '{}',
 			avatar_key TEXT,
 			avatar_thumb_key TEXT,
@@ -50,7 +49,6 @@ func testProject(id uuid.UUID, prefix string) *projectdom.Project {
 		Name:         "Test Project " + prefix,
 		Description:  "test description",
 		TaskIDPrefix: prefix,
-		IsPublic:     false,
 		Settings:     map[string]any{},
 		CreatedAt:    now,
 	}

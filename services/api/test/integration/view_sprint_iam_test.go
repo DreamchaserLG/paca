@@ -37,14 +37,13 @@ func newViewAPIEnv(t *testing.T) *roleAPIEnv {
 	viewSvc := sprintsvc.NewViewService(pgRepo.NewViewRepository(db), pgRepo.NewSprintRepository(db), nil, nil)
 	tokens := jwttoken.New("test-secret", 15*time.Minute, 24*time.Hour)
 	srv := router.New(router.Deps{
-		TokenManager:         tokens,
-		IAM:                  authz,
-		ProjectVisibilitySvc: publicProjects{},
-		Role:                 handler.NewRoleHandler(roleSvc),
-		RoleAttachments:      httpmw.NewRoleServiceAttachments(roleSvc),
-		View:                 handler.NewViewHandler(viewSvc).WithViewListScoper(authz),
-		Health:               handler.NewHealthHandler(),
-		Log:                  slog.New(slog.NewTextHandler(io.Discard, nil)),
+		TokenManager:    tokens,
+		IAM:             authz,
+		Role:            handler.NewRoleHandler(roleSvc),
+		RoleAttachments: httpmw.NewRoleServiceAttachments(roleSvc),
+		View:            handler.NewViewHandler(viewSvc).WithViewListScoper(authz),
+		Health:          handler.NewHealthHandler(),
+		Log:             slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
 	return &roleAPIEnv{t: t, db: db, authz: authz, server: srv, tokens: tokens}
 }

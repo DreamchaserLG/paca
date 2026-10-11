@@ -32,9 +32,7 @@ import {
 import {
 	allow,
 	asUser,
-	createDoc,
 	createMember,
-	createSprint,
 	createTask,
 	dataOf,
 	deny,
@@ -72,18 +70,6 @@ async function anonymous<T>(
 	}
 }
 
-async function setPublic(
-	request: APIRequestContext,
-	projectId: string,
-	projectName: string,
-	isPublic: boolean,
-): Promise<void> {
-	const response = await request.patch(`${API_URL}/projects/${projectId}`, {
-		data: { name: projectName, is_public: isPublic },
-	});
-	expect(response.ok(), await response.text()).toBeTruthy();
-}
-
 const taskUrl = (projectId: string, taskId: string) =>
 	`${API_URL}/projects/${projectId}/tasks/${taskId}`;
 
@@ -108,7 +94,7 @@ async function userWithWorkspaceRole(
 test.describe("Callers who are not signed in", () => {
 	let projectId: string;
 	let taskId: string;
-	const projectName = name("PUBLIC");
+	const projectName = name("PRIVATE");
 
 	test.beforeEach(async ({ request, context }) => {
 		await authRequest(request);
@@ -187,92 +173,45 @@ test.describe("Callers who are not signed in", () => {
 		}
 	});
 
-	test("A public project can be read by anyone, and only read", async ({
+	test("There is no public mode: nothing a project says opens it to visitors", async ({
 		request,
 		playwright,
 	}) => {
-		await setPublic(request, projectId, projectName, true);
+		// A client that still sends the retired is_public flag gets no public
+		// project out of it: the flag is not part of a project any more.
+		const patched = await request.patch(`${API_URL}/projects/${projectId}`, {
+			data: { name: projectName, is_public: true },
+		});
+		expect(patched.status()).toBeLessThan(500);
+		const project = await dataOf<Record<string, unknown>>(
+			await request.get(`${API_URL}/projects/${projectId}`),
+		);
+		expect(project).not.toHaveProperty("is_public");
 
 		await anonymous(playwright, async (api) => {
 			for (const path of [
-				`/projects/${projectId}`,
-				`/projects/${projectId}/members`,
-				`/projects/${projectId}/task-statuses`,
-				`/projects/${projectId}/tasks/${taskId}`,
-				`/projects/${projectId}/tasks/${taskId}/activities`,
+				"",
+				"/members",
+				"/task-statuses",
+				"/tasks",
+				`/tasks/${taskId}`,
+				`/tasks/${taskId}/activities`,
+				"/sprints",
+				"/docs",
+				"/views",
 			]) {
 				expect(
-					(await api.get(`${API_URL}${path}`)).status(),
-					`GET ${path}`,
-				).toBe(200);
+					(await api.get(`${API_URL}/projects/${projectId}${path}`)).status(),
+					`GET /projects/:id${path}`,
+				).toBe(401);
 			}
-
-			// Reading is all the flag opens: no write, and nothing outside the
-			// public read routes.
-			expect(
-				(
-					await api.post(`${API_URL}/projects/${projectId}/tasks`, {
-						data: { title: "Vandalism" },
-					})
-				).status(),
-			).toBe(401);
-			expect(
-				(
-					await api.patch(`${API_URL}/projects/${projectId}`, {
-						data: { name: "Hijacked" },
-					})
-				).status(),
-			).toBe(401);
-			expect(
-				(await api.get(`${API_URL}/projects/${projectId}/roles`)).status(),
-			).toBe(401);
-			expect((await api.get(`${API_URL}/projects`)).status()).toBe(401);
-			expect((await api.get(`${API_URL}/admin/users`)).status()).toBe(401);
-		});
-
-		// Switching the flag off closes it again, on the next request.
-		await setPublic(request, projectId, projectName, false);
-		await anonymous(playwright, async (api) => {
-			expect(
-				(await api.get(`${API_URL}/projects/${projectId}/tasks`)).status(),
-			).toBe(401);
 		});
 	});
 
-	// KNOWN GAP: the gate admits an anonymous visitor to the list routes of a
-	// public project, then the handler asks for the caller's list scope
-	// (handler.scopedContext -> middleware.IAMPrincipalFrom), which refuses an
-	// anonymous caller with 401. Only the project, its members, the task
-	// statuses and by-id reads work without signing in. Remove the fixme once
-	// anonymous callers get a scope that reads what the public flag opens.
-	test.fixme("An anonymous visitor lists the tasks, sprints, docs and views of a public project", async ({
+	test("A signed-in user with no role on the project is refused", async ({
 		request,
 		playwright,
 	}) => {
-		await createSprint(request, projectId, name("S"));
-		await createDoc(request, projectId, "Public doc");
-		await setPublic(request, projectId, projectName, true);
-		await anonymous(playwright, async (api) => {
-			for (const path of ["tasks", "sprints", "docs", "views"]) {
-				expect(
-					(await api.get(`${API_URL}/projects/${projectId}/${path}`)).status(),
-					`GET /projects/:id/${path}`,
-				).toBe(200);
-			}
-			const page = await dataOf<{ items: Array<{ title: string }> }>(
-				await api.get(`${API_URL}/projects/${projectId}/tasks`),
-			);
-			expect(page.items.map((t) => t.title)).toContain("Public task");
-		});
-	});
-
-	test("Being signed in does not fall back to the public flag", async ({
-		request,
-		playwright,
-	}) => {
-		await setPublic(request, projectId, projectName, true);
-		// A signed-in user with no role on the project is judged by their roles,
-		// not by the flag an anonymous visitor benefits from.
 		const stranger = await userWithWorkspaceRole(
 			request,
 			playwright,
@@ -513,9 +452,8 @@ test.describe("Workspace grants do not reach into projects", () => {
 		await asUser(playwright, username, async (api) => {
 			expect((await listTasks(api, projectId)).status).toBe(200);
 			expect((await listTasks(api, projectId)).total).toBe(1);
-			// The denied project lists nothing and takes no task, ...
-			const denied = await listTasks(api, otherProjectId);
-			expect(denied.titles).toEqual([]);
+			// The denied project lists no task and takes none, ...
+			expect((await listTasks(api, otherProjectId)).status).toBe(403);
 			expect(
 				(
 					await api.post(`${API_URL}/projects/${otherProjectId}/tasks`, {
@@ -539,15 +477,10 @@ test.describe("Workspace grants do not reach into projects", () => {
 		});
 	});
 
-	// KNOWN GAP: the read-only gates that also admit "projects:read on the project
-	// collection" (ProjectOrPublic / ProjectEntityOrPublic, router.go) let any
-	// holder of workspace-wide projects:read (the built-in ADMIN, or "*" on "*")
-	// open a task, its activities, links and attachments by id even though a Deny
-	// of tasks:read names that project: the first group of the gate passes before
-	// the entity is ever judged, while the same user's task list is empty. A Deny
-	// on the entity, and an Allow limited to some tasks, are not honoured by these
-	// by-id reads. Remove the fixme once they are.
-	test.fixme("A Deny of tasks:read also stops by-id reads for a workspace-wide projects:read holder", async ({
+	// Reading what is inside a project never rides on the workspace-wide
+	// projects:read: a Deny of tasks:read on the project also stops a task being
+	// opened by id, with its activities, links and attachments.
+	test("A Deny of tasks:read also stops by-id reads for a holder of full access", async ({
 		request,
 		playwright,
 	}) => {
@@ -662,6 +595,7 @@ test.describe("The built-in ADMIN role runs the workspace but not the roles", ()
 		playwright,
 	}) => {
 		const projectId = await createProject(request, name("ADMINPROJECT"));
+		const taskId = await createTask(request, projectId, "Not for ADMIN");
 		const username = await userWithWorkspaceRole(
 			request,
 			playwright,
@@ -673,6 +607,17 @@ test.describe("The built-in ADMIN role runs the workspace but not the roles", ()
 				await api.get(`${API_URL}/projects`),
 			);
 			expect(list.items.map((p) => p.id)).toContain(projectId);
+			// It opens the project itself, but nothing inside it: lists and
+			// by-id reads of the project's content answer 403 alike.
+			expect((await api.get(`${API_URL}/projects/${projectId}`)).status()).toBe(
+				200,
+			);
+			expect((await listTasks(api, projectId)).status).toBe(403);
+			expect(
+				(
+					await api.get(`${API_URL}/projects/${projectId}/tasks/${taskId}`)
+				).status(),
+			).toBe(403);
 			// Writing inside a project is not something projects:* on the project
 			// collection grants.
 			expect(

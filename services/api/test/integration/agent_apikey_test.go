@@ -91,18 +91,17 @@ func buildAgentKeyRouterWithBotID(taskRepo *fakeTaskRepo, apiKeyRepo *fakeAPIKey
 	log := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	return router.New(router.Deps{
-		TokenManager:         tm,
-		APIKeyAuth:           apiKeyService,
-		IAM:                  authorizer,
-		ProjectVisibilitySvc: projectService,
-		Health:               handler.NewHealthHandler(),
-		Auth:                 handler.NewAuthHandler(authService, testCookieCfg),
-		User:                 handler.NewUserHandler(userService),
-		Project:              handler.NewProjectHandler(projectService, authorizer),
-		Task:                 handler.NewTaskHandler(taskService, viewService, activityService),
-		Sprint:               handler.NewSprintHandler(sprintService, viewService),
-		View:                 handler.NewViewHandler(viewService),
-		Log:                  log,
+		TokenManager: tm,
+		APIKeyAuth:   apiKeyService,
+		IAM:          authorizer,
+		Health:       handler.NewHealthHandler(),
+		Auth:         handler.NewAuthHandler(authService, testCookieCfg),
+		User:         handler.NewUserHandler(userService),
+		Project:      handler.NewProjectHandler(projectService, authorizer),
+		Task:         handler.NewTaskHandler(taskService, viewService, activityService),
+		Sprint:       handler.NewSprintHandler(sprintService, viewService),
+		View:         handler.NewViewHandler(viewService),
+		Log:          log,
 	})
 }
 
@@ -859,7 +858,7 @@ func TestAgentAPIKey_CommentWorkflow(t *testing.T) {
 // Agent ID Header Validation Tests
 // ---------------------------------------------------------------------------
 
-func TestAgentAPIKey_InvalidAgentIDHeaderIgnored(t *testing.T) {
+func TestAgentAPIKey_InvalidAgentIDHeaderRejected(t *testing.T) {
 	taskRepo := newFakeTaskRepoIT()
 	apiKeyRepo := newFakeAPIKeyRepo()
 	projectID := uuid.New()
@@ -884,9 +883,10 @@ func TestAgentAPIKey_InvalidAgentIDHeaderIgnored(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 
 	w := serve(r, req)
-	// Should succeed but agent ID should be ignored (set to uuid.Nil)
-	if w.Code != http.StatusCreated {
-		t.Fatalf("expected 201 with invalid agent ID (header ignored), got %d: %s", w.Code, w.Body.String())
+	// A claimed agent identity that cannot be verified is refused like on every
+	// other authenticated route; it is never silently dropped.
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 with invalid agent ID, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
@@ -1232,18 +1232,17 @@ func buildAgentMCPKeyRouter(taskRepo *fakeTaskRepo, apiKeyRepo *fakeAPIKeyRepo, 
 	log := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	return router.New(router.Deps{
-		TokenManager:         tm,
-		APIKeyAuth:           apiKeyService,
-		IAM:                  authorizer,
-		ProjectVisibilitySvc: projectService,
-		Health:               handler.NewHealthHandler(),
-		Auth:                 handler.NewAuthHandler(authService, testCookieCfg),
-		User:                 handler.NewUserHandler(userService),
-		Project:              handler.NewProjectHandler(projectService, authorizer),
-		Task:                 handler.NewTaskHandler(taskService, viewService, activityService),
-		Sprint:               handler.NewSprintHandler(sprintService, viewService),
-		View:                 handler.NewViewHandler(viewService),
-		Log:                  log,
+		TokenManager: tm,
+		APIKeyAuth:   apiKeyService,
+		IAM:          authorizer,
+		Health:       handler.NewHealthHandler(),
+		Auth:         handler.NewAuthHandler(authService, testCookieCfg),
+		User:         handler.NewUserHandler(userService),
+		Project:      handler.NewProjectHandler(projectService, authorizer),
+		Task:         handler.NewTaskHandler(taskService, viewService, activityService),
+		Sprint:       handler.NewSprintHandler(sprintService, viewService),
+		View:         handler.NewViewHandler(viewService),
+		Log:          log,
 	})
 }
 

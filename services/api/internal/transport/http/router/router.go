@@ -24,12 +24,11 @@ type Deps struct {
 	TokenManager *jwttoken.Manager
 	APIKeyAuth   httpmw.APIKeyAuthenticator
 	// IAM decides every route gate (see guards).
-	IAM                  *iam.Authorizer
-	ProjectVisibilitySvc httpmw.ProjectVisibilityChecker
-	Health               *handler.HealthHandler
-	Version              *handler.VersionHandler
-	Auth                 *handler.AuthHandler
-	User                 *handler.UserHandler
+	IAM     *iam.Authorizer
+	Health  *handler.HealthHandler
+	Version *handler.VersionHandler
+	Auth    *handler.AuthHandler
+	User    *handler.UserHandler
 	// Role serves the IAM roles and attachments API; RoleAttachments backs the
 	// assignment gates (which roles a request adds and removes). Both are
 	// optional: without Role the API is not mounted.
@@ -424,12 +423,12 @@ func New(deps Deps) http.Handler {
 				})
 			}
 
-			// Single-project routes — optional auth for public project support
+			// Single-project routes.
 			r.Route("/projects/{projectId}", func(r chi.Router) {
-				r.Use(httpmw.OptionalAuthn(deps.TokenManager, deps.APIKeyAuth))
+				r.Use(httpmw.Authn(deps.TokenManager, deps.APIKeyAuth))
 				r.Use(httpmw.RequireFreshPassword())
 
-				r.With(require.ProjectOrPublic(iam.ActionProjectsRead)).Get("/", deps.Project.GetProject)
+				r.With(require.ProjectOrWorkspace(iam.ActionProjectsRead)).Get("/", deps.Project.GetProject)
 				r.With(require.Project(iam.ActionProjectsWrite)).Patch("/", deps.Project.UpdateProject)
 				r.With(require.Project(iam.ActionProjectsDelete)).Delete("/", deps.Project.DeleteProject)
 				r.With(require.Project(iam.ActionProjectsWrite)).Patch("/jev-config", deps.Project.UpdateJevConfig)
@@ -456,7 +455,7 @@ func New(deps Deps) http.Handler {
 
 				// Members
 				r.Route("/members", func(r chi.Router) {
-					r.With(require.ProjectOrPublic(iam.ActionProjectMembersRead)).Get("/", deps.Project.ListMembers)
+					r.With(require.Project(iam.ActionProjectMembersRead)).Get("/", deps.Project.ListMembers)
 					// role_ids names the roles the new member (or invited agent) is
 					// given: the caller needs roles:assign on each one inside this project.
 					r.With(require.Project(iam.ActionProjectMembersWrite), require.AssignNewProjectPrincipalRoles()).Post("/", deps.Project.AddMember)
@@ -507,7 +506,7 @@ func New(deps Deps) http.Handler {
 				// types exist that isn't already crossed by seeing the tasks
 				// that use them.
 				r.Route("/task-types", func(r chi.Router) {
-					r.With(require.ProjectOrPublic(iam.ActionTasksRead)).Get("/", deps.Task.ListTaskTypes)
+					r.With(require.Project(iam.ActionTasksRead)).Get("/", deps.Task.ListTaskTypes)
 					r.With(require.Project(iam.ActionProjectSettingsTaskTypesWrite)).Post("/", deps.Task.CreateTaskType)
 					r.With(require.Project(iam.ActionProjectSettingsTaskTypesWrite)).Patch("/{typeId}", deps.Task.UpdateTaskType)
 					r.With(require.Project(iam.ActionProjectSettingsTaskTypesWrite)).Delete("/{typeId}", deps.Task.DeleteTaskType)
@@ -523,7 +522,7 @@ func New(deps Deps) http.Handler {
 				// on tasks:write — that's editing a task, not the status
 				// list.
 				r.Route("/task-statuses", func(r chi.Router) {
-					r.With(require.ProjectOrPublic(iam.ActionTasksRead)).Get("/", deps.Task.ListTaskStatuses)
+					r.With(require.Project(iam.ActionTasksRead)).Get("/", deps.Task.ListTaskStatuses)
 					r.With(require.Project(iam.ActionProjectSettingsTaskStatusesWrite)).Post("/", deps.Task.CreateTaskStatus)
 					// Static /positions must be registered before /{statusId}.
 					r.With(require.Project(iam.ActionProjectSettingsTaskStatusesWrite)).Put("/positions", deps.Task.ReorderTaskStatuses)
@@ -563,9 +562,9 @@ func New(deps Deps) http.Handler {
 
 				// Sprints
 				r.Route("/sprints", func(r chi.Router) {
-					r.With(require.ProjectOrPublic(iam.ActionSprintsRead)).Get("/", deps.Sprint.ListSprints)
+					r.With(require.Project(iam.ActionSprintsRead)).Get("/", deps.Sprint.ListSprints)
 					r.With(require.Project(iam.ActionSprintsWrite)).Post("/", deps.Sprint.CreateSprint)
-					r.With(require.ProjectEntityOrPublic("sprint", "sprintId", resSprint, iam.ActionSprintsRead)).Get("/{sprintId}", deps.Sprint.GetSprint)
+					r.With(require.ProjectEntity("sprint", "sprintId", resSprint, iam.ActionSprintsRead)).Get("/{sprintId}", deps.Sprint.GetSprint)
 					r.With(require.ProjectEntity("sprint", "sprintId", resSprint, iam.ActionSprintsWrite)).Patch("/{sprintId}", deps.Sprint.UpdateSprint)
 					r.With(require.ProjectEntity("sprint", "sprintId", resSprint, iam.ActionSprintsWrite)).Delete("/{sprintId}", deps.Sprint.DeleteSprint)
 					r.With(require.ProjectEntity("sprint", "sprintId", resSprint, iam.ActionSprintsWrite)).Post("/{sprintId}/complete", deps.Sprint.CompleteSprint)
@@ -576,11 +575,11 @@ func New(deps Deps) http.Handler {
 				// permission for the view resource itself before). Moving a
 				// *task* within a view (below) stays on tasks.*.
 				r.Route("/views", func(r chi.Router) {
-					r.With(require.ProjectOrPublic(iam.ActionViewsRead)).Get("/", deps.View.ListViews)
+					r.With(require.Project(iam.ActionViewsRead)).Get("/", deps.View.ListViews)
 					r.With(require.Project(iam.ActionViewsWrite), require.ViewCreate()).Post("/", deps.View.CreateView)
 					// Static /positions must be registered before /{viewId}.
 					r.With(require.Project(iam.ActionViewsWrite), require.ViewReorderItems()).Put("/positions", deps.View.ReorderViews)
-					r.With(require.ProjectEntityOrPublic("view", "viewId", resView, iam.ActionViewsRead)).Get("/{viewId}", deps.View.GetView)
+					r.With(require.ProjectEntity("view", "viewId", resView, iam.ActionViewsRead)).Get("/{viewId}", deps.View.GetView)
 					r.With(require.ProjectEntity("view", "viewId", resView, iam.ActionViewsWrite)).Patch("/{viewId}", deps.View.UpdateView)
 					// Personal (per-user) view config: only needs read access to
 					// the view — a viewer may sort/filter their own view without
@@ -590,17 +589,17 @@ func New(deps Deps) http.Handler {
 					// than setting one.
 					r.With(require.ProjectEntity("view", "viewId", resView, iam.ActionViewsRead)).Delete("/{viewId}/config", deps.View.ClearMyViewConfig)
 					r.With(require.ProjectEntity("view", "viewId", resView, iam.ActionViewsWrite)).Delete("/{viewId}", deps.View.DeleteView)
-					r.With(require.ProjectOrPublic(iam.ActionTasksRead)).Get("/{viewId}/task-positions", deps.View.ListTaskPositions)
+					r.With(require.Project(iam.ActionTasksRead)).Get("/{viewId}/task-positions", deps.View.ListTaskPositions)
 					r.With(require.Project(iam.ActionTasksWrite), require.TaskPositionItems()).Put("/{viewId}/task-positions", deps.View.BulkMoveTasks)
 					r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksWrite)).Put("/{viewId}/task-positions/{taskId}", deps.View.MoveTask)
 				})
 
 				// Tasks
 				r.Route("/tasks", func(r chi.Router) {
-					r.With(require.ProjectOrPublic(iam.ActionTasksRead)).Get("/", deps.Task.ListTasks)
+					r.With(require.Project(iam.ActionTasksRead)).Get("/", deps.Task.ListTasks)
 					r.With(require.Project(iam.ActionTasksWrite), require.TaskCreate()).Post("/", deps.Task.CreateTask)
-					r.With(require.TaskByNumberOrPublic(iam.ActionTasksRead)).Get("/by-number/{taskNumber}", deps.Task.GetTaskByNumber)
-					r.With(require.ProjectEntityOrPublic("task", "taskId", resTask, iam.ActionTasksRead)).Get("/{taskId}", deps.Task.GetTask)
+					r.With(require.TaskByNumber(iam.ActionTasksRead)).Get("/by-number/{taskNumber}", deps.Task.GetTaskByNumber)
+					r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksRead)).Get("/{taskId}", deps.Task.GetTask)
 					r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksWrite), require.TaskChange()).Patch("/{taskId}", deps.Task.UpdateTask)
 					r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksWrite)).Delete("/{taskId}", deps.Task.DeleteTask)
 
@@ -610,7 +609,7 @@ func New(deps Deps) http.Handler {
 
 					// Activities
 					r.Route("/{taskId}/activities", func(r chi.Router) {
-						r.With(require.ProjectEntityOrPublic("task", "taskId", resTask, iam.ActionTasksRead)).Get("/", deps.Task.ListTaskActivities)
+						r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksRead)).Get("/", deps.Task.ListTaskActivities)
 						r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksWrite)).Post("/comments", deps.Task.AddComment)
 						r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksWrite)).Patch("/comments/{commentId}", deps.Task.UpdateComment)
 						r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksWrite)).Delete("/comments/{commentId}", deps.Task.DeleteComment)
@@ -618,18 +617,18 @@ func New(deps Deps) http.Handler {
 
 					// Links
 					r.Route("/{taskId}/links", func(r chi.Router) {
-						r.With(require.ProjectEntityOrPublic("task", "taskId", resTask, iam.ActionTasksRead)).Get("/", deps.Task.ListTaskLinks)
+						r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksRead)).Get("/", deps.Task.ListTaskLinks)
 						r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksWrite)).Post("/", deps.Task.CreateTaskLink)
 						r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksWrite)).Delete("/{linkId}", deps.Task.DeleteTaskLink)
 					})
 
 					// Attachments
 					r.Route("/{taskId}/attachments", func(r chi.Router) {
-						r.With(require.ProjectEntityOrPublic("task", "taskId", resTask, iam.ActionTasksRead)).Get("/", deps.Attachment.ListTaskAttachments)
+						r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksRead)).Get("/", deps.Attachment.ListTaskAttachments)
 						r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksWrite)).Post("/initiate-upload", deps.Attachment.InitiateUpload)
 						r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksWrite)).Post("/complete-upload", deps.Attachment.CompleteUpload)
-						r.With(require.ProjectEntityOrPublic("task", "taskId", resTask, iam.ActionTasksRead)).Get("/{attachmentId}/download-url", deps.Attachment.GetDownloadURL)
-						r.With(require.ProjectEntityOrPublic("task", "taskId", resTask, iam.ActionTasksRead)).Get("/{attachmentId}/content", deps.Attachment.GetAttachmentContent)
+						r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksRead)).Get("/{attachmentId}/download-url", deps.Attachment.GetDownloadURL)
+						r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksRead)).Get("/{attachmentId}/content", deps.Attachment.GetAttachmentContent)
 						r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksWrite)).Delete("/{attachmentId}", deps.Attachment.DeleteTaskAttachment)
 					})
 				})
@@ -638,9 +637,9 @@ func New(deps Deps) http.Handler {
 				// task types/statuses above (view via tasks:read, redefine
 				// via project.settings.custom_fields:write).
 				r.Route("/custom-fields", func(r chi.Router) {
-					r.With(require.ProjectOrPublic(iam.ActionTasksRead)).Get("/", deps.Task.ListCustomFieldDefinitions)
+					r.With(require.Project(iam.ActionTasksRead)).Get("/", deps.Task.ListCustomFieldDefinitions)
 					r.With(require.Project(iam.ActionProjectSettingsCustomFieldsWrite)).Post("/", deps.Task.CreateCustomFieldDefinition)
-					r.With(require.ProjectOrPublic(iam.ActionTasksRead)).Get("/{fieldId}", deps.Task.GetCustomFieldDefinition)
+					r.With(require.Project(iam.ActionTasksRead)).Get("/{fieldId}", deps.Task.GetCustomFieldDefinition)
 					r.With(require.Project(iam.ActionProjectSettingsCustomFieldsWrite)).Patch("/{fieldId}", deps.Task.UpdateCustomFieldDefinition)
 					r.With(require.Project(iam.ActionProjectSettingsCustomFieldsWrite)).Delete("/{fieldId}", deps.Task.DeleteCustomFieldDefinition)
 				})
@@ -649,7 +648,7 @@ func New(deps Deps) http.Handler {
 				r.Route("/docs", func(r chi.Router) {
 					// Folders
 					r.Route("/folders", func(r chi.Router) {
-						r.With(require.ProjectOrPublic(iam.ActionDocsRead)).Get("/", deps.Document.ListFolders)
+						r.With(require.Project(iam.ActionDocsRead)).Get("/", deps.Document.ListFolders)
 						r.With(require.Project(iam.ActionDocsWrite)).Post("/", deps.Document.CreateFolder)
 						r.With(require.Project(iam.ActionDocsWrite)).Patch("/{folderId}", deps.Document.UpdateFolder)
 						r.With(require.Project(iam.ActionDocsWrite)).Delete("/{folderId}", deps.Document.DeleteFolder)
@@ -657,26 +656,26 @@ func New(deps Deps) http.Handler {
 
 					// Documents — search (registered before /{docId} so "search"
 					// isn't parsed as a document ID)
-					r.With(require.ProjectOrPublic(iam.ActionDocsRead)).Get("/search", deps.Document.SearchDocuments)
+					r.With(require.Project(iam.ActionDocsRead)).Get("/search", deps.Document.SearchDocuments)
 
 					// Documents — collection
-					r.With(require.ProjectOrPublic(iam.ActionDocsRead)).Get("/", deps.Document.ListDocuments)
+					r.With(require.Project(iam.ActionDocsRead)).Get("/", deps.Document.ListDocuments)
 					r.With(require.Project(iam.ActionDocsWrite), require.DocCreate()).Post("/", deps.Document.CreateDocument)
 
 					// Documents — single item
 					r.Route("/{docId}", func(r chi.Router) {
-						r.With(require.ProjectEntityOrPublic("doc", "docId", resDoc, iam.ActionDocsRead)).Get("/", deps.Document.GetDocument)
+						r.With(require.ProjectEntity("doc", "docId", resDoc, iam.ActionDocsRead)).Get("/", deps.Document.GetDocument)
 						r.With(require.ProjectEntity("doc", "docId", resDoc, iam.ActionDocsWrite), require.DocChange()).Patch("/", deps.Document.UpdateDocument)
 						r.With(require.ProjectEntity("doc", "docId", resDoc, iam.ActionDocsWrite)).Delete("/", deps.Document.DeleteDocument)
 
 						// Snapshots
 						r.Route("/snapshots", func(r chi.Router) {
-							r.With(require.ProjectEntityOrPublic("doc", "docId", resDoc, iam.ActionDocsRead)).Get("/", deps.Document.ListSnapshots)
-							r.With(require.ProjectEntityOrPublic("doc", "docId", resDoc, iam.ActionDocsRead)).Get("/{snapshotId}", deps.Document.GetSnapshot)
+							r.With(require.ProjectEntity("doc", "docId", resDoc, iam.ActionDocsRead)).Get("/", deps.Document.ListSnapshots)
+							r.With(require.ProjectEntity("doc", "docId", resDoc, iam.ActionDocsRead)).Get("/{snapshotId}", deps.Document.GetSnapshot)
 						})
 
 						// Activity log
-						r.With(require.ProjectEntityOrPublic("doc", "docId", resDoc, iam.ActionDocsRead)).Get("/activities", deps.Document.ListActivities)
+						r.With(require.ProjectEntity("doc", "docId", resDoc, iam.ActionDocsRead)).Get("/activities", deps.Document.ListActivities)
 
 						// Comments
 						r.With(require.ProjectEntity("doc", "docId", resDoc, iam.ActionDocsWrite)).Post("/comments", deps.Document.AddComment)
@@ -686,7 +685,7 @@ func New(deps Deps) http.Handler {
 						// Doc file uploads
 						r.With(require.ProjectEntity("doc", "docId", resDoc, iam.ActionDocsWrite)).Post("/files/initiate-upload", deps.DocFile.InitiateDocUpload)
 						r.With(require.ProjectEntity("doc", "docId", resDoc, iam.ActionDocsWrite)).Post("/files/complete-upload", deps.DocFile.CompleteDocUpload)
-						r.With(require.ProjectEntityOrPublic("doc", "docId", resDoc, iam.ActionDocsRead)).Get("/files/{fileId}/download-url", deps.DocFile.GetDocFileDownloadURL)
+						r.With(require.ProjectEntity("doc", "docId", resDoc, iam.ActionDocsRead)).Get("/files/{fileId}/download-url", deps.DocFile.GetDocFileDownloadURL)
 						r.With(require.ProjectEntity("doc", "docId", resDoc, iam.ActionDocsWrite)).Delete("/files/{fileId}", deps.DocFile.DeleteDocFile)
 					})
 				})

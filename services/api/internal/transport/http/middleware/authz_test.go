@@ -14,7 +14,7 @@ import (
 	"github.com/Paca-AI/api/internal/platform/authz/iam"
 )
 
-// RequireAction on platform and project resources, and the public-project
+// RequireAction on platform and project resources, and the any-of
 // gate, judged by the IAM engine over a fake store. Grants are
 // shaped the way migration 000064 writes them: a named platform permission
 // on the platform roots, "*" on "*", a project role on project/<P>/*
@@ -204,19 +204,10 @@ func TestRequireAction_GlobalNonPlatformActionNeedsStar(t *testing.T) {
 	}
 }
 
-// --- RequirePublicProjectOrActions with the router's two groups -----------
+// --- RequireAnyActions with the router's two groups -----------------------
 
-type mockVisibilityChecker struct {
-	public bool
-	err    error
-}
-
-func (m *mockVisibilityChecker) IsProjectPublic(_ context.Context, _ uuid.UUID) (bool, error) {
-	return m.public, m.err
-}
-
-func projectOrPublic(checker ProjectVisibilityChecker, a *iam.Authorizer) func(http.Handler) http.Handler {
-	return RequirePublicProjectOrActions(checker, a,
+func projectOrWorkspace(a *iam.Authorizer) func(http.Handler) http.Handler {
+	return RequireAnyActions(a,
 		[]ActionCheck{{Action: "projects:read", Resource: StaticResource("project")}},
 		[]ActionCheck{{Action: "projects:read", Resource: ProjectResource("projectId")}},
 	)
@@ -224,7 +215,7 @@ func projectOrPublic(checker ProjectVisibilityChecker, a *iam.Authorizer) func(h
 
 func TestPermissionGroups_Unauthenticated(t *testing.T) {
 	r := chi.NewRouter()
-	okRoute(r, "/projects/{projectId}", projectOrPublic(&mockVisibilityChecker{}, iamWith(nil)))
+	okRoute(r, "/projects/{projectId}", projectOrWorkspace(iamWith(nil)))
 	if code := get(t, r, "/projects/"+uuid.NewString()); code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", code)
 	}
@@ -232,7 +223,7 @@ func TestPermissionGroups_Unauthenticated(t *testing.T) {
 
 func TestPermissionGroups_Forbidden(t *testing.T) {
 	r := chi.NewRouter()
-	okRoute(r, "/projects/{projectId}", withClaims("USER"), projectOrPublic(&mockVisibilityChecker{}, iamWith(nil)))
+	okRoute(r, "/projects/{projectId}", withClaims("USER"), projectOrWorkspace(iamWith(nil)))
 	if code := get(t, r, "/projects/"+uuid.NewString()); code != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d", code)
 	}
@@ -240,7 +231,7 @@ func TestPermissionGroups_Forbidden(t *testing.T) {
 
 func TestPermissionGroups_AllowedByFirstGroup_GlobalProjectsRead(t *testing.T) {
 	r := chi.NewRouter()
-	okRoute(r, "/projects/{projectId}", withClaims("USER"), projectOrPublic(&mockVisibilityChecker{}, iamWith([]iam.Grant{namedPlatform("projects:read")})))
+	okRoute(r, "/projects/{projectId}", withClaims("USER"), projectOrWorkspace(iamWith([]iam.Grant{namedPlatform("projects:read")})))
 	if code := get(t, r, "/projects/"+uuid.NewString()); code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", code)
 	}
@@ -250,7 +241,7 @@ func TestPermissionGroups_AllowedBySecondGroup_ProjectScopedRead(t *testing.T) {
 	p := uuid.NewString()
 	grant := projectGrant(p, iam.Statement{Effect: iam.EffectAllow, Actions: []string{"projects:read"}, Resources: []string{"project/" + p + "/*"}})
 	r := chi.NewRouter()
-	okRoute(r, "/projects/{projectId}", withClaims("USER"), projectOrPublic(&mockVisibilityChecker{}, iamWith([]iam.Grant{grant})))
+	okRoute(r, "/projects/{projectId}", withClaims("USER"), projectOrWorkspace(iamWith([]iam.Grant{grant})))
 	if code := get(t, r, "/projects/"+p); code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", code)
 	}
@@ -258,7 +249,7 @@ func TestPermissionGroups_AllowedBySecondGroup_ProjectScopedRead(t *testing.T) {
 
 func TestPermissionGroups_AllowedByWildcard_GlobalProjectsAll(t *testing.T) {
 	r := chi.NewRouter()
-	okRoute(r, "/projects/{projectId}", withClaims("USER"), projectOrPublic(&mockVisibilityChecker{}, iamWith([]iam.Grant{namedPlatform("projects:*")})))
+	okRoute(r, "/projects/{projectId}", withClaims("USER"), projectOrWorkspace(iamWith([]iam.Grant{namedPlatform("projects:*")})))
 	if code := get(t, r, "/projects/"+uuid.NewString()); code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", code)
 	}
@@ -266,7 +257,7 @@ func TestPermissionGroups_AllowedByWildcard_GlobalProjectsAll(t *testing.T) {
 
 func TestPermissionGroups_InvalidProjectID_Returns400(t *testing.T) {
 	r := chi.NewRouter()
-	okRoute(r, "/projects/{projectId}", withClaims("USER"), projectOrPublic(&mockVisibilityChecker{}, iamWith(nil)))
+	okRoute(r, "/projects/{projectId}", withClaims("USER"), projectOrWorkspace(iamWith(nil)))
 	if code := get(t, r, "/projects/not-a-uuid"); code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", code)
 	}
@@ -274,48 +265,23 @@ func TestPermissionGroups_InvalidProjectID_Returns400(t *testing.T) {
 
 func TestPermissionGroups_InvalidProjectID_GlobalGroupSucceeds(t *testing.T) {
 	r := chi.NewRouter()
-	okRoute(r, "/projects/{projectId}", withClaims("USER"), projectOrPublic(&mockVisibilityChecker{}, iamWith([]iam.Grant{namedPlatform("projects:read")})))
+	okRoute(r, "/projects/{projectId}", withClaims("USER"), projectOrWorkspace(iamWith([]iam.Grant{namedPlatform("projects:read")})))
 	if code := get(t, r, "/projects/not-a-uuid"); code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", code)
 	}
 }
 
-func TestRequirePublicProjectOrPermissions_AnonymousPublicProject_Allows(t *testing.T) {
+func TestRequireAnyActions_AuthenticatedWithPermission_Allows(t *testing.T) {
 	r := chi.NewRouter()
-	okRoute(r, "/projects/{projectId}", projectOrPublic(&mockVisibilityChecker{public: true}, iamWith(nil)))
+	okRoute(r, "/projects/{projectId}", withClaims("USER"), projectOrWorkspace(iamWith([]iam.Grant{starHolder()})))
 	if code := get(t, r, "/projects/"+uuid.NewString()); code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", code)
 	}
 }
 
-func TestRequirePublicProjectOrPermissions_AnonymousPrivateProject_Returns401(t *testing.T) {
+func TestRequireAnyActions_AuthenticatedWithoutPermission_Returns403(t *testing.T) {
 	r := chi.NewRouter()
-	okRoute(r, "/projects/{projectId}", projectOrPublic(&mockVisibilityChecker{public: false}, iamWith(nil)))
-	if code := get(t, r, "/projects/"+uuid.NewString()); code != http.StatusUnauthorized {
-		t.Fatalf("expected 401, got %d", code)
-	}
-}
-
-func TestRequirePublicProjectOrPermissions_AnonymousInvalidProjectID_Returns400(t *testing.T) {
-	r := chi.NewRouter()
-	okRoute(r, "/projects/{projectId}", projectOrPublic(&mockVisibilityChecker{public: true}, iamWith(nil)))
-	if code := get(t, r, "/projects/not-a-uuid"); code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d", code)
-	}
-}
-
-func TestRequirePublicProjectOrPermissions_AuthenticatedWithPermission_Allows(t *testing.T) {
-	r := chi.NewRouter()
-	okRoute(r, "/projects/{projectId}", withClaims("USER"), projectOrPublic(&mockVisibilityChecker{public: false}, iamWith([]iam.Grant{starHolder()})))
-	if code := get(t, r, "/projects/"+uuid.NewString()); code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", code)
-	}
-}
-
-// Being logged in does not fall back to the public flag.
-func TestRequirePublicProjectOrPermissions_AuthenticatedWithoutPermission_Returns403(t *testing.T) {
-	r := chi.NewRouter()
-	okRoute(r, "/projects/{projectId}", withClaims("USER"), projectOrPublic(&mockVisibilityChecker{public: true}, iamWith(nil)))
+	okRoute(r, "/projects/{projectId}", withClaims("USER"), projectOrWorkspace(iamWith(nil)))
 	if code := get(t, r, "/projects/"+uuid.NewString()); code != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d", code)
 	}

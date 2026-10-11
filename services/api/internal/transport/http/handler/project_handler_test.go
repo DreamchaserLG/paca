@@ -37,7 +37,6 @@ type mockProjectSvc struct {
 	list                    func(ctx context.Context, page, pageSize int) ([]*projectdom.Project, int64, error)
 	listAccessible          func(ctx context.Context, userID uuid.UUID, page, pageSize int) ([]*projectdom.Project, int64, error)
 	getByID                 func(ctx context.Context, id uuid.UUID) (*projectdom.Project, error)
-	isProjectPublic         func(ctx context.Context, id uuid.UUID) (bool, error)
 	create                  func(ctx context.Context, in projectdom.CreateProjectInput) (*projectdom.Project, error)
 	update                  func(ctx context.Context, id uuid.UUID, in projectdom.UpdateProjectInput) (*projectdom.Project, error)
 	delete                  func(ctx context.Context, id uuid.UUID) error
@@ -68,13 +67,6 @@ func (m *mockProjectSvc) GetByID(ctx context.Context, id uuid.UUID) (*projectdom
 		return m.getByID(ctx, id)
 	}
 	return nil, projectdom.ErrNotFound
-}
-
-func (m *mockProjectSvc) IsProjectPublic(ctx context.Context, id uuid.UUID) (bool, error) {
-	if m.isProjectPublic != nil {
-		return m.isProjectPublic(ctx, id)
-	}
-	return false, nil
 }
 
 func (m *mockProjectSvc) Create(ctx context.Context, in projectdom.CreateProjectInput) (*projectdom.Project, error) {

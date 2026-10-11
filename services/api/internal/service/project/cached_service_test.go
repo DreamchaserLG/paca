@@ -46,7 +46,6 @@ type stubProjectSvc struct {
 	list            func(ctx context.Context, page, pageSize int) ([]*projectdom.Project, int64, error)
 	listAccessible  func(ctx context.Context, userID uuid.UUID, page, pageSize int) ([]*projectdom.Project, int64, error)
 	getByID         func(ctx context.Context, id uuid.UUID) (*projectdom.Project, error)
-	isProjectPublic func(ctx context.Context, id uuid.UUID) (bool, error)
 	create          func(ctx context.Context, in projectdom.CreateProjectInput) (*projectdom.Project, error)
 	update          func(ctx context.Context, id uuid.UUID, in projectdom.UpdateProjectInput) (*projectdom.Project, error)
 	delete          func(ctx context.Context, id uuid.UUID) error
@@ -80,13 +79,6 @@ func (s *stubProjectSvc) GetByID(ctx context.Context, id uuid.UUID) (*projectdom
 		return s.getByID(ctx, id)
 	}
 	return &projectdom.Project{ID: id, Name: "stub-project"}, nil
-}
-
-func (s *stubProjectSvc) IsProjectPublic(ctx context.Context, id uuid.UUID) (bool, error) {
-	if s.isProjectPublic != nil {
-		return s.isProjectPublic(ctx, id)
-	}
-	return false, nil
 }
 
 func (s *stubProjectSvc) Create(ctx context.Context, in projectdom.CreateProjectInput) (*projectdom.Project, error) {

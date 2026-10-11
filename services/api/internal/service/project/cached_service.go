@@ -24,8 +24,6 @@ import (
 //
 // List/ListAccessible are NOT cached because they are paginated, potentially
 // user-scoped, and have high result-set cardinality.
-// IsProjectPublic is NOT cached; it is a single-column read used in hot-path
-// middleware and is already handled by the database's plan cache.
 //
 // Cache errors are non-fatal: read errors fall through to the real service;
 // write/delete errors are logged so mutations always succeed.
@@ -117,11 +115,6 @@ func (c *CachedService) GetByID(ctx context.Context, id uuid.UUID) (*projectdom.
 		c.log.WarnContext(ctx, "cache: GetProject set", "err", err)
 	}
 	return p, nil
-}
-
-// IsProjectPublic delegates directly to the underlying service (not cached).
-func (c *CachedService) IsProjectPublic(ctx context.Context, id uuid.UUID) (bool, error) {
-	return c.svc.IsProjectPublic(ctx, id)
 }
 
 // Create delegates directly to the underlying service (not cached).

@@ -271,7 +271,6 @@ func (s *Service) Create(ctx context.Context, in projectdom.CreateProjectInput) 
 		Name:         name,
 		Description:  strings.TrimSpace(in.Description),
 		TaskIDPrefix: prefix,
-		IsPublic:     in.IsPublic,
 		Settings:     cloneSettings(in.Settings),
 		CreatedBy:    in.CreatedBy,
 		CreatedAt:    now,
@@ -356,9 +355,6 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, in projectdom.Update
 		}
 		p.TaskIDPrefix = rawPrefix
 	}
-	if in.IsPublic != nil {
-		p.IsPublic = *in.IsPublic
-	}
 	if in.Settings != nil {
 		p.Settings = cloneSettings(in.Settings)
 	}
@@ -386,22 +382,10 @@ func projectChangedFields(in projectdom.UpdateProjectInput) []string {
 	if strings.TrimSpace(in.TaskIDPrefix) != "" {
 		out = append(out, "task_id_prefix")
 	}
-	if in.IsPublic != nil {
-		out = append(out, "is_public")
-	}
 	if in.Settings != nil {
 		out = append(out, "settings")
 	}
 	return out
-}
-
-// IsProjectPublic returns true when the project exists and has is_public set.
-func (s *Service) IsProjectPublic(ctx context.Context, id uuid.UUID) (bool, error) {
-	p, err := s.repo.FindByID(ctx, id)
-	if err != nil {
-		return false, err
-	}
-	return p.IsPublic, nil
 }
 
 // Delete soft-deletes a project by setting deleted_at.

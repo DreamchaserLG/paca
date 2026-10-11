@@ -300,7 +300,9 @@ test.describe("Project activity log", () => {
 				projectId,
 				username,
 				roleName: uniqueName("NOREAD_ROLE"),
-				permissions: { "tasks:read": true },
+				// Team is listed in the sidebar only with project.members:read,
+				// which makes it a stable "the project loaded" marker.
+				permissions: { "tasks:read": true, "project.members:read": true },
 			});
 
 			await signIn(page, username, RESTRICTED_PASSWORD);

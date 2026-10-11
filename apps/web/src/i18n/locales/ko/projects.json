@@ -1265,6 +1265,9 @@
 		},
 		"roleChip": {
 			"changeRole": "역할 변경",
+			"dialogDescription": "{{name}}의 역할을 선택하세요. 멤버는 최소 하나의 역할을 유지합니다.",
+			"assign": "역할 할당",
+			"assigning": "할당 중…",
 			"errors": {
 				"memberNotFound": "이 멤버는 더 이상 프로젝트에 속해 있지 않습니다.",
 				"roleForbidden": "이 역할 중 일부를 할당하거나 제거할 권한이 없습니다.",

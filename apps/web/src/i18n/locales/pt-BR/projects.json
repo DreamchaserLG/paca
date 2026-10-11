@@ -1265,6 +1265,9 @@
 		},
 		"roleChip": {
 			"changeRole": "Alterar papel",
+			"dialogDescription": "Escolha os papéis de {{name}}. Um membro mantém pelo menos um papel.",
+			"assign": "Atribuir papel",
+			"assigning": "Atribuindo…",
 			"errors": {
 				"memberNotFound": "Este membro não faz mais parte do projeto.",
 				"roleForbidden": "Você não tem permissão para atribuir ou remover um desses papéis.",

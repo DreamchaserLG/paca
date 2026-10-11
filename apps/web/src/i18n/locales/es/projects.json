@@ -1265,6 +1265,9 @@
 		},
 		"roleChip": {
 			"changeRole": "Cambiar rol",
+			"dialogDescription": "Elige los roles de {{name}}. Un miembro conserva al menos un rol.",
+			"assign": "Asignar rol",
+			"assigning": "Asignando…",
 			"errors": {
 				"memberNotFound": "Este miembro ya no forma parte del proyecto.",
 				"roleForbidden": "No tienes permiso para asignar o quitar uno de estos roles.",

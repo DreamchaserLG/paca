@@ -1,11 +1,11 @@
-import { Edit2, KeyRound, ShieldCheck, Trash2 } from "lucide-react";
+import { Edit2, KeyRound, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-
 import {
 	enrichRoles,
 	RoleBadgeList,
 	type RoleLike,
 } from "@/components/shared/role-badge";
+import { RoleChangeTrigger } from "@/components/shared/role-change-trigger";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -147,21 +147,15 @@ export function UsersTable({
 									</div>
 								</TableCell>
 								<TableCell className="px-4 sm:px-5">
-									<div className="flex min-w-0 items-center gap-1">
+									{canAssignRole ? (
+										<RoleChangeTrigger
+											roles={roles}
+											label={t("users.table.changeRoleAction")}
+											onClick={() => onChangeRole(user)}
+										/>
+									) : (
 										<RoleBadgeList roles={roles} max={2} />
-										{canAssignRole ? (
-											<Button
-												variant="ghost"
-												size="icon-sm"
-												onClick={() => onChangeRole(user)}
-												title={t("users.table.changeRoleAction")}
-												aria-label={t("users.table.changeRoleAction")}
-												className="shrink-0 text-muted-foreground"
-											>
-												<ShieldCheck className="size-3.5" />
-											</Button>
-										) : null}
-									</div>
+									)}
 								</TableCell>
 								<TableCell className="hidden px-4 text-sm text-muted-foreground sm:px-5 md:table-cell">
 									{formatDate(user.created_at)}

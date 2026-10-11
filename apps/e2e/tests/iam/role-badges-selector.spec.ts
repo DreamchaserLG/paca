@@ -67,21 +67,6 @@ test.afterEach(async ({ request }) => {
 	await cleanup(request);
 });
 
-/**
- * Hovers an element and nudges the pointer inside it: the tooltip opens on
- * pointer movement over its trigger, which a single hover() does not produce.
- */
-async function hoverBadge(page: Page, target: Locator) {
-	await target.hover();
-	const box = await target.boundingBox();
-	if (box) {
-		await page.mouse.move(
-			box.x + box.width / 2 + 1,
-			box.y + box.height / 2 + 1,
-		);
-	}
-}
-
 const readUsers = policyOf(allow(["users:read"], ["user", "user/*"]));
 
 // ─── The users list ──────────────────────────────────────────────────────────
@@ -138,6 +123,7 @@ test.describe("Role badges on the users list", () => {
 
 	test("The table has User, Role and Created columns and shows each user's roles", async ({
 		page,
+		isMobile,
 	}) => {
 		await expect(
 			page.getByRole("columnheader", { name: "User", exact: true }),
@@ -145,58 +131,67 @@ test.describe("Role badges on the users list", () => {
 		await expect(
 			page.getByRole("columnheader", { name: "Role" }),
 		).toBeVisible();
-		await expect(
-			page.getByRole("columnheader", { name: "Created" }),
-		).toBeVisible();
+		// The Created column is hidden below the md breakpoint.
+		if (!isMobile) {
+			await expect(
+				page.getByRole("columnheader", { name: "Created" }),
+			).toBeVisible();
+		}
 		await expect(
 			rowOf(page, plain.username).getByText("USER", { exact: true }),
 		).toBeVisible();
 		await expect(rowOf(page, manyRoles.username)).toBeVisible();
 	});
 
-	test("Roles past the second fold into a +N badge that opens the full list", async ({
+	test("Roles past the second fold into a +N count, and the editor lists every role held", async ({
 		page,
 	}) => {
 		const row = rowOf(page, manyRoles.username);
-		const more = row.getByRole("button", { name: "Show more roles (+2)" });
-		await expect(more).toBeVisible();
-		await expect(more).toHaveText("+2");
+		const change = row.getByRole("button", { name: "Change role" });
+		await expect(change).toContainText("+2");
 		// A user with a single role has no overflow.
 		await expect(
 			rowOf(page, plain.username).getByRole("button", {
-				name: /Show more roles/,
+				name: "Change role",
 			}),
-		).toHaveCount(0);
+		).not.toContainText("+");
 
-		await more.click();
-		const popover = page.getByText("All roles (4)").locator("..");
-		await expect(popover).toBeVisible();
+		await change.click();
+		const list = page.getByRole("listbox", { name: "Change role" });
 		for (const roleName of manyRoles.roleNames) {
-			await expect(popover.getByText(roleName, { exact: true })).toBeVisible();
+			await expect(roleOptionIn(list, roleName)).toHaveAttribute(
+				"aria-selected",
+				"true",
+			);
 		}
 	});
 
-	test("Hovering a badge shows the role's description and what kind of role it is", async ({
+	test("The editor shows each role's description and what kind of role it is", async ({
 		page,
 	}) => {
-		// A described role: its description is in the tooltip.
-		const described = rowOf(page, manyRoles.username).getByText(describedRole, {
-			exact: true,
-		});
-		await hoverBadge(page, described);
-		const tooltip = page.locator('[data-slot="tooltip-content"]');
-		await expect(tooltip).toContainText(description);
+		// A described role: its description is on its option.
+		await rowOf(page, manyRoles.username)
+			.getByRole("button", { name: "Change role" })
+			.click();
+		const list = page.getByRole("listbox", { name: "Change role" });
+		await expect(roleOptionIn(list, describedRole)).toHaveAccessibleDescription(
+			new RegExp(description),
+		);
+		await page.getByRole("button", { name: "Cancel" }).click();
 
 		// The default built-in role names its kind and carries the description it
 		// ships with.
-		const userBadge = rowOf(page, plain.username).getByText("USER", {
-			exact: true,
-		});
-		await hoverBadge(page, userBadge);
-		await expect(tooltip).toContainText("Built-in");
-		await expect(tooltip).toContainText("Default");
-		await expect(tooltip).toContainText(
-			"The role every new account starts with.",
+		await rowOf(page, plain.username)
+			.getByRole("button", { name: "Change role" })
+			.click();
+		const user = roleOptionIn(
+			page.getByRole("listbox", { name: "Change role" }),
+			"USER",
+		);
+		await expect(user).toHaveAccessibleDescription(/Built-in/);
+		await expect(user).toHaveAccessibleDescription(/Default/);
+		await expect(user).toHaveAccessibleDescription(
+			/The role every new account starts with\./,
 		);
 	});
 
@@ -546,6 +541,11 @@ test.describe("Role badges and the selector on the Team page", () => {
 		await roleOptionIn(list, "Editor").click();
 		await roleOptionIn(list, "Admin").click();
 		await expect(page.getByText("Selected: 3")).toBeVisible();
+		await expect(page.getByText(/Adding/)).toBeVisible();
+		await page
+			.getByRole("dialog", { name: "Change role" })
+			.getByRole("button", { name: "Assign role" })
+			.click();
 
 		await expect
 			.poll(async () => {
@@ -558,8 +558,7 @@ test.describe("Role badges and the selector on the Team page", () => {
 			})
 			.toEqual(["Admin", "Editor", "Viewer"]);
 
-		// The chip on the row now shows two badges and a +1.
-		await page.keyboard.press("Escape");
+		// The control on the row now shows two badges and a +1.
 		await expect(
 			rowOf(page, member.username).getByText("+1", { exact: true }),
 		).toBeVisible();

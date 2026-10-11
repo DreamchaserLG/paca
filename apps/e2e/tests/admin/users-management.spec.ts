@@ -266,6 +266,7 @@ test.describe('User Management', () => {
 
   test('shows the users page header, summary, columns, and protected admin actions', async ({
     page,
+    isMobile,
   }) => {
     await openUsersPage(page);
 
@@ -275,7 +276,10 @@ test.describe('User Management', () => {
 
     await expect(page.getByRole('columnheader', { name: 'User', exact: true })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'Role' })).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: 'Created' })).toBeVisible();
+    // The Created column is hidden below the md breakpoint.
+    if (!isMobile) {
+      await expect(page.getByRole('columnheader', { name: 'Created' })).toBeVisible();
+    }
 
     const adminRow = currentAdminRow(page);
     await expect(adminRow).toBeVisible();

@@ -3,8 +3,9 @@ import { expect, type Locator, type Page } from "@playwright/test";
 /**
  * The role selector is a searchable multi-select: a combobox field (named
  * `label`) that opens a listbox of roles in a popover, outside the dialog or
- * panel the field sits in. These helpers open it, pick or unpick a role by
- * name, and close it again so it never covers the buttons beneath.
+ * panel the field sits in (the change-role dialog lists the roles inline
+ * instead). These helpers open it, pick or unpick a role by name, and close
+ * it again so it never covers the buttons beneath.
  */
 
 /** The field that opens the selector, inside `scope`. */
@@ -32,13 +33,19 @@ export async function openRoleSelect(
 	return list;
 }
 
-/** Closes an open selector with Escape. */
+/**
+ * Closes an open selector with Escape. A selector shown inline in a dialog
+ * (the change-role dialog) is not a popover: it has nothing to close, and
+ * Escape would close the dialog itself, so it is left as it is.
+ */
 export async function closeRoleSelect(page: Page, label: string | RegExp) {
-	const list = page.getByRole("listbox", { name: label });
-	if (await list.isVisible().catch(() => false)) {
+	const popover = page
+		.locator("[data-slot=popover-content]")
+		.getByRole("listbox", { name: label });
+	if (await popover.isVisible().catch(() => false)) {
 		await page.keyboard.press("Escape");
+		await expect(popover).toHaveCount(0);
 	}
-	await expect(list).toHaveCount(0);
 }
 
 /** One role's option in an open selector. */

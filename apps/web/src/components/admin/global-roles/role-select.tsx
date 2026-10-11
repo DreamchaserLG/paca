@@ -76,6 +76,7 @@ export function RoleSelectPanel<T extends RoleOption>({
 	const { t } = useTranslation("shared");
 	const baseId = useId();
 	const listRef = useRef<HTMLDivElement>(null);
+	const searchRef = useRef<HTMLInputElement>(null);
 	const [query, setQuery] = useState("");
 	const [active, setActive] = useState(0);
 
@@ -119,6 +120,9 @@ export function RoleSelectPanel<T extends RoleOption>({
 	const clear = () => {
 		if (disabled || minSelected > 0) return;
 		onChange([], []);
+		// The Clear button unmounts with the selection, so keep focus inside the
+		// panel: otherwise Escape lands on the page and closes the dialog too.
+		searchRef.current?.focus();
 	};
 
 	const move = (delta: number) => {
@@ -174,6 +178,7 @@ export function RoleSelectPanel<T extends RoleOption>({
 					aria-hidden="true"
 				/>
 				<input
+					ref={searchRef}
 					// biome-ignore lint/a11y/noAutofocus: the search box is the first thing wanted when a selector opens
 					autoFocus={autoFocus}
 					type="text"
@@ -215,7 +220,10 @@ export function RoleSelectPanel<T extends RoleOption>({
 				role="listbox"
 				aria-label={label}
 				aria-multiselectable="true"
-				className="-mx-1 flex max-h-64 flex-col gap-0.5 overflow-y-auto px-1"
+				// Capped by the room the popover has (--available-height is set by the
+				// popover; the fallback is the usual 16rem) so the footer with the count
+				// and Clear is never pushed below a short, mobile viewport.
+				className="-mx-1 flex max-h-[min(16rem,calc(var(--available-height,100vh)-9rem))] flex-col gap-0.5 overflow-y-auto px-1"
 			>
 				{visible.length === 0 ? (
 					<p
@@ -364,7 +372,8 @@ export function RoleMultiSelect<T extends RoleOption>({
 				disabled={panel.disabled}
 				className="flex min-h-9 w-full items-center justify-between gap-2 rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-muted/40 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
 			>
-				<span className="min-w-0 flex-1">
+				{/* w-0 + flex-1: the badges truncate to the field instead of widening it (and the dialog) past a narrow screen */}
+				<span className="w-0 min-w-0 flex-1">
 					{picked.length > 0 ? (
 						<RoleBadgeList roles={picked} max={3} interactive={false} />
 					) : (

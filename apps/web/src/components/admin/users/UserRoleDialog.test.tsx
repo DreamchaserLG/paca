@@ -74,6 +74,78 @@ describe("UserRoleDialog", () => {
 		]);
 	});
 
+	it("summarises what saving will add and remove", async () => {
+		renderDialog();
+		expect(screen.getByText(/No changes yet/)).toBeInTheDocument();
+
+		await toggleRole("ADMIN");
+		await toggleRole("USER");
+
+		expect(screen.getByText(/Adding/)).toBeInTheDocument();
+		expect(screen.getByText(/Removing/)).toBeInTheDocument();
+	});
+
+	it("keeps a project template the user already holds, so saving does not drop it", async () => {
+		const template = {
+			...makeRole("role-tpl", "PROJECT_TEMPLATE"),
+			policy: {
+				version: "1",
+				statements: [
+					{
+						effect: "Allow",
+						actions: ["tasks:read"],
+						resources: ["project/*"],
+					},
+				],
+			},
+		} as unknown as (typeof ROLES)[number];
+		const onOpenChange = vi.fn();
+		renderWithQueries(
+			<UserRoleDialog
+				user={{
+					...alice,
+					roles: [{ id: "role-tpl", name: "PROJECT_TEMPLATE" }],
+				}}
+				open
+				onOpenChange={onOpenChange}
+			/>,
+			{ permissions: CAN_ASSIGN, roles: [...ROLES, template] },
+		);
+
+		expect(await roleOption("PROJECT_TEMPLATE")).toHaveAttribute(
+			"aria-selected",
+			"true",
+		);
+		await toggleRole("ADMIN");
+		await userEvent.click(assignButton());
+
+		await waitFor(() =>
+			expect(replaceUserRoles).toHaveBeenCalledWith("u1", [
+				"role-tpl",
+				"role-admin",
+			]),
+		);
+	});
+
+	it("starts from the held roles again when reopened", async () => {
+		const onOpenChange = vi.fn();
+		const view = renderWithQueries(
+			<UserRoleDialog user={alice} open onOpenChange={onOpenChange} />,
+			{ permissions: CAN_ASSIGN, roles: ROLES },
+		);
+		await toggleRole("ADMIN");
+		expect(assignButton()).toBeEnabled();
+
+		view.rerender(
+			<UserRoleDialog user={alice} open={false} onOpenChange={onOpenChange} />,
+		);
+		view.rerender(
+			<UserRoleDialog user={alice} open onOpenChange={onOpenChange} />,
+		);
+
+		await waitFor(() => expect(assignButton()).toBeDisabled());
+	});
+
 	it("does nothing when the picks end up as the roles they already hold", async () => {
 		renderDialog();
 
@@ -172,9 +244,7 @@ describe("UserRoleDialog", () => {
 		expect(
 			await screen.findByRole("button", { name: /assigning/i }),
 		).toBeDisabled();
-		expect(
-			screen.getByRole("combobox", { name: "Change role" }),
-		).toBeDisabled();
+		expect(await roleOption("USER")).toHaveAttribute("aria-disabled", "true");
 	});
 
 	it.each([

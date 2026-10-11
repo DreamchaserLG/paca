@@ -170,6 +170,11 @@
 			"dismiss": "閉じる"
 		}
 	},
+	"roleChange": {
+		"adding": "追加",
+		"removing": "削除",
+		"noChanges": "まだ変更はありません。上でロールを選択または解除してください。"
+	},
 	"roleBadge": {
 		"fullAccess": "フルアクセス",
 		"builtIn": "組み込み",

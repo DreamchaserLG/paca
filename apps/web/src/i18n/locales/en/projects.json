@@ -1269,6 +1269,9 @@
 		},
 		"roleChip": {
 			"changeRole": "Change role",
+			"dialogDescription": "Choose the roles for {{name}}. A member keeps at least one role.",
+			"assign": "Assign role",
+			"assigning": "Assigning…",
 			"errors": {
 				"memberNotFound": "This member is no longer part of the project.",
 				"roleForbidden": "You don't have permission to assign or remove one of these roles.",

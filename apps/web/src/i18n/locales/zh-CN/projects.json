@@ -1265,6 +1265,9 @@
 		},
 		"roleChip": {
 			"changeRole": "更改角色",
+			"dialogDescription": "为 {{name}} 选择角色。成员至少保留一个角色。",
+			"assign": "分配角色",
+			"assigning": "分配中…",
 			"errors": {
 				"memberNotFound": "该成员已不再属于该项目。",
 				"roleForbidden": "你没有权限分配或移除其中某个角色。",

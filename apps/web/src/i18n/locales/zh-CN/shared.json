@@ -170,6 +170,11 @@
 			"dismiss": "关闭"
 		}
 	},
+	"roleChange": {
+		"adding": "添加",
+		"removing": "移除",
+		"noChanges": "尚无更改。请在上方勾选或取消勾选角色。"
+	},
 	"roleBadge": {
 		"fullAccess": "完全访问",
 		"builtIn": "内置",

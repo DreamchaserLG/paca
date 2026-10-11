@@ -170,6 +170,11 @@
 			"dismiss": "Dismiss"
 		}
 	},
+	"roleChange": {
+		"adding": "Adding",
+		"removing": "Removing",
+		"noChanges": "No changes yet. Pick or unpick roles above."
+	},
 	"roleBadge": {
 		"fullAccess": "Full access",
 		"builtIn": "Built-in",

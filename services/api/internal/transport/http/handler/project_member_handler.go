@@ -138,6 +138,8 @@ func (h *ProjectHandler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 // GetMyProjectPermissions handles GET /projects/:projectId/members/me/permissions.
 // It returns {"actions": [...]}: the caller's effective IAM actions in the
 // project (see iam.Authorizer.EffectiveActions).
+// With ?scope=project, only actions allowed on the whole project are listed,
+// not those allowed on some resource inside it.
 // Any authenticated project member can call this endpoint regardless of which
 // permissions their role grants — the lookup is always scoped to themselves.
 func (h *ProjectHandler) GetMyProjectPermissions(w http.ResponseWriter, r *http.Request) {
@@ -173,7 +175,13 @@ func (h *ProjectHandler) GetMyProjectPermissions(w http.ResponseWriter, r *http.
 		presenter.Error(w, r, apierr.New(apierr.CodeInternalError, "authorization not configured"))
 		return
 	}
-	actions, err := h.authorizer.EffectiveActions(r.Context(), principal, projectID.String())
+	// ?scope=project narrows to actions allowed on the whole project, for
+	// callers that authorize delivery (realtime rooms) rather than show UI.
+	effective := h.authorizer.EffectiveActions
+	if r.URL.Query().Get("scope") == "project" {
+		effective = h.authorizer.ProjectWideActions
+	}
+	actions, err := effective(r.Context(), principal, projectID.String())
 	if err != nil {
 		presenter.Error(w, r, err)
 		return

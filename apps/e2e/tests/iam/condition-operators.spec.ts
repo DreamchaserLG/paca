@@ -758,11 +758,9 @@ test.describe("What is refused when a policy with conditions is saved", () => {
 			).ok(),
 		).toBeTruthy();
 		expect(
-			(
-				await save(request, "OPBOOL", { Bool: { "principal.id": true } })
-			).status(),
+			(await save(request, "OPBOOL", { Bool: { "principal.id": true } })).ok(),
 			"a Bool operand of true is a valid operand",
-		).toBeLessThan(500);
+		).toBeTruthy();
 		expect(
 			(await save(request, "OPNULL", { In: { "task.sprint_id": null } })).ok(),
 		).toBeFalsy();

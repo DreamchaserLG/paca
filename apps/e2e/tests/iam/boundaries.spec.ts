@@ -182,7 +182,9 @@ test.describe("Callers who are not signed in", () => {
 		const patched = await request.patch(`${API_URL}/projects/${projectId}`, {
 			data: { name: projectName, is_public: true },
 		});
-		expect(patched.status()).toBeLessThan(500);
+		// The unknown field is ignored, not rejected: the edit itself goes through.
+		expect(patched.ok(), await patched.text()).toBeTruthy();
+		expect((await dataOf<{ name: string }>(patched)).name).toBe(projectName);
 		const project = await dataOf<Record<string, unknown>>(
 			await request.get(`${API_URL}/projects/${projectId}`),
 		);
@@ -1011,15 +1013,32 @@ test.describe("What the permission endpoints report", () => {
 		});
 	});
 
-	test("A holder of * sees every action; a user with an empty role sees none", async ({
+	test("A holder of * sees every workspace action; a user with an empty role sees none", async ({
 		request,
 		playwright,
 	}) => {
-		const all = await dataOf<string[]>(
+		// The workspace-level list holds the actions that have a workspace root
+		// (users, roles, plugins, settings, ...), not the project-level ones, so a
+		// "*" holder must show exactly those entries of the catalogue.
+		const workspaceDomains = new Set([
+			"users",
+			"roles",
+			"plugins",
+			"settings",
+			"settings.sso",
+			"agents",
+			"projects",
+		]);
+		const catalogue = await dataOf<string[]>(
 			await request.get(`${API_URL}/roles/actions`),
 		);
-		expect(all.length).toBeGreaterThan(20);
-		expect((await globalActionsOf(request)).length).toBeGreaterThan(0);
+		const workspaceActions = catalogue.filter((a) =>
+			workspaceDomains.has(a.split(":")[0]),
+		);
+		expect(workspaceActions.length).toBeGreaterThan(10);
+		expect(await globalActionsOf(request)).toEqual(
+			expect.arrayContaining(workspaceActions),
+		);
 
 		await createGlobalRole(request, name("EMPTY"), policyOf());
 		const empty = await userWithWorkspaceRole(

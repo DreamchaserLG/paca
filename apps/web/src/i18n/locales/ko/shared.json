@@ -170,6 +170,11 @@
 			"dismiss": "닫기"
 		}
 	},
+	"roleChange": {
+		"adding": "추가",
+		"removing": "제거",
+		"noChanges": "아직 변경 사항이 없습니다. 위에서 역할을 선택하거나 해제하세요."
+	},
 	"roleBadge": {
 		"fullAccess": "전체 권한",
 		"builtIn": "기본 제공",

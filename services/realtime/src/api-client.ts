@@ -37,7 +37,7 @@ interface GlobalPermissionsData {
 }
 
 interface ProjectPermissionsData {
-	permissions: Record<string, boolean>;
+	actions: string[];
 }
 
 // verifyTokenWithAPI calls GET /api/v1/users/me/global-permissions using the
@@ -79,7 +79,8 @@ export async function verifyTokenWithAPI(
 }
 
 // fetchProjectPermissions calls GET /api/v1/projects/:projectId/members/me/permissions
-// to retrieve the authenticated user's effective permission map for a project.
+// to retrieve the authenticated user's effective IAM actions in a project
+// ("tasks:read", ...), returned as a map of action -> true.
 // Returns null when the user is not a member of that project (API returns 404).
 export async function fetchProjectPermissions(
 	apiUrl: string,
@@ -100,7 +101,9 @@ export async function fetchProjectPermissions(
 	}
 
 	const envelope = (await res.json()) as ApiEnvelope<ProjectPermissionsData>;
-	return envelope.data?.permissions ?? {};
+	return Object.fromEntries(
+		(envelope.data?.actions ?? []).map((action) => [action, true]),
+	);
 }
 
 // ---------------------------------------------------------------------------

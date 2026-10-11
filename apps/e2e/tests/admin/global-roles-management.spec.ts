@@ -933,8 +933,8 @@ test.describe('Global Roles Management', () => {
       const dialog = page.getByRole('dialog', { name: 'Edit Role' });
       await expect(modeTab(page, 'Advanced (JSON)')).toHaveAttribute('aria-selected', 'true');
       await expect(dialog.getByText('This role uses advanced features and can only be edited as JSON.')).toBeVisible();
-      // The first statement already names narrower resources than the workspace roots, which is the first reason found.
-      await expect(dialog.getByText('It applies to specific resources.')).toBeVisible();
+      // The first statement is a plain Allow on the user roots, so the Deny in the second one is the reason found.
+      await expect(dialog.getByText('It has a Deny statement.')).toBeVisible();
       await expect(dialog.getByRole('switch')).toHaveCount(0);
       await expect(policyJson(page)).toHaveValue(/"Deny"/);
 

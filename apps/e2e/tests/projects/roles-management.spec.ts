@@ -873,18 +873,22 @@ test.describe("Access to role management is permission gated", () => {
 		await signIn(page, username, RESTRICTED_PASSWORD);
 	}
 
-	test("A member without roles:read sees the no-permission state", async ({
+	test("A member without roles:read is not offered the Roles section", async ({
 		page,
 		request,
 		playwright,
 	}) => {
 		await signInAsMember(page, request, playwright, { "tasks:read": true });
 
-		await openRolesSection(page, projectId);
+		await page.goto(`${BASE_URL}/projects/${projectId}/settings`);
 
+		// The settings page loads, but its Roles entry is only listed with roles:read.
 		await expect(
-			page.getByText("You don't have permission to view roles"),
+			page.getByRole("heading", { name: "Settings", exact: true }),
 		).toBeVisible();
+		await expect(
+			page.getByRole("button", { name: "Roles", exact: true }),
+		).toHaveCount(0);
 		await expect(rolesTable(page)).toHaveCount(0);
 	});
 

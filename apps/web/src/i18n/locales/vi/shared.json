@@ -170,6 +170,11 @@
 			"dismiss": "Đóng"
 		}
 	},
+	"roleChange": {
+		"adding": "Thêm",
+		"removing": "Gỡ",
+		"noChanges": "Chưa có thay đổi. Chọn hoặc bỏ chọn vai trò ở trên."
+	},
 	"roleBadge": {
 		"fullAccess": "Toàn quyền",
 		"builtIn": "Có sẵn",

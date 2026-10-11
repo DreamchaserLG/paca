@@ -816,8 +816,12 @@ test.describe("The Team page offers what the viewer may do", () => {
 		const list = page.getByRole("listbox", { name: "Change role" });
 		await expect(list).toBeVisible();
 
+		const dialog = page.getByRole("dialog", { name: "Change role" });
+		const assign = dialog.getByRole("button", { name: "Assign role" });
+
 		// Role B is not theirs: the API refuses and the page says so.
 		await roleOptionIn(list, name("UI_ROLE_B")).click();
+		await assign.click();
 		await expect(
 			page.getByRole("alert").filter({
 				hasText:
@@ -829,7 +833,9 @@ test.describe("The Team page offers what the viewer may do", () => {
 		]);
 
 		// Role A is theirs: it is added next to Viewer.
+		await roleOptionIn(list, name("UI_ROLE_B")).click();
 		await roleOptionIn(list, name("UI_ROLE_A")).click();
+		await assign.click();
 		await expect
 			.poll(() => memberRoleNames(request, projectId, bob.memberId))
 			.toEqual(["Viewer", name("UI_ROLE_A")].sort());
@@ -845,6 +851,10 @@ test.describe("The Team page offers what the viewer may do", () => {
 		await row.getByRole("button", { name: "Change role" }).click();
 		const list = page.getByRole("listbox", { name: "Change role" });
 		await roleOptionIn(list, name("UI_ROLE_B")).click();
+		await page
+			.getByRole("dialog", { name: "Change role" })
+			.getByRole("button", { name: "Assign role" })
+			.click();
 		await expect
 			.poll(() => memberRoleNames(request, projectId, bob.memberId))
 			.toEqual(["Viewer", name("UI_ROLE_B")].sort());

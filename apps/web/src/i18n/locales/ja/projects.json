@@ -1265,6 +1265,9 @@
 		},
 		"roleChip": {
 			"changeRole": "ロールを変更",
+			"dialogDescription": "{{name}} のロールを選択します。メンバーは少なくとも1つのロールを持ちます。",
+			"assign": "ロールを割り当てる",
+			"assigning": "割り当て中…",
 			"errors": {
 				"memberNotFound": "このメンバーはすでにプロジェクトのメンバーではありません。",
 				"roleForbidden": "これらのロールの一部を割り当てまたは解除する権限がありません。",

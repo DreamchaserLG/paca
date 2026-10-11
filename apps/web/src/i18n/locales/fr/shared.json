@@ -170,6 +170,11 @@
 			"dismiss": "Ignorer"
 		}
 	},
+	"roleChange": {
+		"adding": "Ajout",
+		"removing": "Retrait",
+		"noChanges": "Aucun changement. Cochez ou décochez des rôles ci-dessus."
+	},
 	"roleBadge": {
 		"fullAccess": "Accès total",
 		"builtIn": "Intégré",

@@ -9,13 +9,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
 	Bot,
 	Check,
-	ChevronDown,
 	Loader2,
 	MoreHorizontal,
 	PenLine,
 	Plus,
 	Search,
-	Shield,
 	Trash2,
 	UserRound,
 	Users,
@@ -23,12 +21,13 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { RoleOptionList } from "@/components/admin/global-roles/role-option-list";
-import { RoleSelectPanel } from "@/components/admin/global-roles/role-select";
 import { projectPermissionBadgeClass } from "@/components/projects/roles/utils";
 import { MembersFilters } from "@/components/projects/team/MembersFilters";
 import { HighlightMatch } from "@/components/shared/highlight-match";
 import { NoPermissionState } from "@/components/shared/no-permission-state";
 import { enrichRoles, RoleBadgeList } from "@/components/shared/role-badge";
+import { RoleChangeDialog } from "@/components/shared/role-change-dialog";
+import { RoleChangeTrigger } from "@/components/shared/role-change-trigger";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -590,7 +589,10 @@ function AddMemberDialog({
 	);
 }
 
-// ── Role Chip (inline popover role picker) ────────────────────────────────────
+// ── Member role control (badges + a button that opens a dialog) ──────────────
+//
+// Same flow as the users page: the member's role badges, a "Change role"
+// button, and a dialog with the roles multi-select and an Assign button.
 
 function RoleChip({
 	member,
@@ -602,45 +604,53 @@ function RoleChip({
 	roles: Role[];
 }) {
 	const { t } = useTranslation("projects");
-	const queryClient = useQueryClient();
 	const [open, setOpen] = useState(false);
-	const [error, setError] = useState<string | null>(null);
 
-	const heldIds = member.roles.map((r) => r.id);
+	return (
+		<>
+			<RoleChangeTrigger
+				roles={enrichRoles(member.roles, roles)}
+				label={t("team.roleChip.changeRole")}
+				onClick={() => setOpen(true)}
+			/>
+			<MemberRoleDialog
+				member={member}
+				projectId={projectId}
+				roles={roles}
+				open={open}
+				onOpenChange={setOpen}
+			/>
+		</>
+	);
+}
+
+function MemberRoleDialog({
+	member,
+	projectId,
+	roles,
+	open,
+	onOpenChange,
+}: {
+	member: ProjectMember;
+	projectId: string;
+	roles: Role[];
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+}) {
+	const { t } = useTranslation("projects");
+	const queryClient = useQueryClient();
+	const [error, setError] = useState<string | null>(null);
+	const currentIds = member.roles.map((r) => r.id);
+
+	const handleOpenChange = (next: boolean) => {
+		if (!next) setError(null);
+		onOpenChange(next);
+	};
 
 	const mutation = useMutation({
 		mutationFn: (roleIds: string[]) =>
 			replaceMemberRoles(projectId, member.id, roleIds),
-		onMutate: async (roleIds) => {
-			await queryClient.cancelQueries({
-				queryKey: projectMembersQueryOptions(projectId).queryKey,
-			});
-			const previous = queryClient.getQueryData(
-				projectMembersQueryOptions(projectId).queryKey,
-			);
-			queryClient.setQueryData(
-				projectMembersQueryOptions(projectId).queryKey,
-				(old: ProjectMember[] | undefined) =>
-					old?.map((m) =>
-						m.id === member.id
-							? {
-									...m,
-									roles: roles
-										.filter((r) => roleIds.includes(r.id))
-										.map((r) => ({ id: r.id, name: r.name })),
-								}
-							: m,
-					),
-			);
-			return { previous };
-		},
-		onError: (err: unknown, _roleIds, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(
-					projectMembersQueryOptions(projectId).queryKey,
-					context.previous,
-				);
-			}
+		onError: (err: unknown) => {
 			const code = getApiErrorCode(err);
 			setError(
 				code === ApiErrorCode.ProjectMemberNotFound
@@ -654,7 +664,7 @@ function RoleChip({
 			);
 		},
 		onSuccess: () => {
-			setError(null);
+			handleOpenChange(false);
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({
@@ -664,64 +674,32 @@ function RoleChip({
 	});
 
 	return (
-		<Popover
+		<RoleChangeDialog
 			open={open}
-			onOpenChange={(v) => {
-				setOpen(v);
-				if (!v) setError(null);
+			onOpenChange={handleOpenChange}
+			title={t("team.roleChip.changeRole")}
+			description={t("team.roleChip.dialogDescription", {
+				name: member.full_name || member.username,
+			})}
+			person={{
+				name: member.full_name || member.username,
+				handle: member.username,
+				avatarUrl: resolveMemberAvatarUrl(member),
 			}}
-		>
-			<PopoverTrigger
-				type="button"
-				aria-label={t("team.roleChip.changeRole")}
-				title={t("team.roleChip.changeRole")}
-				disabled={mutation.isPending}
-				className="flex min-w-0 max-w-full shrink-0 items-center gap-1.5 rounded-full border border-border/60 bg-secondary/40 py-1 pr-2 pl-1.5 text-xs font-medium text-secondary-foreground transition-all hover:border-border hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-			>
-				{mutation.isPending ? (
-					<Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" />
-				) : (
-					<Shield className="size-3 shrink-0 text-muted-foreground" />
-				)}
-				<RoleBadgeList
-					roles={enrichRoles(member.roles, roles)}
-					max={2}
-					interactive={false}
-				/>
-				{!mutation.isPending && (
-					<ChevronDown className="size-3 shrink-0 text-muted-foreground/70" />
-				)}
-			</PopoverTrigger>
-			<PopoverContent
-				className="w-80 max-w-[calc(100vw-2rem)] p-2.5"
-				align="end"
-				initialFocus={false}
-			>
-				<p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-					{t("team.roleChip.changeRole")}
-				</p>
-				<RoleSelectPanel
-					autoFocus
-					roles={roles}
-					values={heldIds}
-					label={t("team.roleChip.changeRole")}
-					badgeClass={projectPermissionBadgeClass}
-					// A member keeps at least one role: with none they could do
-					// nothing, and removing them is its own action.
-					minSelected={1}
-					disabled={mutation.isPending}
-					onChange={(ids) => mutation.mutate(ids)}
-				/>
-				{error && (
-					<p
-						role="alert"
-						className="rounded-md bg-destructive/10 px-2 py-1.5 text-xs text-destructive"
-					>
-						{error}
-					</p>
-				)}
-			</PopoverContent>
-		</Popover>
+			roles={roles}
+			currentIds={currentIds}
+			// A member keeps at least one role: with none they could do nothing,
+			// and removing them is its own action.
+			minSelected={1}
+			badgeClass={projectPermissionBadgeClass}
+			saveLabel={t("team.roleChip.assign")}
+			savingLabel={t("team.roleChip.assigning")}
+			cancelLabel={t("team.addMemberDialog.cancel")}
+			isPending={mutation.isPending}
+			error={error}
+			onPick={() => setError(null)}
+			onSave={(ids) => mutation.mutate(ids)}
+		/>
 	);
 }
 

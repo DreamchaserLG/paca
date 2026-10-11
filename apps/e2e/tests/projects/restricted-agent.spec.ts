@@ -21,8 +21,8 @@ import {
 	test,
 } from "@playwright/test";
 import {
-	addProjectMember,
 	API_URL,
+	addProjectMember,
 	BASE_URL,
 	cleanupProjectsByPrefix,
 	cleanupUsersByPrefix,
@@ -32,8 +32,8 @@ import {
 	denyResourceToMember,
 	newRunId,
 	projectRoleIdByName,
-	replaceMemberRoles,
 	RESTRICTED_PASSWORD,
+	replaceMemberRoles,
 	type SeededAgent,
 	signIn,
 } from "../helpers/e2e-api";
@@ -301,10 +301,7 @@ test.describe("Restricting an agent with a role", () => {
 		await dialog.getByRole("button", { name: "Create role" }).click();
 		await expect(dialog).not.toBeVisible();
 		await expect(
-			page
-				.getByRole("table")
-				.getByRole("row")
-				.filter({ hasText: roleName }),
+			page.getByRole("table").getByRole("row").filter({ hasText: roleName }),
 		).toBeVisible();
 
 		// It is an ordinary role: give it to the member next to the one they hold.
@@ -330,9 +327,7 @@ test.describe("Restricting an agent with a role", () => {
 		// The Team page lists the roles each member holds.
 		await page.goto(`${BASE_URL}/projects/${projectId}/team`);
 		await expect(
-			page
-				.getByRole("button", { name: "Change role" })
-				.filter({ hasText: roleName }),
+			page.getByText(roleName, { exact: true }).first(),
 		).toBeVisible();
 
 		const access = await agentAccess(playwright, member, projectId, agent);

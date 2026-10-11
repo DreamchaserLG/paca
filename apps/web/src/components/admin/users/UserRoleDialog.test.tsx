@@ -74,6 +74,17 @@ describe("UserRoleDialog", () => {
 		]);
 	});
 
+	it("summarises what saving will add and remove", async () => {
+		renderDialog();
+		expect(screen.getByText(/No changes yet/)).toBeInTheDocument();
+
+		await toggleRole("ADMIN");
+		await toggleRole("USER");
+
+		expect(screen.getByText(/Adding/)).toBeInTheDocument();
+		expect(screen.getByText(/Removing/)).toBeInTheDocument();
+	});
+
 	it("does nothing when the picks end up as the roles they already hold", async () => {
 		renderDialog();
 
@@ -172,9 +183,7 @@ describe("UserRoleDialog", () => {
 		expect(
 			await screen.findByRole("button", { name: /assigning/i }),
 		).toBeDisabled();
-		expect(
-			screen.getByRole("combobox", { name: "Change role" }),
-		).toBeDisabled();
+		expect(await roleOption("USER")).toHaveAttribute("aria-disabled", "true");
 	});
 
 	it.each([

@@ -170,6 +170,11 @@
 			"dismiss": "Dispensar"
 		}
 	},
+	"roleChange": {
+		"adding": "Adicionando",
+		"removing": "Removendo",
+		"noChanges": "Nenhuma alteração ainda. Marque ou desmarque papéis acima."
+	},
 	"roleBadge": {
 		"fullAccess": "Acesso total",
 		"builtIn": "Integrado",

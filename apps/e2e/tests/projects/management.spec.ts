@@ -808,9 +808,23 @@ test.describe('Project Management', () => {
 
       await expect(page.getByRole('dialog', { name: 'New Role' })).not.toBeVisible();
 
-      // Granting every offered permission of an area is stored (and listed) as the area wildcard
-      const roleRow = page.getByRole('row', { name: new RegExp(roleName) });
-      await expect(roleRow.getByText('projects:*', { exact: true })).toBeVisible();
+      // The roles table no longer lists permissions, so the stored policy is checked through the API:
+      // granting every offered permission of an area is stored as the area wildcard.
+      const projectId = page.url().match(/\/projects\/([0-9a-f-]{36})/)?.[1];
+      expect(projectId).toBeTruthy();
+      const rolesResp = await page.request.get(`${BASE_URL}/api/v1/projects/${projectId}/roles`);
+      expect(rolesResp.ok()).toBeTruthy();
+      const stored = JSON.stringify(
+        ((await rolesResp.json()).data as Array<{ name: string }>).find((r) => r.name === roleName),
+      );
+      expect(stored).toContain('"projects:*"');
+      expect(stored).not.toContain('"projects:read"');
+
+      // Reopening the role shows all three switches on.
+      await page.getByRole('row', { name: new RegExp(roleName) }).getByRole('button', { name: 'Edit role' }).click();
+      for (const name of ['View Project', 'Edit Project', 'Delete Project']) {
+        await expect(permSwitch(page, name)).toHaveAttribute('aria-checked', 'true');
+      }
     });
 
     test('Toggling a permission on then off leaves it disabled', async ({ page }) => {

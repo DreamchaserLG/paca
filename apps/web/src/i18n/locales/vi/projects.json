@@ -1265,6 +1265,9 @@
 		},
 		"roleChip": {
 			"changeRole": "Đổi vai trò",
+			"dialogDescription": "Chọn vai trò cho {{name}}. Thành viên luôn giữ ít nhất một vai trò.",
+			"assign": "Gán vai trò",
+			"assigning": "Đang gán…",
 			"errors": {
 				"memberNotFound": "Thành viên này không còn thuộc dự án nữa.",
 				"roleForbidden": "Bạn không có quyền gán hoặc gỡ một trong các vai trò này.",

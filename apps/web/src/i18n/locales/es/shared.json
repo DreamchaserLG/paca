@@ -170,6 +170,11 @@
 			"dismiss": "Descartar"
 		}
 	},
+	"roleChange": {
+		"adding": "Añadir",
+		"removing": "Quitar",
+		"noChanges": "Sin cambios todavía. Marca o desmarca roles arriba."
+	},
 	"roleBadge": {
 		"fullAccess": "Acceso total",
 		"builtIn": "Integrado",

@@ -94,8 +94,8 @@ func (h *ViewHandler) ListViews(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Overlay the current user's personal config so settings/filters stay
-	// per-user. Runs after the (shared) cache read; unauthenticated callers
-	// (public projects) fall through to the shared defaults.
+	// per-user. Runs after the (shared) cache read; callers with no
+	// user identity (an agent API key) fall through to the shared defaults.
 	if actorID, ok := middleware.ActorIDFromContext(r.Context()); ok {
 		if err := h.svc.OverlayUserConfigs(r.Context(), actorID, views); err != nil {
 			presenter.Error(w, r, err)

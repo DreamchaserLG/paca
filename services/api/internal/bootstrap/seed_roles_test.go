@@ -2,7 +2,6 @@ package bootstrap
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"io"
 	"io/fs"
@@ -333,10 +332,6 @@ func TestSeed_FreshInstall_AdminAndBot(t *testing.T) {
 			t.Errorf("role claim = %q", u.RoleClaim())
 		}
 	}
-	var legacy sql.NullString
-	if err := db.Get(&legacy, `SELECT role_id::text FROM users WHERE username = 'admin'`); err != nil || legacy.Valid {
-		t.Errorf("legacy users.role_id written: %v %v", legacy, err)
-	}
 	// The default role exists and is USER.
 	var def string
 	if err := db.Get(&def, `SELECT name FROM roles WHERE is_default AND project_id IS NULL`); err != nil || def != "USER" {
@@ -384,8 +379,8 @@ func TestSeed_ExistingAdminAndChosenDefault(t *testing.T) {
 		t.Errorf("default = %q, want the operator's choice (%v)", def, err)
 	}
 	// Soft-deleted admin accounts are left alone.
-	must(t, db, `UPDATE users SET deleted_at = NOW() WHERE id = $1`, adminUser)
-	must(t, db, `DELETE FROM role_attachments WHERE principal_id = $1`, adminUser)
+	must(t, db, `UPDATE accounts SET deleted_at = NOW() WHERE id = $1`, adminUser)
+	must(t, db, `DELETE FROM role_attachments WHERE account_id = $1`, adminUser)
 	if err := seedAdmin(ctx, users, seeder, ids[defaultroles.SuperAdmin], config.AdminConfig{Username: "admin", Password: "pw-pw-pw-pw"}, quietLog); err != nil {
 		t.Fatal(err)
 	}

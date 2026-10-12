@@ -20,6 +20,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Paca-AI/api/internal/apierr"
+	accountdom "github.com/Paca-AI/api/internal/domain/account"
 	roledom "github.com/Paca-AI/api/internal/domain/role"
 	"github.com/Paca-AI/api/internal/platform/authz/iam"
 )
@@ -230,7 +231,7 @@ func (s *Service) ListUserRoles(ctx context.Context, userID uuid.UUID) ([]*roled
 	if err := s.requireUser(ctx, userID); err != nil {
 		return nil, err
 	}
-	return s.repo.ListAttached(ctx, roledom.PrincipalUser, userID, nil)
+	return s.repo.ListAttached(ctx, userID, nil)
 }
 
 // ReplaceUserRoles implements roledom.Service.
@@ -239,7 +240,7 @@ func (s *Service) ReplaceUserRoles(ctx context.Context, userID uuid.UUID, roleID
 		return nil, err
 	}
 	return s.replace(ctx, roledom.ReplaceAttachmentsInput{
-		PrincipalType: roledom.PrincipalUser, PrincipalID: userID, RoleIDs: dedupe(roleIDs), CreatedBy: createdBy,
+		AccountID: userID, RoleIDs: dedupe(roleIDs), CreatedBy: createdBy,
 	})
 }
 
@@ -248,7 +249,7 @@ func (s *Service) ListAgentRoles(ctx context.Context, agentID uuid.UUID) ([]*rol
 	if err := s.requireGlobalAgent(ctx, agentID); err != nil {
 		return nil, err
 	}
-	return s.repo.ListAttached(ctx, roledom.PrincipalAgent, agentID, nil)
+	return s.repo.ListAttached(ctx, agentID, nil)
 }
 
 // ReplaceAgentRoles implements roledom.Service.
@@ -257,7 +258,7 @@ func (s *Service) ReplaceAgentRoles(ctx context.Context, agentID uuid.UUID, role
 		return nil, err
 	}
 	return s.replace(ctx, roledom.ReplaceAttachmentsInput{
-		PrincipalType: roledom.PrincipalAgent, PrincipalID: agentID, RoleIDs: dedupe(roleIDs), CreatedBy: createdBy,
+		AccountID: agentID, RoleIDs: dedupe(roleIDs), CreatedBy: createdBy,
 	})
 }
 
@@ -267,7 +268,7 @@ func (s *Service) ListMemberRoles(ctx context.Context, projectID, memberID uuid.
 	if err != nil {
 		return nil, err
 	}
-	return s.repo.ListAttached(ctx, m.PrincipalType, m.PrincipalID, &projectID)
+	return s.repo.ListAttached(ctx, m.AccountID, &projectID)
 }
 
 // ReplaceMemberRoles implements roledom.Service.
@@ -277,7 +278,7 @@ func (s *Service) ReplaceMemberRoles(ctx context.Context, projectID, memberID uu
 		return nil, err
 	}
 	roles, err := s.replace(ctx, roledom.ReplaceAttachmentsInput{
-		PrincipalType: m.PrincipalType, PrincipalID: m.PrincipalID, ProjectID: &projectID,
+		AccountID: m.AccountID, ProjectID: &projectID,
 		RoleIDs: dedupe(roleIDs), CreatedBy: createdBy,
 	})
 	if err != nil {
@@ -294,6 +295,35 @@ func (s *Service) requireUser(ctx context.Context, id uuid.UUID) error {
 	}
 	if !ok {
 		return roledom.ErrUserNotFound
+	}
+	return nil
+}
+
+// ListServiceAccountRoles implements roledom.Service.
+func (s *Service) ListServiceAccountRoles(ctx context.Context, id uuid.UUID) ([]*roledom.Role, error) {
+	if err := s.requireServiceAccount(ctx, id); err != nil {
+		return nil, err
+	}
+	return s.repo.ListAttached(ctx, id, nil)
+}
+
+// ReplaceServiceAccountRoles implements roledom.Service.
+func (s *Service) ReplaceServiceAccountRoles(ctx context.Context, id uuid.UUID, roleIDs []uuid.UUID, createdBy *uuid.UUID) ([]*roledom.Role, error) {
+	if err := s.requireServiceAccount(ctx, id); err != nil {
+		return nil, err
+	}
+	return s.replace(ctx, roledom.ReplaceAttachmentsInput{
+		AccountID: id, RoleIDs: dedupe(roleIDs), CreatedBy: createdBy,
+	})
+}
+
+func (s *Service) requireServiceAccount(ctx context.Context, id uuid.UUID) error {
+	ok, err := s.repo.ServiceAccountExists(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return roledom.ErrServiceAccountNotFound
 	}
 	return nil
 }
@@ -337,7 +367,7 @@ func (s *Service) replace(ctx context.Context, in roledom.ReplaceAttachmentsInpu
 		}
 		s.inv.Invalidate(ids...)
 	}
-	return s.repo.ListAttached(ctx, in.PrincipalType, in.PrincipalID, in.ProjectID)
+	return s.repo.ListAttached(ctx, in.AccountID, in.ProjectID)
 }
 
 // checkAttachable rejects unknown role ids and roles that cannot be attached
@@ -419,8 +449,8 @@ func (s *Service) Simulate(ctx context.Context, in roledom.SimulateInput) (*role
 	var principal *iam.Principal
 	if in.Principal != nil {
 		id, perr := uuid.Parse(in.Principal.ID)
-		if perr != nil || (in.Principal.Type != roledom.PrincipalUser && in.Principal.Type != roledom.PrincipalAgent) {
-			return nil, apierr.New(apierr.CodeBadRequest, "principal must be {type: user|agent, id: uuid}")
+		if perr != nil || !accountdom.Kind(in.Principal.Type).Valid() {
+			return nil, apierr.New(apierr.CodeBadRequest, "principal must be {type: user|agent|service_account, id: uuid}")
 		}
 		principal = &iam.Principal{Type: in.Principal.Type, ID: id.String()}
 	}

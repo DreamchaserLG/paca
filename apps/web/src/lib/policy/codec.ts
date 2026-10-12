@@ -26,6 +26,7 @@ export const PROJECT_RESOURCES = ["project/*"] as const;
  *  (mirrors the server's iam.PlatformRootFor). */
 const PLATFORM_ROOTS: Record<string, readonly string[]> = {
 	users: ["user", "user/*"],
+	service_accounts: ["service_account/*"],
 	roles: ["role", "role/*"],
 	plugins: ["plugin", "plugin/*"],
 	settings: ["settings"],

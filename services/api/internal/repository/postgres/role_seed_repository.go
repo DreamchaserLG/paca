@@ -153,9 +153,9 @@ func (r *RoleSeedRepository) EnsureDefaultRole(ctx context.Context, fallback str
 // touching anything else the user holds. It reports whether a row was added.
 func (r *RoleSeedRepository) AttachPlatformIfMissing(ctx context.Context, userID, roleID uuid.UUID) (bool, error) {
 	res, err := r.db.ExecContext(ctx, `
-		INSERT INTO role_attachments (role_id, principal_type, principal_id, project_id)
-		VALUES ($1::uuid, 'user', $2::uuid, NULL)
-		ON CONFLICT (role_id, principal_type, principal_id) WHERE project_id IS NULL DO NOTHING`,
+		INSERT INTO role_attachments (role_id, account_id, project_id)
+		VALUES ($1::uuid, $2::uuid, NULL)
+		ON CONFLICT (role_id, account_id) WHERE project_id IS NULL DO NOTHING`,
 		roleID.String(), userID.String())
 	if err != nil {
 		return false, fmt.Errorf("role seed: attach: %w", err)

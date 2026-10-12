@@ -488,10 +488,10 @@ func (r *DocumentRepository) DeleteDocument(ctx context.Context, id uuid.UUID) e
 
 const snapshotJoinSQL = `
 	SELECT ds.id, ds.document_id, ds.title, ds.content, ds.snapshot_number, ds.created_by, ds.created_at,
-	       u.full_name AS created_by_name
+	       acc.name AS created_by_name
 	FROM doc_snapshots ds
 	LEFT JOIN project_members pm ON pm.id = ds.created_by
-	LEFT JOIN users u ON u.id = pm.user_id`
+	LEFT JOIN accounts acc ON acc.id = pm.account_id`
 
 // ListSnapshots returns all snapshots for a document, newest first.
 func (r *DocumentRepository) ListSnapshots(_ context.Context, documentID uuid.UUID) ([]*docdom.DocSnapshot, error) {

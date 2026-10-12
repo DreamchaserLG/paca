@@ -29,6 +29,8 @@ var (
 	ErrNotAttachable = errors.New("role: role cannot be attached here")
 	// ErrUserNotFound means the user does not exist or is deleted.
 	ErrUserNotFound = errors.New("role: user not found")
+	// ErrServiceAccountNotFound means the service account does not exist or is deleted.
+	ErrServiceAccountNotFound = errors.New("role: service account not found")
 	// ErrAgentNotFound means the global agent does not exist or is deleted.
 	ErrAgentNotFound = errors.New("role: agent not found")
 	// ErrProjectNotFound means the project does not exist or is deleted.

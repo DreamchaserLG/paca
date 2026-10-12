@@ -235,7 +235,7 @@ func TestRoleRepository_ReplaceAttachments(t *testing.T) {
 
 	replace := func(project *uuid.UUID, createdBy *uuid.UUID, ids ...uuid.UUID) ([]uuid.UUID, error) {
 		return repo.ReplaceAttachments(t.Context(), roledom.ReplaceAttachmentsInput{
-			PrincipalType: roledom.PrincipalUser, PrincipalID: user, ProjectID: project, RoleIDs: ids, CreatedBy: createdBy,
+			AccountID: user, ProjectID: project, RoleIDs: ids, CreatedBy: createdBy,
 		})
 	}
 	// platform-wide: {R1,R2} with created_by = by
@@ -244,12 +244,12 @@ func TestRoleRepository_ReplaceAttachments(t *testing.T) {
 		t.Fatalf("first replace: %v changed=%v", err, changed)
 	}
 	var cb []string
-	if err := db.Select(&cb, `SELECT created_by::text FROM role_attachments WHERE principal_id = $1 AND project_id IS NULL`, user); err != nil || len(cb) != 2 || cb[0] != by.String() || cb[1] != by.String() {
+	if err := db.Select(&cb, `SELECT created_by::text FROM role_attachments WHERE account_id = $1 AND project_id IS NULL`, user); err != nil || len(cb) != 2 || cb[0] != by.String() || cb[1] != by.String() {
 		t.Fatalf("created_by = %v err=%v", cb, err)
 	}
 	// {R2,R3}: R1 removed, R3 added, R2 untouched (same row, same created_by)
 	var r2Row string
-	_ = db.Get(&r2Row, `SELECT id::text FROM role_attachments WHERE principal_id = $1 AND role_id = $2`, user, r2.ID)
+	_ = db.Get(&r2Row, `SELECT id::text FROM role_attachments WHERE account_id = $1 AND role_id = $2`, user, r2.ID)
 	other := fx.user(false)
 	changed, err = replace(nil, &other, r2.ID, r3.ID)
 	if err != nil {
@@ -259,9 +259,9 @@ func TestRoleRepository_ReplaceAttachments(t *testing.T) {
 		t.Fatalf("changed must be exactly the added/removed roles: %v", changed)
 	}
 	var r2Row2, r2By, r3By string
-	_ = db.Get(&r2Row2, `SELECT id::text FROM role_attachments WHERE principal_id = $1 AND role_id = $2`, user, r2.ID)
-	_ = db.Get(&r2By, `SELECT created_by::text FROM role_attachments WHERE principal_id = $1 AND role_id = $2`, user, r2.ID)
-	_ = db.Get(&r3By, `SELECT created_by::text FROM role_attachments WHERE principal_id = $1 AND role_id = $2`, user, r3.ID)
+	_ = db.Get(&r2Row2, `SELECT id::text FROM role_attachments WHERE account_id = $1 AND role_id = $2`, user, r2.ID)
+	_ = db.Get(&r2By, `SELECT created_by::text FROM role_attachments WHERE account_id = $1 AND role_id = $2`, user, r2.ID)
+	_ = db.Get(&r3By, `SELECT created_by::text FROM role_attachments WHERE account_id = $1 AND role_id = $2`, user, r3.ID)
 	if r2Row != r2Row2 || r2By != by.String() || r3By != other.String() {
 		t.Fatalf("unchanged attachment must keep its row and creator: row %s->%s by=%s r3by=%s", r2Row, r2Row2, r2By, r3By)
 	}
@@ -278,8 +278,8 @@ func TestRoleRepository_ReplaceAttachments(t *testing.T) {
 		t.Fatalf("project replace: %v %v", err, changed)
 	}
 	var platformCount, projectCount int
-	_ = db.Get(&platformCount, `SELECT COUNT(*) FROM role_attachments WHERE principal_id = $1 AND project_id IS NULL`, user)
-	_ = db.Get(&projectCount, `SELECT COUNT(*) FROM role_attachments WHERE principal_id = $1 AND project_id = $2`, user, p)
+	_ = db.Get(&platformCount, `SELECT COUNT(*) FROM role_attachments WHERE account_id = $1 AND project_id IS NULL`, user)
+	_ = db.Get(&projectCount, `SELECT COUNT(*) FROM role_attachments WHERE account_id = $1 AND project_id = $2`, user, p)
 	if platformCount != 2 || projectCount != 2 {
 		t.Fatalf("scopes must be independent: platform=%d project=%d", platformCount, projectCount)
 	}
@@ -287,7 +287,7 @@ func TestRoleRepository_ReplaceAttachments(t *testing.T) {
 	if _, err = replace(&p, &by); err != nil {
 		t.Fatal(err)
 	}
-	_ = db.Get(&platformCount, `SELECT COUNT(*) FROM role_attachments WHERE principal_id = $1 AND project_id IS NULL`, user)
+	_ = db.Get(&platformCount, `SELECT COUNT(*) FROM role_attachments WHERE account_id = $1 AND project_id IS NULL`, user)
 	if platformCount != 2 {
 		t.Fatalf("platform set disturbed: %d", platformCount)
 	}
@@ -302,7 +302,7 @@ func TestRoleRepository_ReplaceAttachments(t *testing.T) {
 	if _, err = replace(nil, &by, uuid.New()); !errors.Is(err, roledom.ErrNotAttachable) {
 		t.Fatalf("unknown role: %v", err)
 	}
-	_ = db.Get(&platformCount, `SELECT COUNT(*) FROM role_attachments WHERE principal_id = $1 AND project_id IS NULL`, user)
+	_ = db.Get(&platformCount, `SELECT COUNT(*) FROM role_attachments WHERE account_id = $1 AND project_id IS NULL`, user)
 	if platformCount != 2 {
 		t.Fatalf("failed replace must roll back: %d", platformCount)
 	}
@@ -327,24 +327,24 @@ func TestRoleRepository_AgentPrincipalAndListAttached(t *testing.T) {
 	own := newRole(t, repo, "Own", rolePolicyRead, &p)
 
 	if _, err := repo.ReplaceAttachments(t.Context(), roledom.ReplaceAttachmentsInput{
-		PrincipalType: roledom.PrincipalAgent, PrincipalID: agent, RoleIDs: []uuid.UUID{r1.ID},
+		AccountID: agent, RoleIDs: []uuid.UUID{r1.ID},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := repo.ReplaceAttachments(t.Context(), roledom.ReplaceAttachmentsInput{
-		PrincipalType: roledom.PrincipalAgent, PrincipalID: agent, ProjectID: &p, RoleIDs: []uuid.UUID{own.ID},
+		AccountID: agent, ProjectID: &p, RoleIDs: []uuid.UUID{own.ID},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	var ptype string
-	if err := db.Get(&ptype, `SELECT principal_type FROM role_attachments WHERE role_id = $1`, r1.ID); err != nil || ptype != "agent" {
-		t.Fatalf("principal_type = %q err=%v", ptype, err)
+	var kind string
+	if err := db.Get(&kind, `SELECT ac.kind FROM role_attachments ra JOIN accounts ac ON ac.id = ra.account_id WHERE ra.role_id = $1`, r1.ID); err != nil || kind != "agent" {
+		t.Fatalf("account kind = %q err=%v", kind, err)
 	}
-	platform, err := repo.ListAttached(t.Context(), roledom.PrincipalAgent, agent, nil)
+	platform, err := repo.ListAttached(t.Context(), agent, nil)
 	if err != nil || len(platform) != 1 || platform[0].ID != r1.ID || platform[0].AttachmentCount != 1 {
 		t.Fatalf("platform attached = %+v err=%v", platform, err)
 	}
-	inProject, err := repo.ListAttached(t.Context(), roledom.PrincipalAgent, agent, &p)
+	inProject, err := repo.ListAttached(t.Context(), agent, &p)
 	if err != nil || len(inProject) != 1 || inProject[0].ID != own.ID {
 		t.Fatalf("project attached = %+v err=%v", inProject, err)
 	}
@@ -369,7 +369,7 @@ func TestRoleRepository_DeleteCascadesAttachments(t *testing.T) {
 	repo := NewRoleRepository(db)
 	user := fx.user(false)
 	r := newRole(t, repo, "R", rolePolicyRead, nil)
-	fx.attach(r.ID, "user", user, nil)
+	fx.attach(r.ID, user, nil)
 	got, _ := repo.FindByID(t.Context(), r.ID, nil)
 	if got.AttachmentCount != 1 {
 		t.Fatalf("count = %d", got.AttachmentCount)
@@ -390,7 +390,7 @@ func TestRoleRepository_LastFullAccessHolderInvariant(t *testing.T) {
 	star := newRole(t, repo, "Everything", rolePolicyStar, nil)
 	read := newRole(t, repo, "Reader", rolePolicyUsersRead, nil)
 	holds := func(u uuid.UUID, ids ...uuid.UUID) error {
-		_, err := repo.ReplaceAttachments(t.Context(), roledom.ReplaceAttachmentsInput{PrincipalType: roledom.PrincipalUser, PrincipalID: u, RoleIDs: ids})
+		_, err := repo.ReplaceAttachments(t.Context(), roledom.ReplaceAttachmentsInput{AccountID: u, RoleIDs: ids})
 		return err
 	}
 
@@ -425,7 +425,7 @@ func TestRoleRepository_LastFullAccessHolderInvariant(t *testing.T) {
 	// Replacing within a project is never blocked.
 	proj := fx.project()
 	if _, err := repo.ReplaceAttachments(t.Context(), roledom.ReplaceAttachmentsInput{
-		PrincipalType: roledom.PrincipalUser, PrincipalID: admin1, ProjectID: &proj, RoleIDs: nil,
+		AccountID: admin1, ProjectID: &proj, RoleIDs: nil,
 	}); err != nil {
 		t.Fatalf("project-scoped replace: %v", err)
 	}
@@ -468,20 +468,20 @@ func TestRoleRepository_FullAccessHolderCounting(t *testing.T) {
 		}
 		return n
 	}
-	fx.attach(cond.ID, "user", real, nil)
-	fx.attach(narrow.ID, "user", real, nil)
+	fx.attach(cond.ID, real, nil)
+	fx.attach(narrow.ID, real, nil)
 	if n := count(); n != 0 {
 		t.Fatalf("conditional / non-root-resource roles do not count: %d", n)
 	}
-	fx.attach(star.ID, "user", deleted, nil)
-	fx.attach(star.ID, "user", bot, nil)
-	fx.attach(star.ID, "agent", agent, nil)
+	fx.attach(star.ID, deleted, nil)
+	fx.attach(star.ID, bot, nil)
+	fx.attach(star.ID, agent, nil)
 	pr := fx.project()
-	fx.attach(star.ID, "user", real, &pr)
+	fx.attach(star.ID, real, &pr)
 	if n := count(); n != 0 {
 		t.Fatalf("deleted users, the bot account, agents and project-scoped attachments do not count: %d", n)
 	}
-	fx.attach(star.ID, "user", real, nil)
+	fx.attach(star.ID, real, nil)
 	if n := count(); n != 1 {
 		t.Fatalf("a live user with a platform-wide full-access role counts: %d", n)
 	}
@@ -521,16 +521,16 @@ func TestRoleRepository_TargetLookups(t *testing.T) {
 	}
 
 	// members
-	userMember := fx.member(p, live, false, false)
-	agentMember := fx.member(p, projectAgent, true, false)
-	deletedMember := fx.member(p, fx.user(false), false, true)
-	deadUserMember := fx.member(p, dead, false, false)
+	userMember := fx.member(p, live, false)
+	agentMember := fx.member(p, projectAgent, false)
+	deletedMember := fx.member(p, fx.user(false), true)
+	deadUserMember := fx.member(p, dead, false)
 	m, err := repo.FindMember(t.Context(), p, userMember)
-	if err != nil || m.PrincipalType != roledom.PrincipalUser || m.PrincipalID != live || m.ProjectID != p {
+	if err != nil || m.AccountID != live || m.ProjectID != p {
 		t.Fatalf("user member = %+v err=%v", m, err)
 	}
 	m, err = repo.FindMember(t.Context(), p, agentMember)
-	if err != nil || m.PrincipalType != roledom.PrincipalAgent || m.PrincipalID != projectAgent {
+	if err != nil || m.AccountID != projectAgent {
 		t.Fatalf("agent member = %+v err=%v", m, err)
 	}
 	for name, id := range map[string]uuid.UUID{"soft-deleted member": deletedMember, "member of a deleted user": deadUserMember, "unknown member": uuid.New()} {
@@ -579,14 +579,14 @@ func TestRoleRepository_ProjectTemplateIsNeverAttachedPlatformWide(t *testing.T)
 	tmpl := newRole(t, repo, "Template", rolePolicyTemplateStar, nil)
 
 	_, err := repo.ReplaceAttachments(t.Context(), roledom.ReplaceAttachmentsInput{
-		PrincipalType: roledom.PrincipalUser, PrincipalID: user, RoleIDs: []uuid.UUID{tmpl.ID},
+		AccountID: user, RoleIDs: []uuid.UUID{tmpl.ID},
 	})
 	if !errors.Is(err, roledom.ErrNotAttachable) {
 		t.Fatalf("platform-wide attach of a template: %v", err)
 	}
 	// Per project it is exactly what a template is for.
 	if _, err := repo.ReplaceAttachments(t.Context(), roledom.ReplaceAttachmentsInput{
-		PrincipalType: roledom.PrincipalUser, PrincipalID: user, ProjectID: &p, RoleIDs: []uuid.UUID{tmpl.ID},
+		AccountID: user, ProjectID: &p, RoleIDs: []uuid.UUID{tmpl.ID},
 	}); err != nil {
 		t.Fatalf("project-scoped attach of a template: %v", err)
 	}

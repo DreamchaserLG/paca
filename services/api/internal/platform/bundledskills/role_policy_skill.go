@@ -56,6 +56,7 @@ If a Paca MCP tool that lists the available role actions exists, prefer it over 
 Form ¤domain:verb¤. Wildcards: ¤*¤ (every action) and ¤domain:*¤ (every action of one domain, e.g. ¤tasks:*¤). No other wildcard forms (never ¤task*¤ or ¤*:read¤). An unknown action is rejected on save.
 
 - users: ¤users:read¤ ¤users:write¤ ¤users:delete¤
+- service accounts: ¤service_accounts:read¤ ¤service_accounts:write¤ (¤write¤ includes minting the account's API keys, so it is root-equivalent over what that account may do)
 - roles: ¤roles:read¤ ¤roles:write¤ ¤roles:assign¤
 - projects: ¤projects:read¤ ¤projects:write¤ ¤projects:create¤ ¤projects:delete¤
 - project team and log: ¤project.members:read¤ ¤project.members:write¤ ¤project.activities:read¤ ¤project:export¤
@@ -85,7 +86,7 @@ Slash-separated paths, no empty segments. A middle ¤*¤ matches exactly one seg
 | ¤project/<id>/agent/<agentId>/*¤ | One agent in a project and anything under it |
 | ¤project/<id>/environment/<envId>/*¤ | One environment in a project |
 | ¤project/*/environment/*¤ | Environments in every project |
-| ¤user/*¤ ¤role/*¤ ¤agent/*¤ ¤plugin/*¤ | Platform users, roles, global agents, plugins (¤user/<id>¤ for one) |
+| ¤user/*¤ ¤service_account/*¤ ¤role/*¤ ¤agent/*¤ ¤plugin/*¤ | Platform users, service accounts, roles, global agents, plugins (¤user/<id>¤ for one) |
 | ¤settings¤, ¤sso¤ | Workspace settings, SSO providers |
 | ¤project¤ | The project list itself (listing and creating projects) |
 

@@ -237,7 +237,7 @@ Exactly one platform role is the **default**; it cannot be deleted and cannot be
 - **Default role.** Exactly one, undeletable, never a template.
 - **Built-in roles** can be edited, not deleted.
 - **Privileged operations have their own routes.** A user's roles change only through `PUT /admin/users/{id}/roles` (`roles:assign` on each role added or removed), a global agent's through `PUT /admin/agents/{id}/roles` (the same, plus `agents:write` on the agent); create/update of users and agents reject a role field.
-- **Agents are judged as themselves.** A request authenticated with an agent's API key is evaluated against that agent's own attachments, not those of the shared bot user behind the key.
+- **Agents and service accounts are judged as themselves.** A request authenticated with an agent's or a service account's API key is evaluated against that account's own attachments, and only those. An agent never borrows the permissions of the person it is chatting with.
 
 ## List scoping
 

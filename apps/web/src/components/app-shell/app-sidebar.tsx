@@ -27,6 +27,7 @@ import {
 	GanttChart,
 	Home,
 	KanbanSquare,
+	KeyRound,
 	Loader2,
 	MessageSquare,
 	Monitor,
@@ -1698,6 +1699,10 @@ export function AppSidebar() {
 	const canAccessGlobalAgents =
 		hasPermission("agents:read") || hasPermission("agents:write");
 
+	const canAccessServiceAccounts =
+		hasPermission("service_accounts:read") ||
+		hasPermission("service_accounts:write");
+
 	// plugins.write replaced users.write as a rough "is this someone
 	// important" proxy once it got its own dedicated permission — see authz.
 	// PermissionPluginsRead's doc comment on the Go side. This nav-link
@@ -1722,6 +1727,7 @@ export function AppSidebar() {
 		canAccessGlobalRoles ||
 		canAccessUsers ||
 		canAccessGlobalAgents ||
+		canAccessServiceAccounts ||
 		canAccessPlugins ||
 		canAccessSettings;
 	// Plugin-contributed admin pages get their own sidebar section, separate
@@ -1842,6 +1848,13 @@ export function AppSidebar() {
 													to="/admin/agents"
 													icon={Bot}
 													label={t("nav.agents")}
+												/>
+											) : null}
+											{canAccessServiceAccounts ? (
+												<NavItem
+													to="/admin/service-accounts"
+													icon={KeyRound}
+													label={t("nav.serviceAccounts")}
 												/>
 											) : null}
 											{canAccessPlugins ? (

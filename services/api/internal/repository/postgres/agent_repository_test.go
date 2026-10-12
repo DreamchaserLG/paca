@@ -88,5 +88,4 @@ func TestAgentToRecord_GlobalAgent(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Nil(t, rec.ProjectID)
-	assert.Equal(t, "global", rec.AgentScope)
 }

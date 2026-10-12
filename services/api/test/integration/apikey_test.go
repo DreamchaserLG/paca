@@ -63,12 +63,12 @@ func (r *fakeAPIKeyRepo) FindByHash(_ context.Context, hash string) (*apikeydom.
 	return k, nil
 }
 
-func (r *fakeAPIKeyRepo) ListByUserID(_ context.Context, userID uuid.UUID) ([]*apikeydom.APIKey, error) {
+func (r *fakeAPIKeyRepo) ListByAccountID(_ context.Context, accountID uuid.UUID) ([]*apikeydom.APIKey, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var out []*apikeydom.APIKey
 	for _, k := range r.byID {
-		if k.UserID == userID && k.RevokedAt == nil {
+		if k.AccountID == accountID && k.RevokedAt == nil {
 			out = append(out, k)
 		}
 	}

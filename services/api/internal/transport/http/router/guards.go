@@ -102,6 +102,7 @@ const (
 	resProjectRole           = "project/{projectId}/role/{roleId}"
 	resUser                  = "user/{userId}"
 	resGlobalAgent           = "agent/{agentId}"
+	resServiceAccount        = "service_account/{serviceAccountId}"
 
 	// resAssignRoles / resAssignProjectRoles name the assignment gates: roles:assign
 	// is authorized on the resource of each role the request adds or removes.
@@ -279,6 +280,18 @@ func (g guards) ProjectRole(actions ...iam.Action) func(http.Handler) http.Handl
 // AssignGlobalAgentRoles gate.
 func (g guards) GlobalAgentRoles(actions ...iam.Action) func(http.Handler) http.Handler {
 	return g.PlatformEntity("agent", "agentId", resGlobalAgent, actions...)
+}
+
+// ServiceAccount requires every action on one service account
+// ("service_account/{serviceAccountId}").
+func (g guards) ServiceAccount(actions ...iam.Action) func(http.Handler) http.Handler {
+	return g.PlatformEntity("service_account", "serviceAccountId", resServiceAccount, actions...)
+}
+
+// AssignServiceAccountRoles is AssignUserRoles for
+// PUT /admin/service-accounts/{serviceAccountId}/roles.
+func (g guards) AssignServiceAccountRoles() func(http.Handler) http.Handler {
+	return markGate(resAssignRoles, httpmw.RequireAssignRoles(g.iam, httpmw.ServiceAccountRolesTarget(g.roleAttachments, "serviceAccountId")))
 }
 
 // AssignUserRoles is the assignment gate of PUT /admin/users/{userId}/roles:

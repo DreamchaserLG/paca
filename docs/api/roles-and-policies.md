@@ -171,7 +171,7 @@ These report the caller's effective IAM actions so the UI can show or hide featu
 |---|---|---|---|
 | `GET` | `/users/me/global-permissions` | any authenticated user | The caller's platform-level actions. |
 | `GET` | `/projects/:projectId/members/me/permissions` | any authenticated caller | The caller's effective actions in the project. |
-| `GET` | `/agents/me/global-permissions` | agent API key (`X-Agent-ID`) | The calling agent's own platform-level actions. |
+| `GET` | `/agents/me/global-permissions` | the agent's own API key | The calling agent's own platform-level actions. |
 
 ```json
 { "success": true, "data": { "actions": ["projects:read", "tasks:read", "tasks:write"] }, "request_id": "..." }

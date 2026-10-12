@@ -9,12 +9,14 @@ import (
 // --- Project Member DTOs ----------------------------------------------------
 
 // AddProjectMemberRequest is the body for POST /v1/projects/:projectId/members.
-// Exactly one of UserID/AgentID must be set: UserID adds a human member;
-// AgentID invites an existing global agent into the project — the same
-// action, just for an agent instead of a human.
+// Exactly one of UserID/AgentID/ServiceAccountID must be set: UserID adds a
+// human member; AgentID invites an existing global agent and ServiceAccountID
+// an existing service account into the project — the same action, just for
+// another kind of account.
 type AddProjectMemberRequest struct {
-	UserID  uuid.UUID  `json:"user_id,omitempty"`
-	AgentID *uuid.UUID `json:"agent_id,omitempty"`
+	UserID           uuid.UUID  `json:"user_id,omitempty"`
+	AgentID          *uuid.UUID `json:"agent_id,omitempty"`
+	ServiceAccountID *uuid.UUID `json:"service_account_id,omitempty"`
 	// RoleIDs are the roles the new member holds in the project: platform
 	// roles and the project's own roles. At least one is required.
 	RoleIDs []uuid.UUID `json:"role_ids"`
@@ -41,11 +43,14 @@ type ProjectMemberResponse struct {
 	Username  string    `json:"username"`
 	FullName  string    `json:"full_name"`
 	// Roles are the roles the member holds in the project, sorted by name.
-	Roles       []RoleSummaryResponse `json:"roles"`
-	MemberType  string                `json:"member_type"`
-	AgentID     *uuid.UUID            `json:"agent_id,omitempty"`
-	AgentName   string                `json:"agent_name,omitempty"`
-	AgentHandle string                `json:"agent_handle,omitempty"`
+	Roles      []RoleSummaryResponse `json:"roles"`
+	MemberType string                `json:"member_type"`
+	AgentID    *uuid.UUID            `json:"agent_id,omitempty"`
+	// ServiceAccountID is the member's account when MemberType is
+	// "service_account".
+	ServiceAccountID *uuid.UUID `json:"service_account_id,omitempty"`
+	AgentName        string     `json:"agent_name,omitempty"`
+	AgentHandle      string     `json:"agent_handle,omitempty"`
 	// AvatarURL/AvatarThumbURL are presigned GET URLs for whichever of
 	// user/agent backs this member, populated by the handler (not this
 	// mapper) via attachmentdom.AvatarService — nil when no avatar has been
@@ -79,6 +84,10 @@ func ProjectMemberFromEntity(m *projectdom.ProjectMember) ProjectMemberResponse 
 		AgentLLMProvider: m.AgentLLMProvider,
 		AgentACPProvider: m.AgentACPProvider,
 		Description:      m.Description,
+	}
+	if m.MemberType == "service_account" {
+		id := m.AccountID
+		resp.ServiceAccountID = &id
 	}
 	if m.IsAgent() {
 		// For agent members, populate username/full_name from agent fields so

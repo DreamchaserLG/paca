@@ -1261,7 +1261,14 @@
 			"modeUser": "ユーザー",
 			"modeAgent": "AIエージェント",
 			"agentLabel": "エージェント",
-			"noAgentsAvailable": "招待できるグローバルエージェントがありません。"
+			"noAgentsAvailable": "招待できるグローバルエージェントがありません。",
+			"modeServiceAccount": "サービスアカウント",
+			"serviceAccountLabel": "サービスアカウント",
+			"noServiceAccountsAvailable": "追加できるサービスアカウントがありません。",
+			"searchAgentsPlaceholder": "名前またはハンドルで検索…",
+			"noAgentsMatch": "検索に一致するエージェントはありません。",
+			"searchServiceAccountsPlaceholder": "名前または説明で検索…",
+			"noServiceAccountsMatch": "検索に一致するサービスアカウントはありません。"
 		},
 		"roleChip": {
 			"changeRole": "ロールを変更",
@@ -1278,7 +1285,8 @@
 		"memberRow": {
 			"removeMember": "メンバーを削除",
 			"agentBadge": "エージェント",
-			"actions": "メンバーの操作"
+			"actions": "メンバーの操作",
+			"serviceAccountBadge": "サービスアカウント"
 		},
 		"removeDialog": {
 			"title": "メンバーを削除",

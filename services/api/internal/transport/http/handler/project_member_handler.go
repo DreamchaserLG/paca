@@ -9,7 +9,6 @@ import (
 
 	"github.com/Paca-AI/api/internal/apierr"
 	projectdom "github.com/Paca-AI/api/internal/domain/project"
-	"github.com/Paca-AI/api/internal/platform/authz/iam"
 	"github.com/Paca-AI/api/internal/transport/http/dto"
 	"github.com/Paca-AI/api/internal/transport/http/middleware"
 	"github.com/Paca-AI/api/internal/transport/http/presenter"
@@ -59,10 +58,18 @@ func (h *ProjectHandler) AddMember(w http.ResponseWriter, r *http.Request) {
 	if !middleware.BindJSON(w, r, &req) {
 		return
 	}
-	hasUser := req.UserID != uuid.Nil
-	hasAgent := req.AgentID != nil && *req.AgentID != uuid.Nil
-	if hasUser == hasAgent {
-		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "exactly one of user_id or agent_id is required"))
+	set := 0
+	for _, has := range []bool{
+		req.UserID != uuid.Nil,
+		req.AgentID != nil && *req.AgentID != uuid.Nil,
+		req.ServiceAccountID != nil && *req.ServiceAccountID != uuid.Nil,
+	} {
+		if has {
+			set++
+		}
+	}
+	if set != 1 {
+		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "exactly one of user_id, agent_id or service_account_id is required"))
 		return
 	}
 	if len(req.RoleIDs) == 0 {
@@ -71,11 +78,12 @@ func (h *ProjectHandler) AddMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	m, err := h.svc.AddMember(r.Context(), id, projectdom.AddMemberInput{
-		UserID:      req.UserID,
-		AgentID:     req.AgentID,
-		RoleIDs:     req.RoleIDs,
-		Description: req.Description,
-		CreatedBy:   attachmentCreator(r),
+		UserID:           req.UserID,
+		AgentID:          req.AgentID,
+		RoleIDs:          req.RoleIDs,
+		ServiceAccountID: req.ServiceAccountID,
+		Description:      req.Description,
+		CreatedBy:        attachmentCreator(r),
 	})
 	if err != nil {
 		presenter.Error(w, r, err)
@@ -149,27 +157,14 @@ func (h *ProjectHandler) GetMyProjectPermissions(w http.ResponseWriter, r *http.
 		return
 	}
 
-	claims := middleware.ClaimsFrom(r)
-	if claims == nil {
-		presenter.Error(w, r, apierr.New(apierr.CodeUnauthenticated, "unauthenticated"))
-		return
-	}
-
-	userID, err := uuid.Parse(claims.Subject)
-	if err != nil {
-		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid subject claim"))
-		return
-	}
-
 	// The caller's effective IAM actions in the project — every registered
 	// action allowed on the project or possibly on something inside it —
-	// from the engine that enforces them. An agent-key request naming an
-	// agent is judged as that agent.
-	principal := iam.User(userID.String())
-	if claims.AgentID != nil {
-		if parsedAgentID, parseErr := uuid.Parse(*claims.AgentID); parseErr == nil {
-			principal = iam.Agent(parsedAgentID.String())
-		}
+	// from the engine that enforces them, judged as the account the request
+	// authenticated as.
+	principal, err := middleware.IAMPrincipalFrom(r)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
 	}
 	if h.authorizer == nil {
 		presenter.Error(w, r, apierr.New(apierr.CodeInternalError, "authorization not configured"))

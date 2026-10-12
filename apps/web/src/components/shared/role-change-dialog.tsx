@@ -25,7 +25,7 @@ interface RoleChangeDialogProps<T extends RoleOption> {
 	onOpenChange: (open: boolean) => void;
 	title: string;
 	description: string;
-	person: { name: string; handle: string; avatarUrl?: string | null };
+	person: { name: string; handle?: string; avatarUrl?: string | null };
 	roles: T[];
 	/** Shown in place of the list and summary while the roles are not
 	 * available (loading, failed, none). */
@@ -121,9 +121,11 @@ export function RoleChangeDialog<T extends RoleOption>({
 						<div className="min-w-0">
 							<DialogTitle className="truncate text-base">{title}</DialogTitle>
 							<p className="truncate text-sm font-medium">{person.name}</p>
-							<p className="truncate text-xs text-muted-foreground">
-								@{person.handle}
-							</p>
+							{person.handle ? (
+								<p className="truncate text-xs text-muted-foreground">
+									@{person.handle}
+								</p>
+							) : null}
 						</div>
 					</div>
 					<DialogDescription>{description}</DialogDescription>

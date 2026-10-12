@@ -48,17 +48,6 @@ export class PacaAPIClient {
 			"Content-Type": "application/json",
 			"X-API-Key": this.config.apiKey,
 		};
-		if (this.config.agentId) {
-			headers["X-Agent-ID"] = this.config.agentId;
-		}
-		// Only ever meaningful alongside X-Agent-ID (see PacaConfig.actorUserId's
-		// doc comment: "unset for a personal API key"). Gating on agentId here
-		// too — not just trusting actorUserId's own truthiness — means a stray
-		// or misconfigured PACA_ACTOR_USER_ID can never reach the server
-		// without an agent identity attached to it.
-		if (this.config.agentId && this.config.actorUserId) {
-			headers["X-Actor-User-ID"] = this.config.actorUserId;
-		}
 
 		const options: RequestInit = {
 			method,

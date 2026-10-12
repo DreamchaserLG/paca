@@ -1261,7 +1261,14 @@
 			"modeUser": "사용자",
 			"modeAgent": "AI 에이전트",
 			"agentLabel": "에이전트",
-			"noAgentsAvailable": "초대할 수 있는 전역 에이전트가 없습니다."
+			"noAgentsAvailable": "초대할 수 있는 전역 에이전트가 없습니다.",
+			"modeServiceAccount": "서비스 계정",
+			"serviceAccountLabel": "서비스 계정",
+			"noServiceAccountsAvailable": "추가할 수 있는 서비스 계정이 없습니다.",
+			"searchAgentsPlaceholder": "이름 또는 핸들로 검색…",
+			"noAgentsMatch": "검색과 일치하는 에이전트가 없습니다.",
+			"searchServiceAccountsPlaceholder": "이름 또는 설명으로 검색…",
+			"noServiceAccountsMatch": "검색과 일치하는 서비스 계정이 없습니다."
 		},
 		"roleChip": {
 			"changeRole": "역할 변경",
@@ -1278,7 +1285,8 @@
 		"memberRow": {
 			"removeMember": "멤버 제거",
 			"agentBadge": "에이전트",
-			"actions": "멤버 작업"
+			"actions": "멤버 작업",
+			"serviceAccountBadge": "서비스 계정"
 		},
 		"removeDialog": {
 			"title": "멤버 제거",

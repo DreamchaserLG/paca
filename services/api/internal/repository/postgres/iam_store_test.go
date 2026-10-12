@@ -31,7 +31,7 @@ func TestIAMStoreListGrants(t *testing.T) {
 	t.Run("platform role for active user", func(t *testing.T) {
 		u := fx.user(false)
 		r := fx.role(allowAllPolicy)
-		fx.attach(r, "user", u, nil)
+		fx.attach(r, u, nil)
 		gs, err := store.ListGrants(ctx, iam.Principal{Type: "user", ID: u.String()})
 		if err != nil || len(gs) != 1 {
 			t.Fatalf("%v %v", gs, err)
@@ -48,12 +48,12 @@ func TestIAMStoreListGrants(t *testing.T) {
 	t.Run("project scoped needs active member", func(t *testing.T) {
 		u := fx.user(false)
 		r := fx.role(projAllowPolicy)
-		fx.attach(r, "user", u, &p1)
+		fx.attach(r, u, &p1)
 		pr := iam.Principal{Type: "user", ID: u.String()}
 		if gs, _ := store.ListGrants(ctx, pr); len(gs) != 0 {
 			t.Fatalf("no membership => no grant, got %v", gs)
 		}
-		m := fx.member(p1, u, false, false)
+		m := fx.member(p1, u, false)
 		gs, err := store.ListGrants(ctx, pr)
 		if err != nil || len(gs) != 1 || gs[0].ProjectID != p1.String() {
 			t.Fatalf("%+v %v", gs, err)
@@ -74,8 +74,8 @@ func TestIAMStoreListGrants(t *testing.T) {
 
 	t.Run("membership in another project does not count", func(t *testing.T) {
 		u := fx.user(false)
-		fx.attach(fx.role(projAllowPolicy), "user", u, &p1)
-		fx.member(p2, u, false, false)
+		fx.attach(fx.role(projAllowPolicy), u, &p1)
+		fx.member(p2, u, false)
 		if gs, _ := store.ListGrants(ctx, iam.Principal{Type: "user", ID: u.String()}); len(gs) != 0 {
 			t.Fatalf("got %v", gs)
 		}
@@ -83,10 +83,10 @@ func TestIAMStoreListGrants(t *testing.T) {
 
 	t.Run("soft-deleted user has no grants", func(t *testing.T) {
 		u := fx.user(true)
-		fx.attach(fx.role(allowAllPolicy), "user", u, nil)
+		fx.attach(fx.role(allowAllPolicy), u, nil)
 		r2 := fx.role(projAllowPolicy)
-		fx.attach(r2, "user", u, &p1)
-		fx.member(p1, u, false, false)
+		fx.attach(r2, u, &p1)
+		fx.member(p1, u, false)
 		if gs, _ := store.ListGrants(ctx, iam.Principal{Type: "user", ID: u.String()}); len(gs) != 0 {
 			t.Fatalf("got %v", gs)
 		}
@@ -95,25 +95,44 @@ func TestIAMStoreListGrants(t *testing.T) {
 	t.Run("agent principal", func(t *testing.T) {
 		a := fx.agent(nil, false)
 		pr := iam.Principal{Type: "agent", ID: a.String()}
-		fx.attach(fx.role(allowAllPolicy), "agent", a, nil)
-		fx.attach(fx.role(projAllowPolicy), "agent", a, &p1)
+		fx.attach(fx.role(allowAllPolicy), a, nil)
+		fx.attach(fx.role(projAllowPolicy), a, &p1)
 		gs, err := store.ListGrants(ctx, pr)
 		if err != nil || len(gs) != 1 {
 			t.Fatalf("platform only before membership: %v %v", gs, err)
 		}
-		fx.member(p1, a, true, false)
+		fx.member(p1, a, false)
 		if gs, _ = store.ListGrants(ctx, pr); len(gs) != 2 {
 			t.Fatalf("want 2 after membership, got %v", gs)
 		}
-		// a user id never matches an agent attachment and vice versa
-		if gs, _ = store.ListGrants(ctx, iam.Principal{Type: "user", ID: a.String()}); len(gs) != 0 {
-			t.Fatalf("type confusion: %v", gs)
+	})
+
+	t.Run("service account principal", func(t *testing.T) {
+		sa := fx.serviceAccount(false)
+		pr := iam.Principal{Type: "service_account", ID: sa.String()}
+		fx.attach(fx.role(allowAllPolicy), sa, nil)
+		fx.attach(fx.role(projAllowPolicy), sa, &p1)
+		gs, err := store.ListGrants(ctx, pr)
+		if err != nil || len(gs) != 1 {
+			t.Fatalf("platform only before membership: %v %v", gs, err)
+		}
+		fx.member(p1, sa, false)
+		if gs, _ = store.ListGrants(ctx, pr); len(gs) != 2 {
+			t.Fatalf("want 2 after membership, got %v", gs)
+		}
+	})
+
+	t.Run("soft-deleted service account has no grants", func(t *testing.T) {
+		sa := fx.serviceAccount(true)
+		fx.attach(fx.role(allowAllPolicy), sa, nil)
+		if gs, _ := store.ListGrants(ctx, iam.Principal{Type: "service_account", ID: sa.String()}); len(gs) != 0 {
+			t.Fatalf("got %v", gs)
 		}
 	})
 
 	t.Run("soft-deleted agent has no grants", func(t *testing.T) {
 		a := fx.agent(nil, true)
-		fx.attach(fx.role(allowAllPolicy), "agent", a, nil)
+		fx.attach(fx.role(allowAllPolicy), a, nil)
 		if gs, _ := store.ListGrants(ctx, iam.Principal{Type: "agent", ID: a.String()}); len(gs) != 0 {
 			t.Fatalf("got %v", gs)
 		}
@@ -121,20 +140,20 @@ func TestIAMStoreListGrants(t *testing.T) {
 
 	t.Run("project-owned role only counts in its own project", func(t *testing.T) {
 		u := fx.user(false)
-		fx.member(p1, u, false, false)
-		fx.member(p2, u, false, false)
+		fx.member(p1, u, false)
+		fx.member(p2, u, false)
 		owned := fx.role(projAllowPolicy)
 		pgExec(t, db, `UPDATE roles SET project_id = $2 WHERE id = $1`, owned, p1)
 		pr := iam.Principal{Type: "user", ID: u.String()}
-		fx.attach(owned, "user", u, nil) // platform scope
+		fx.attach(owned, u, nil) // platform scope
 		if gs, _ := store.ListGrants(ctx, pr); len(gs) != 0 {
 			t.Fatalf("platform attachment of a project-owned role must grant nothing: %v", gs)
 		}
-		fx.attach(owned, "user", u, &p2) // another project
+		fx.attach(owned, u, &p2) // another project
 		if gs, _ := store.ListGrants(ctx, pr); len(gs) != 0 {
 			t.Fatalf("attachment in another project must grant nothing: %v", gs)
 		}
-		fx.attach(owned, "user", u, &p1)
+		fx.attach(owned, u, &p1)
 		if gs, _ := store.ListGrants(ctx, pr); len(gs) != 1 || gs[0].ProjectID != p1.String() {
 			t.Fatalf("own project must grant: %v", gs)
 		}
@@ -156,7 +175,7 @@ func TestIAMStorePolicyCache(t *testing.T) {
 	u := fx.user(false)
 	pr := iam.Principal{Type: "user", ID: u.String()}
 	r := fx.role(allowAllPolicy)
-	fx.attach(r, "user", u, nil)
+	fx.attach(r, u, nil)
 
 	gs, _ := store.ListGrants(ctx, pr)
 	if !iam.Evaluate(gs, iam.Request{Action: "users:read", Resource: "*"}).Allowed {
@@ -190,7 +209,7 @@ func TestIAMStoreUnparsablePolicy(t *testing.T) {
 	pr := iam.Principal{Type: "user", ID: u.String()}
 	for _, bad := range []string{`{"version":"1","statements":[{"effect":"Maybe","actions":["*"],"resources":["*"]}]}`, `"just a string"`, `null`, `{"nope":1}`, `[]`} {
 		r := fx.role(bad)
-		fx.attach(r, "user", u, nil)
+		fx.attach(r, u, nil)
 	}
 	gs, err := store.ListGrants(ctx, pr)
 	if err != nil || len(gs) != 5 {
@@ -214,7 +233,7 @@ func TestIAMStoreConcurrentUse(t *testing.T) {
 	store := NewIAMStore(db)
 	u := fx.user(false)
 	r := fx.role(allowAllPolicy)
-	fx.attach(r, "user", u, nil)
+	fx.attach(r, u, nil)
 	var wg sync.WaitGroup
 	for i := 0; i < 16; i++ {
 		wg.Add(1)

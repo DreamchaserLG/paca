@@ -76,6 +76,14 @@ func (f *fakeRoleSvc) ReplaceAgentRoles(_ context.Context, id uuid.UUID, ids []u
 	f.gotID, f.gotRoleIDs, f.gotCreatedBy = id, ids, by
 	return f.roles, f.err
 }
+func (f *fakeRoleSvc) ListServiceAccountRoles(_ context.Context, id uuid.UUID) ([]*roledom.Role, error) {
+	f.gotID = id
+	return f.roles, f.err
+}
+func (f *fakeRoleSvc) ReplaceServiceAccountRoles(_ context.Context, id uuid.UUID, ids []uuid.UUID, by *uuid.UUID) ([]*roledom.Role, error) {
+	f.gotID, f.gotRoleIDs, f.gotCreatedBy = id, ids, by
+	return f.roles, f.err
+}
 func (f *fakeRoleSvc) ListMemberRoles(_ context.Context, p, m uuid.UUID) ([]*roledom.Role, error) {
 	f.gotProject, f.gotMember = &p, m
 	return f.roles, f.err

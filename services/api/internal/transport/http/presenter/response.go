@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/Paca-AI/api/internal/apierr"
+	accountdom "github.com/Paca-AI/api/internal/domain/account"
 	agentdom "github.com/Paca-AI/api/internal/domain/agent"
 	annotationdom "github.com/Paca-AI/api/internal/domain/annotation"
 	apikeydom "github.com/Paca-AI/api/internal/domain/apikey"
@@ -170,6 +171,12 @@ func statusAndCodeFor(err error) (int, apierr.Code) {
 		return http.StatusBadRequest, apierr.CodeRoleRequired
 	case errors.Is(err, roledom.ErrUserNotFound):
 		return http.StatusNotFound, apierr.CodeUserNotFound
+	case errors.Is(err, accountdom.ErrServiceAccountNotFound), errors.Is(err, roledom.ErrServiceAccountNotFound):
+		return http.StatusNotFound, apierr.CodeServiceAccountNotFound
+	case errors.Is(err, accountdom.ErrNameInvalid):
+		return http.StatusBadRequest, apierr.CodeServiceAccountNameInvalid
+	case errors.Is(err, accountdom.ErrDescriptionTooLong):
+		return http.StatusBadRequest, apierr.CodeServiceAccountDescriptionTooLong
 	case errors.Is(err, roledom.ErrAgentNotFound):
 		return http.StatusNotFound, apierr.CodeAgentNotFound
 	case errors.Is(err, roledom.ErrProjectNotFound):
@@ -530,7 +537,7 @@ func httpStatusForCode(code apierr.Code) int {
 		apierr.CodeTokenInvalid,
 		apierr.CodeUnauthenticated:
 		return http.StatusUnauthorized
-	case apierr.CodeUserNotFound, apierr.CodeSSOProviderNotFound:
+	case apierr.CodeUserNotFound, apierr.CodeSSOProviderNotFound, apierr.CodeServiceAccountNotFound:
 		return http.StatusNotFound
 	case apierr.CodeSSOProviderSlugTaken:
 		return http.StatusConflict

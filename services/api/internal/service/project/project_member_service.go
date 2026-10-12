@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	accountdom "github.com/Paca-AI/api/internal/domain/account"
 	agentdom "github.com/Paca-AI/api/internal/domain/agent"
 	projectdom "github.com/Paca-AI/api/internal/domain/project"
 	roledom "github.com/Paca-AI/api/internal/domain/role"
@@ -47,6 +48,9 @@ func (s *Service) AddMember(ctx context.Context, projectID uuid.UUID, in project
 	if in.AgentID != nil {
 		return s.addAgentMember(ctx, projectID, *in.AgentID, in.RoleIDs, in.CreatedBy)
 	}
+	if in.ServiceAccountID != nil {
+		return s.addServiceAccountMember(ctx, projectID, *in.ServiceAccountID, in)
+	}
 
 	_, err := s.repo.FindMember(ctx, projectID, in.UserID)
 	if err == nil {
@@ -59,6 +63,7 @@ func (s *Service) AddMember(ctx context.Context, projectID uuid.UUID, in project
 	m := &projectdom.ProjectMember{
 		ID:          uuid.New(),
 		ProjectID:   projectID,
+		AccountID:   in.UserID,
 		UserID:      in.UserID,
 		Description: strings.TrimSpace(in.Description),
 	}
@@ -69,6 +74,39 @@ func (s *Service) AddMember(ctx context.Context, projectID uuid.UUID, in project
 
 	// Re-fetch to populate username and roles via JOIN.
 	added, err := s.repo.FindMember(ctx, projectID, in.UserID)
+	if err != nil {
+		return nil, err
+	}
+	s.record(ctx, projectID, events.EntityMember, added.ID, TopicMemberAdded, memberPayload(added))
+	return added, nil
+}
+
+// addServiceAccountMember invites an existing service account into a project:
+// the account must exist and not already be a member. Its project-scoped roles
+// only count while it is one.
+func (s *Service) addServiceAccountMember(ctx context.Context, projectID, accountID uuid.UUID, in projectdom.AddMemberInput) (*projectdom.ProjectMember, error) {
+	if s.serviceAccounts == nil {
+		return nil, accountdom.ErrServiceAccountNotFound
+	}
+	if _, err := s.serviceAccounts.FindByID(ctx, accountID); err != nil {
+		return nil, err
+	}
+	if _, err := s.repo.FindMember(ctx, projectID, accountID); err == nil {
+		return nil, projectdom.ErrMemberAlreadyAdded
+	} else if !errors.Is(err, projectdom.ErrMemberNotFound) {
+		return nil, err
+	}
+	m := &projectdom.ProjectMember{
+		ID:          uuid.New(),
+		ProjectID:   projectID,
+		AccountID:   accountID,
+		Description: strings.TrimSpace(in.Description),
+	}
+	if err := s.repo.AddMember(ctx, m, in.RoleIDs, in.CreatedBy); err != nil {
+		return nil, err
+	}
+	s.roleGrantsChanged(in.RoleIDs)
+	added, err := s.repo.FindMember(ctx, projectID, accountID)
 	if err != nil {
 		return nil, err
 	}

@@ -9,6 +9,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
 	Bot,
 	Check,
+	KeyRound,
 	Loader2,
 	MoreHorizontal,
 	PenLine,
@@ -83,6 +84,10 @@ import {
 	replaceMemberRoles,
 } from "@/lib/role-api";
 import { createLoadMoreScrollHandler } from "@/lib/scroll-pagination";
+import {
+	type ServiceAccount,
+	serviceAccountsQueryOptions,
+} from "@/lib/service-account-api";
 
 export const Route = createFileRoute(
 	"/_authenticated/projects/$projectId/team/",
@@ -147,6 +152,39 @@ function UserPickerItem({
 	);
 }
 
+/** True when every word of `query` appears in one of the `fields`. */
+function matchesSearch(query: string, ...fields: (string | undefined)[]) {
+	const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+	if (words.length === 0) return true;
+	const haystack = fields.join(" ").toLowerCase();
+	return words.every((w) => haystack.includes(w));
+}
+
+function PickerSearch({
+	value,
+	onChange,
+	placeholder,
+}: {
+	value: string;
+	onChange: (value: string) => void;
+	placeholder: string;
+}) {
+	const ref = useRef<HTMLInputElement>(null);
+	useEffect(() => ref.current?.focus(), []);
+	return (
+		<div className="flex items-center gap-2 px-3 py-2 border-b border-border/50">
+			<Search className="size-3.5 shrink-0 text-muted-foreground" />
+			<input
+				ref={ref}
+				className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+				placeholder={placeholder}
+				value={value}
+				onChange={(e) => onChange(e.target.value)}
+			/>
+		</div>
+	);
+}
+
 function AddMemberDialog({
 	open,
 	onOpenChange,
@@ -154,6 +192,7 @@ function AddMemberDialog({
 	roles,
 	existingMemberIds,
 	existingAgentIds,
+	existingServiceAccountIds,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
@@ -161,21 +200,31 @@ function AddMemberDialog({
 	roles: Role[];
 	existingMemberIds: Set<string>;
 	existingAgentIds: Set<string>;
+	existingServiceAccountIds: Set<string>;
 }) {
 	const { t } = useTranslation("projects");
 	const queryClient = useQueryClient();
 	const { hasPermission: can } = usePermissions();
-	const [mode, setMode] = useState<"user" | "agent">("user");
+	const [mode, setMode] = useState<"user" | "agent" | "service_account">(
+		"user",
+	);
+	const [selectedServiceAccount, setSelectedServiceAccount] =
+		useState<ServiceAccount | null>(null);
 	const [selectedUser, setSelectedUser] = useState<User | null>(null);
 	const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
 	const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
 	const [userSearch, setUserSearch] = useState("");
 	const [debouncedUserSearch, setDebouncedUserSearch] = useState("");
 	const applyUserSearch = useDebouncedCallback(setDebouncedUserSearch, 300);
+	// Agents and service accounts are loaded whole, so their search is local.
+	const [agentSearch, setAgentSearch] = useState("");
+	const [serviceAccountSearch, setServiceAccountSearch] = useState("");
 	const [description, setDescription] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const searchRef = useRef<HTMLInputElement>(null);
 	const canReadUsers = can("users:read");
+	// Inviting a service account needs to list them (service_accounts:read).
+	const canInviteServiceAccounts = can("service_accounts:read");
 	const selectedAgentAvatarUrl = selectedAgent
 		? resolveAgentAvatarUrl(selectedAgent)
 		: undefined;
@@ -184,7 +233,22 @@ function AddMemberDialog({
 		...chattableAgentsQueryOptions,
 		enabled: open && mode === "agent",
 	});
-	const availableAgents = allAgents.filter((a) => !existingAgentIds.has(a.id));
+	const availableAgents = allAgents.filter(
+		(a) =>
+			!existingAgentIds.has(a.id) &&
+			matchesSearch(agentSearch, a.name, a.handle, a.description),
+	);
+
+	const { data: allServiceAccounts = [], isLoading: isLoadingServiceAccounts } =
+		useQuery({
+			...serviceAccountsQueryOptions,
+			enabled: open && mode === "service_account" && canInviteServiceAccounts,
+		});
+	const availableServiceAccounts = allServiceAccounts.filter(
+		(a) =>
+			!existingServiceAccountIds.has(a.id) &&
+			matchesSearch(serviceAccountSearch, a.name, a.description),
+	);
 
 	const {
 		data: usersPages,
@@ -245,6 +309,15 @@ function AddMemberDialog({
 			if (selectedRoleIds.length === 0) {
 				return Promise.reject(new Error("Role is required"));
 			}
+			if (mode === "service_account") {
+				if (!selectedServiceAccount) {
+					return Promise.reject(new Error("Service account is required"));
+				}
+				return addProjectMember(projectId, {
+					service_account_id: selectedServiceAccount.id,
+					role_ids: selectedRoleIds,
+				});
+			}
 			if (mode === "agent") {
 				if (!selectedAgent) {
 					return Promise.reject(new Error("Agent is required"));
@@ -288,8 +361,11 @@ function AddMemberDialog({
 		setMode("user");
 		setSelectedUser(null);
 		setSelectedAgent(null);
+		setSelectedServiceAccount(null);
 		setSelectedRoleIds([]);
 		setUserSearch("");
+		setAgentSearch("");
+		setServiceAccountSearch("");
 		setDebouncedUserSearch("");
 		// Supersede any pending debounce so it can't restore the old term.
 		applyUserSearch("");
@@ -301,7 +377,11 @@ function AddMemberDialog({
 	const canSubmit =
 		selectedRoleIds.length > 0 &&
 		!addMutation.isPending &&
-		(mode === "agent" ? !!selectedAgent : !!selectedUser);
+		(mode === "agent"
+			? !!selectedAgent
+			: mode === "service_account"
+				? !!selectedServiceAccount
+				: !!selectedUser);
 	const selectedUserId = selectedUser?.id ?? null;
 
 	return (
@@ -311,7 +391,7 @@ function AddMemberDialog({
 				if (!v) handleClose();
 			}}
 		>
-			<DialogContent className="sm:max-w-md">
+			<DialogContent className="sm:max-w-xl">
 				<DialogHeader>
 					<div className="flex size-10 items-center justify-center rounded-full bg-primary/10 mb-2">
 						<Users className="size-5 text-primary" />
@@ -323,9 +403,19 @@ function AddMemberDialog({
 				</DialogHeader>
 
 				<div className="space-y-4 py-1">
-					{/* Mode toggle: invite a human user, or invite a global agent */}
-					<div className="grid grid-cols-2 gap-2">
-						{(["user", "agent"] as const).map((m) => {
+					{/* Mode toggle: invite a human user, a global agent or a service account */}
+					<div
+						className={`grid gap-2 ${canInviteServiceAccounts ? "grid-cols-3" : "grid-cols-2"}`}
+					>
+						{(
+							[
+								"user",
+								"agent",
+								...(canInviteServiceAccounts
+									? (["service_account"] as const)
+									: []),
+							] as const
+						).map((m) => {
 							const isSelected = mode === m;
 							return (
 								<button
@@ -335,6 +425,7 @@ function AddMemberDialog({
 										setMode(m);
 										setSelectedUser(null);
 										setSelectedAgent(null);
+										setSelectedServiceAccount(null);
 										setError(null);
 									}}
 									className={`flex items-center justify-center gap-1.5 rounded-lg border p-2.5 text-xs font-medium transition-all ${
@@ -345,18 +436,107 @@ function AddMemberDialog({
 								>
 									{m === "user" ? (
 										<UserRound className="size-3.5" />
-									) : (
+									) : m === "agent" ? (
 										<Bot className="size-3.5" />
+									) : (
+										<KeyRound className="size-3.5" />
 									)}
 									{m === "user"
 										? t("team.addMemberDialog.modeUser")
-										: t("team.addMemberDialog.modeAgent")}
+										: m === "agent"
+											? t("team.addMemberDialog.modeAgent")
+											: t("team.addMemberDialog.modeServiceAccount")}
 								</button>
 							);
 						})}
 					</div>
 
-					{mode === "agent" ? (
+					{mode === "service_account" ? (
+						<div className="space-y-1.5">
+							<p className="text-sm font-medium">
+								{t("team.addMemberDialog.serviceAccountLabel")}
+							</p>
+							{selectedServiceAccount ? (
+								<div className="flex items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2">
+									<Avatar className="size-7 shrink-0">
+										{selectedServiceAccount.avatar_thumb_url ? (
+											<AvatarImage
+												src={selectedServiceAccount.avatar_thumb_url}
+											/>
+										) : null}
+										<AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
+											<KeyRound className="size-3.5" />
+										</AvatarFallback>
+									</Avatar>
+									<div className="min-w-0 flex-1">
+										<span className="text-sm font-medium">
+											{selectedServiceAccount.name}
+										</span>
+									</div>
+									<button
+										type="button"
+										className="text-xs text-muted-foreground hover:text-foreground"
+										onClick={() => setSelectedServiceAccount(null)}
+									>
+										{t("team.addMemberDialog.change")}
+									</button>
+								</div>
+							) : (
+								<div className="rounded-lg border border-border overflow-hidden">
+									<PickerSearch
+										value={serviceAccountSearch}
+										onChange={setServiceAccountSearch}
+										placeholder={t(
+											"team.addMemberDialog.searchServiceAccountsPlaceholder",
+										)}
+									/>
+									<div className="max-h-52 overflow-y-auto p-1">
+										{isLoadingServiceAccounts ? (
+											<div className="flex items-center justify-center py-4">
+												<Loader2 className="size-4 animate-spin text-muted-foreground" />
+											</div>
+										) : availableServiceAccounts.length === 0 ? (
+											<p className="py-4 text-center text-xs text-muted-foreground">
+												{serviceAccountSearch
+													? t("team.addMemberDialog.noServiceAccountsMatch")
+													: t(
+															"team.addMemberDialog.noServiceAccountsAvailable",
+														)}
+											</p>
+										) : (
+											availableServiceAccounts.map((account) => (
+												<button
+													key={account.id}
+													type="button"
+													className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
+													onClick={() => setSelectedServiceAccount(account)}
+												>
+													<Avatar className="size-7 shrink-0">
+														{account.avatar_thumb_url ? (
+															<AvatarImage src={account.avatar_thumb_url} />
+														) : null}
+														<AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
+															<KeyRound className="size-3.5" />
+														</AvatarFallback>
+													</Avatar>
+													<div className="min-w-0 flex-1">
+														<span className="font-medium truncate block">
+															{account.name}
+														</span>
+														{account.description ? (
+															<span className="text-xs text-muted-foreground truncate block">
+																{account.description}
+															</span>
+														) : null}
+													</div>
+												</button>
+											))
+										)}
+									</div>
+								</div>
+							)}
+						</div>
+					) : mode === "agent" ? (
 						<div className="space-y-1.5">
 							<p className="text-sm font-medium">
 								{t("team.addMemberDialog.agentLabel")}
@@ -388,43 +568,56 @@ function AddMemberDialog({
 									</button>
 								</div>
 							) : (
-								<div className="rounded-lg border border-border overflow-hidden max-h-44 overflow-y-auto p-1">
-									{isLoadingAgents ? (
-										<div className="flex items-center justify-center py-4">
-											<Loader2 className="size-4 animate-spin text-muted-foreground" />
-										</div>
-									) : availableAgents.length === 0 ? (
-										<p className="py-4 text-center text-xs text-muted-foreground">
-											{t("team.addMemberDialog.noAgentsAvailable")}
-										</p>
-									) : (
-										availableAgents.map((agent) => {
-											const avatarUrl = resolveAgentAvatarUrl(agent);
-											return (
-												<button
-													key={agent.id}
-													type="button"
-													className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
-													onClick={() => setSelectedAgent(agent)}
-												>
-													<Avatar className="size-7 shrink-0">
-														{avatarUrl ? <AvatarImage src={avatarUrl} /> : null}
-														<AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
-															<Bot className="size-3.5" />
-														</AvatarFallback>
-													</Avatar>
-													<div className="min-w-0 flex-1">
-														<span className="font-medium truncate block">
-															{agent.name}
-														</span>
-														<span className="text-xs text-muted-foreground truncate block">
-															@{agent.handle}
-														</span>
-													</div>
-												</button>
-											);
-										})
-									)}
+								<div className="rounded-lg border border-border overflow-hidden">
+									<PickerSearch
+										value={agentSearch}
+										onChange={setAgentSearch}
+										placeholder={t(
+											"team.addMemberDialog.searchAgentsPlaceholder",
+										)}
+									/>
+									<div className="max-h-52 overflow-y-auto p-1">
+										{isLoadingAgents ? (
+											<div className="flex items-center justify-center py-4">
+												<Loader2 className="size-4 animate-spin text-muted-foreground" />
+											</div>
+										) : availableAgents.length === 0 ? (
+											<p className="py-4 text-center text-xs text-muted-foreground">
+												{agentSearch
+													? t("team.addMemberDialog.noAgentsMatch")
+													: t("team.addMemberDialog.noAgentsAvailable")}
+											</p>
+										) : (
+											availableAgents.map((agent) => {
+												const avatarUrl = resolveAgentAvatarUrl(agent);
+												return (
+													<button
+														key={agent.id}
+														type="button"
+														className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
+														onClick={() => setSelectedAgent(agent)}
+													>
+														<Avatar className="size-7 shrink-0">
+															{avatarUrl ? (
+																<AvatarImage src={avatarUrl} />
+															) : null}
+															<AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
+																<Bot className="size-3.5" />
+															</AvatarFallback>
+														</Avatar>
+														<div className="min-w-0 flex-1">
+															<span className="font-medium truncate block">
+																{agent.name}
+															</span>
+															<span className="text-xs text-muted-foreground truncate block">
+																@{agent.handle}
+															</span>
+														</div>
+													</button>
+												);
+											})
+										)}
+									</div>
 								</div>
 							)}
 						</div>
@@ -825,6 +1018,7 @@ function MemberRow({
 		member.member_type === "agent" ||
 		member.username.startsWith("bot-") ||
 		memberRoleNames(member).toLowerCase().includes("agent");
+	const isServiceAccount = member.member_type === "service_account";
 	const memberAvatarUrl = resolveMemberAvatarUrl(member);
 
 	const memberRoles = enrichRoles(member.roles, roles);
@@ -834,7 +1028,13 @@ function MemberRow({
 			<Avatar className="size-9 shrink-0">
 				{memberAvatarUrl ? <AvatarImage src={memberAvatarUrl} alt="" /> : null}
 				<AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
-					{isBot ? <Bot className="size-4" /> : getInitials(display)}
+					{isBot ? (
+						<Bot className="size-4" />
+					) : isServiceAccount ? (
+						<KeyRound className="size-4" />
+					) : (
+						getInitials(display)
+					)}
 				</AvatarFallback>
 			</Avatar>
 			<div className="min-w-0 flex-1 basis-40">
@@ -847,13 +1047,20 @@ function MemberRow({
 							{t("team.memberRow.agentBadge")}
 						</span>
 					) : null}
+					{isServiceAccount ? (
+						<span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-medium leading-none text-muted-foreground">
+							{t("team.memberRow.serviceAccountBadge")}
+						</span>
+					) : null}
 				</p>
-				<p className="text-xs text-muted-foreground truncate">
-					@<HighlightMatch text={member.username} query={highlight} />
-				</p>
+				{isServiceAccount ? null : (
+					<p className="text-xs text-muted-foreground truncate">
+						@<HighlightMatch text={member.username} query={highlight} />
+					</p>
+				)}
 			</div>
 			<div className="ml-auto flex min-w-0 max-w-full items-center gap-1.5 max-sm:order-last max-sm:w-full max-sm:pl-12">
-				{canManage && !isBot ? (
+				{canManage && !isBot && !isServiceAccount ? (
 					<DescriptionChip member={member} projectId={projectId} />
 				) : null}
 				<div className="flex min-w-0 flex-1 justify-end max-sm:justify-start">
@@ -947,6 +1154,17 @@ function TeamPage() {
 
 	const existingMemberIds = useMemo(
 		() => new Set((members ?? []).map((m) => m.user_id)),
+		[members],
+	);
+	const existingServiceAccountIds = useMemo(
+		() =>
+			new Set(
+				(members ?? [])
+					.filter(
+						(m) => m.member_type === "service_account" && m.service_account_id,
+					)
+					.map((m) => m.service_account_id as string),
+			),
 		[members],
 	);
 	const existingAgentIds = useMemo(
@@ -1141,6 +1359,7 @@ function TeamPage() {
 				roles={roles}
 				existingMemberIds={existingMemberIds}
 				existingAgentIds={existingAgentIds}
+				existingServiceAccountIds={existingServiceAccountIds}
 			/>
 
 			{/* Remove confirmation dialog */}

@@ -11,8 +11,8 @@ import (
 	"github.com/Paca-AI/api/internal/platform/authz/iam"
 )
 
-// callerStore serves IAM grants per principal so a test can give the shared
-// bot user, a user and an agent different grants — the identities
+// callerStore serves IAM grants per principal so a test can give a user, an
+// agent and a service account different grants — the identities
 // permission_check must not conflate.
 type callerStore map[iam.Principal][]iam.Grant
 
@@ -75,28 +75,28 @@ func TestCallerHolds_HumanIsJudgedByTheirRoles(t *testing.T) {
 	}
 }
 
-// The bug: an agent-key request's UserID is the shared bot user, seeded
-// SUPER_ADMIN, so judging by it let every agent pass any check a plugin makes.
-func TestCallerHolds_AgentIsJudgedByItsOwnRoleNotTheBotBehindItsKey(t *testing.T) {
-	bot, agent := uuid.New(), uuid.New()
+// An agent is judged by its own role attachments, as the principal of its own
+// kind: a wildcard held by some other account does not help it.
+func TestCallerHolds_AgentIsJudgedByItsOwnRole(t *testing.T) {
+	other, agent := uuid.New(), uuid.New()
 	project := uuid.NewString()
 	rt := runtimeWith(callerStore{
-		userP(bot):    {starGrant()},
+		userP(other):  {starGrant()},
 		agentP(agent): {projectGrant(project, "tasks:read"), platformGrant("users:read")},
 	})
 	ctx := context.Background()
 	req := func(projectID string) *HTTPRequest {
-		return &HTTPRequest{UserID: bot.String(), AgentID: agent.String(), ProjectID: projectID}
+		return &HTTPRequest{UserID: agent.String(), AccountKind: "agent", ProjectID: projectID}
 	}
 
 	if rt.callerHolds(ctx, req(project), pluginID, manageAll) {
-		t.Fatal("an agent whose role lacks the permission passed because its key resolves to the SUPER_ADMIN bot")
+		t.Fatal("an agent whose role lacks the permission must not pass")
 	}
 	if !rt.callerHolds(ctx, req(project), pluginID, iam.ActionTasksRead) {
 		t.Error("an agent must pass what its own project role grants")
 	}
 	if rt.callerHolds(ctx, req(""), pluginID, manageAll) {
-		t.Error("a request with no project must be judged by the agent's own global role, not the bot's")
+		t.Error("a request with no project must be judged by the agent's own global role")
 	}
 	if !rt.callerHolds(ctx, req(""), pluginID, iam.ActionUsersRead) {
 		t.Error("an agent must pass what its own global role grants")
@@ -104,12 +104,24 @@ func TestCallerHolds_AgentIsJudgedByItsOwnRoleNotTheBotBehindItsKey(t *testing.T
 }
 
 func TestCallerHolds_AnAgentOutsideTheProjectHoldsNothingThere(t *testing.T) {
-	bot, stranger := uuid.New(), uuid.New()
-	rt := runtimeWith(callerStore{userP(bot): {starGrant()}})
+	other, stranger := uuid.New(), uuid.New()
+	rt := runtimeWith(callerStore{userP(other): {starGrant()}})
 
-	req := &HTTPRequest{UserID: bot.String(), AgentID: stranger.String(), ProjectID: uuid.NewString()}
+	req := &HTTPRequest{UserID: stranger.String(), AccountKind: "agent", ProjectID: uuid.NewString()}
 	if rt.callerHolds(context.Background(), req, pluginID, iam.ActionTasksRead) {
 		t.Fatal("an agent with no membership in the project must hold nothing in it")
+	}
+}
+
+func TestCallerHolds_ServiceAccountIsJudgedByItsOwnRole(t *testing.T) {
+	sa := uuid.New()
+	rt := runtimeWith(callerStore{{Type: "service_account", ID: sa.String()}: {platformGrant("users:read")}})
+	req := &HTTPRequest{UserID: sa.String(), AccountKind: "service_account"}
+	if !rt.callerHolds(context.Background(), req, pluginID, iam.ActionUsersRead) {
+		t.Error("a service account must pass what its own role grants")
+	}
+	if rt.callerHolds(context.Background(), req, pluginID, manageAll) {
+		t.Error("a service account must not pass what its role lacks")
 	}
 }
 
@@ -129,7 +141,6 @@ func TestCallerHolds_FailsClosed(t *testing.T) {
 		{"blank permission", runtimeWith(full), ok, ""},
 		{"no authorizer", &Runtime{}, ok, manageAll},
 		{"bad user id", runtimeWith(full), &HTTPRequest{UserID: "not-a-uuid"}, manageAll},
-		{"bad agent id", runtimeWith(full), &HTTPRequest{UserID: user.String(), AgentID: "not-a-uuid"}, manageAll},
 		{"bad project id", runtimeWith(full), &HTTPRequest{UserID: user.String(), ProjectID: "not-a-uuid"}, manageAll},
 	}
 	for _, tc := range tests {
@@ -145,15 +156,15 @@ func TestCallerHolds_FailsClosed(t *testing.T) {
 	}
 }
 
-// The agent id is for the host's own decision; plugins get the envelope as
+// The account kind is for the host's own decision; plugins get the envelope as
 // before, so nothing about the plugin ABI changes.
-func TestHTTPRequest_AgentIDIsNotSerialisedToPlugins(t *testing.T) {
-	raw, err := json.Marshal(&HTTPRequest{UserID: "u", AgentID: "a-secret-agent-id"})
+func TestHTTPRequest_AccountKindIsNotSerialisedToPlugins(t *testing.T) {
+	raw, err := json.Marshal(&HTTPRequest{UserID: "u", AccountKind: "a-secret-kind"})
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	if strings.Contains(string(raw), "a-secret-agent-id") || strings.Contains(string(raw), "agent_id") {
-		t.Fatalf("the agent id leaked into the plugin-facing envelope: %s", raw)
+	if strings.Contains(string(raw), "a-secret-kind") || strings.Contains(string(raw), "account_kind") {
+		t.Fatalf("the account kind leaked into the plugin-facing envelope: %s", raw)
 	}
 }
 

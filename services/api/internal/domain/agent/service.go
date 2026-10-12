@@ -121,7 +121,7 @@ type ConversationService interface {
 	// only by their chat-session owner).
 	GetConversation(ctx context.Context, projectID, conversationID, memberID uuid.UUID) (*AgentConversation, error)
 	// GetConversationForAgent returns a conversation for an agent-
-	// authenticated caller (X-Agent-ID, no human member/actor identity of
+	// authenticated caller (an agent, no human member/actor identity of
 	// its own to check against) — used by the read_conversation MCP tool
 	// when a user attaches a Conversation as chat context.
 	// GetConversation/GetGlobalConversation both require a human

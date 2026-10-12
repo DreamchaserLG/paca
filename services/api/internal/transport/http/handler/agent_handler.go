@@ -573,7 +573,7 @@ func (h *AgentHandler) DeleteGlobalAgent(w http.ResponseWriter, r *http.Request)
 }
 
 // GetMyGlobalPermissions handles GET /agents/me/global-permissions.
-// Agent-API-key-authenticated only (X-Agent-ID header) — returns
+// Agent-authenticated only (the agent's own API key) — returns
 // {"actions": [...]}: the calling agent's own effective platform-level IAM
 // actions (never the bot user's behind its key). The MCP server calls this
 // for a global-scope conversation.
@@ -599,8 +599,8 @@ func (h *AgentHandler) GetMyGlobalPermissions(w http.ResponseWriter, r *http.Req
 	presenter.OK(w, r, map[string]any{"actions": out})
 }
 
-// GetMyInvitedProjects handles GET /agents/me/projects. Agent-API-key
-// authenticated only — returns the IDs of every project the calling global
+// GetMyInvitedProjects handles GET /agents/me/projects. Agent-authenticated
+// only — returns the IDs of every project the calling global
 // agent currently has an active membership in. Used by the MCP server to
 // discover which projects to probe for per-project permissions when running
 // in unpinned (global chat) mode.

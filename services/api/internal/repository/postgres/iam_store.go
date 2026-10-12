@@ -27,31 +27,24 @@ func NewIAMStore(db *sqlx.DB) *IAMStore {
 	return &IAMStore{db: db, cache: map[string]*iam.Policy{}}
 }
 
-// listGrantsSQL selects a principal's effective attachments:
-//   - the principal must be alive (users.deleted_at / agents.deleted_at IS NULL);
+// listGrantsSQL selects an account's effective attachments:
+//   - the account must be alive (accounts.deleted_at IS NULL);
 //   - a project-owned role (roles.project_id) only counts when attached to that
 //     same project (never at platform scope or in another project);
 //   - platform attachments (project_id IS NULL) always count;
-//   - a project-scoped attachment counts only while the principal has an
-//     active (deleted_at IS NULL) project_members row in that project
-//     (human members: user_id; agent members: agent_id).
+//   - a project-scoped attachment counts only while the account has an
+//     active (deleted_at IS NULL) project_members row in that project.
 const listGrantsSQL = `
 SELECT ra.role_id::text AS role_id, COALESCE(ra.project_id::text, '') AS project_id
 FROM role_attachments ra
-WHERE ra.principal_type = $1
-  AND ra.principal_id = $2::uuid
+WHERE ra.account_id = $1::uuid
   AND EXISTS (SELECT 1 FROM roles r WHERE r.id = ra.role_id AND (r.project_id IS NULL OR r.project_id = ra.project_id))
-  AND CASE ra.principal_type
-        WHEN 'user'  THEN EXISTS (SELECT 1 FROM users  u WHERE u.id = ra.principal_id AND u.deleted_at IS NULL)
-        WHEN 'agent' THEN EXISTS (SELECT 1 FROM agents a WHERE a.id = ra.principal_id AND a.deleted_at IS NULL)
-        ELSE FALSE
-      END
+  AND EXISTS (SELECT 1 FROM accounts a WHERE a.id = ra.account_id AND a.deleted_at IS NULL)
   AND (ra.project_id IS NULL OR EXISTS (
         SELECT 1 FROM project_members pm
         WHERE pm.project_id = ra.project_id
           AND pm.deleted_at IS NULL
-          AND ((ra.principal_type = 'user'  AND pm.user_id  = ra.principal_id)
-            OR (ra.principal_type = 'agent' AND pm.agent_id = ra.principal_id))))
+          AND pm.account_id = ra.account_id))
 ORDER BY ra.created_at, ra.id`
 
 // ListGrants implements iam.Store. A role whose stored policy does not parse
@@ -61,7 +54,7 @@ func (s *IAMStore) ListGrants(ctx context.Context, p iam.Principal) ([]iam.Grant
 		RoleID    string `db:"role_id"`
 		ProjectID string `db:"project_id"`
 	}
-	if err := s.db.SelectContext(ctx, &rows, listGrantsSQL, p.Type, p.ID); err != nil {
+	if err := s.db.SelectContext(ctx, &rows, listGrantsSQL, p.ID); err != nil {
 		return nil, fmt.Errorf("iam store: list attachments: %w", err)
 	}
 	if len(rows) == 0 {

@@ -11,6 +11,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
+	accountdom "github.com/Paca-AI/api/internal/domain/account"
 	domainauth "github.com/Paca-AI/api/internal/domain/auth"
 	"github.com/Paca-AI/api/internal/platform/authz/iam"
 	"github.com/Paca-AI/api/internal/transport/http/handler"
@@ -70,15 +71,18 @@ func TestGetMyProjectPermissions_ReturnsEffectiveActions(t *testing.T) {
 	h := handler.NewProjectHandler(nil, iam.NewAuthorizer(store, iam.NewRegistry(), iam.NewAttributeSchema()))
 
 	serve := func(agent *uuid.UUID) *httptest.ResponseRecorder {
-		claims := &domainauth.Claims{RegisteredClaims: jwt.RegisteredClaims{Subject: userID.String()}, Kind: "access"}
+		// The caller is the account its credential proves: the user, or the
+		// agent whose token this is.
+		principal := httpmw.Principal{AccountID: userID, Kind: accountdom.KindUser, Method: httpmw.MethodSession}
 		if agent != nil {
-			s := agent.String()
-			claims.AgentID = &s
+			principal = httpmw.Principal{AccountID: *agent, Kind: accountdom.KindAgent, Method: httpmw.MethodAPIKey}
 		}
+		claims := &domainauth.Claims{RegisteredClaims: jwt.RegisteredClaims{Subject: principal.AccountID.String()}, Kind: "access"}
 		r := chi.NewRouter()
 		r.With(func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-				next.ServeHTTP(w, req.WithContext(context.WithValue(req.Context(), httpmw.ClaimsContextKey(), claims)))
+				ctx := context.WithValue(req.Context(), httpmw.ClaimsContextKey(), claims)
+				next.ServeHTTP(w, req.WithContext(httpmw.WithPrincipal(ctx, principal)))
 			})
 		}).Get("/projects/{projectId}/members/me/permissions", h.GetMyProjectPermissions)
 		rec := httptest.NewRecorder()

@@ -25,6 +25,8 @@ type RoleAttachmentLookup interface {
 	UserRoleIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
 	// AgentRoleIDs returns the platform-wide roles of a global agent.
 	AgentRoleIDs(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error)
+	// ServiceAccountRoleIDs returns the platform-wide roles of a service account.
+	ServiceAccountRoleIDs(ctx context.Context, serviceAccountID uuid.UUID) ([]uuid.UUID, error)
 	// MemberRoleIDs returns the roles a project member holds in the project.
 	MemberRoleIDs(ctx context.Context, projectID, memberID uuid.UUID) ([]uuid.UUID, error)
 }
@@ -33,6 +35,7 @@ type RoleAttachmentLookup interface {
 type roleAttachmentService interface {
 	ListUserRoles(ctx context.Context, userID uuid.UUID) ([]*roledom.Role, error)
 	ListAgentRoles(ctx context.Context, agentID uuid.UUID) ([]*roledom.Role, error)
+	ListServiceAccountRoles(ctx context.Context, serviceAccountID uuid.UUID) ([]*roledom.Role, error)
 	ListMemberRoles(ctx context.Context, projectID, memberID uuid.UUID) ([]*roledom.Role, error)
 }
 
@@ -47,7 +50,7 @@ func NewRoleServiceAttachments(svc roleAttachmentService) RoleServiceAttachments
 
 func roleIDsOf(roles []*roledom.Role, err error) ([]uuid.UUID, error) {
 	if err != nil {
-		if errors.Is(err, roledom.ErrUserNotFound) || errors.Is(err, roledom.ErrAgentNotFound) ||
+		if errors.Is(err, roledom.ErrUserNotFound) || errors.Is(err, roledom.ErrAgentNotFound) || errors.Is(err, roledom.ErrServiceAccountNotFound) ||
 			errors.Is(err, roledom.ErrMemberNotFound) || errors.Is(err, roledom.ErrProjectNotFound) {
 			return nil, nil
 		}
@@ -68,6 +71,11 @@ func (a RoleServiceAttachments) UserRoleIDs(ctx context.Context, id uuid.UUID) (
 // AgentRoleIDs implements RoleAttachmentLookup.
 func (a RoleServiceAttachments) AgentRoleIDs(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
 	return roleIDsOf(a.Svc.ListAgentRoles(ctx, id))
+}
+
+// ServiceAccountRoleIDs implements RoleAttachmentLookup.
+func (a RoleServiceAttachments) ServiceAccountRoleIDs(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+	return roleIDsOf(a.Svc.ListServiceAccountRoles(ctx, id))
 }
 
 // MemberRoleIDs implements RoleAttachmentLookup.
@@ -107,6 +115,18 @@ func AgentRolesTarget(l RoleAttachmentLookup, agentParam string) AssignTarget {
 			return nil, err
 		}
 		return lookupOrFail(l, func() ([]uuid.UUID, error) { return l.AgentRoleIDs(r.Context(), id) })
+	}}
+}
+
+// ServiceAccountRolesTarget is the platform-wide roles of the service account
+// in param.
+func ServiceAccountRolesTarget(l RoleAttachmentLookup, param string) AssignTarget {
+	return AssignTarget{Current: func(r *http.Request) ([]uuid.UUID, error) {
+		id, err := uuidParam(r, param, "service account")
+		if err != nil {
+			return nil, err
+		}
+		return lookupOrFail(l, func() ([]uuid.UUID, error) { return l.ServiceAccountRoleIDs(r.Context(), id) })
 	}}
 }
 

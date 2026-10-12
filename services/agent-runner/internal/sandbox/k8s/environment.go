@@ -558,8 +558,8 @@ func (m *Manager) patchDeploymentContainers(ctx context.Context, name string, co
 // unlike GOOSE_PROVIDER/GOOSE_MODEL/the LLM API key (frozen forever to
 // whichever agent's conversation first attached this environment).
 // PACA_API_KEY/PACA_API_URL/PACA_GATEWAY_URL are deployment-level;
-// PACA_WORKDIR/PACA_ACTOR_USER_ID/PACA_REPO_PLUGIN_IDS are conversation-
-// scoped (track trigger.Workdir/ActorUserID/RepoPluginIDs) but need the
+// PACA_WORKDIR/PACA_REPO_PLUGIN_IDS are conversation-
+// scoped (track trigger.Workdir/RepoPluginIDs) but need the
 // same treatment for the same reason: Goose's EnvKeys lookup reads each
 // from the Pod's own env, which is fixed at Pod-creation time.
 // PACA_AGENT_ID/PACA_PROJECT_ID are deliberately excluded — see docker/
@@ -567,7 +567,7 @@ func (m *Manager) patchDeploymentContainers(ctx context.Context, name string, co
 // would risk silently reassigning a live environment's frozen identity.
 var pacaInfraEnvKeys = []string{
 	"PACA_API_KEY", "PACA_API_URL", "PACA_GATEWAY_URL",
-	"PACA_WORKDIR", "PACA_ACTOR_USER_ID", "PACA_REPO_PLUGIN_IDS",
+	"PACA_WORKDIR", "PACA_REPO_PLUGIN_IDS",
 	// GOOSE_PATH_ROOT — see docker/environment.go's copy of this list for
 	// why it's included here rather than getting its own GOOSE_PROVIDER-
 	// style one-time backfill.

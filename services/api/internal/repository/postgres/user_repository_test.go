@@ -130,7 +130,7 @@ func TestUserRepository_DeleteSoftDelete(t *testing.T) {
 
 	// Verify deleted_at was set via raw query (bypassing soft-delete filter).
 	var deletedAt *time.Time
-	if err := db.GetContext(ctx, &deletedAt, "SELECT deleted_at FROM users WHERE id = $1", u.ID.String()); err != nil {
+	if err := db.GetContext(ctx, &deletedAt, "SELECT deleted_at FROM accounts WHERE id = $1", u.ID.String()); err != nil {
 		t.Fatalf("query deleted row: %v", err)
 	}
 	if deletedAt == nil {
@@ -349,12 +349,12 @@ func TestUserRepository_Create_DefaultRoleAndRolesOnReads(t *testing.T) {
 	// A second platform role shows up sorted by name; project-scoped
 	// attachments never count as the user's platform roles.
 	var adminID uuid.UUID
-	pgExec(t, db, `INSERT INTO role_attachments (role_id, principal_type, principal_id) SELECT id, 'user', $1 FROM roles WHERE name = 'ADMIN' AND project_id IS NULL`, u.ID)
+	pgExec(t, db, `INSERT INTO role_attachments (role_id, account_id) SELECT id, $1 FROM roles WHERE name = 'ADMIN' AND project_id IS NULL`, u.ID)
 	_ = db.Get(&adminID, `SELECT id FROM roles WHERE name = 'ADMIN' AND project_id IS NULL`)
 	pid := uuid.New()
 	pgExec(t, db, `INSERT INTO projects (id, name) VALUES ($1, 'P')`, pid)
 	pgExec(t, db, `INSERT INTO roles (name, policy, project_id) VALUES ('Scoped', '{"version":"2026-10-01","statements":[]}', $1)`, pid)
-	pgExec(t, db, `INSERT INTO role_attachments (role_id, principal_type, principal_id, project_id) SELECT id, 'user', $1, $2 FROM roles WHERE name = 'Scoped'`, u.ID, pid)
+	pgExec(t, db, `INSERT INTO role_attachments (role_id, account_id, project_id) SELECT id, $1, $2 FROM roles WHERE name = 'Scoped'`, u.ID, pid)
 
 	users, _, err := repo.List(ctx, 0, 10, userdom.ListFilter{})
 	if err != nil || len(users) != 1 {

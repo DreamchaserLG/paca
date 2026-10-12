@@ -916,7 +916,13 @@ func TestIAMMigrationKeyMapping(t *testing.T) {
 	for _, k := range sqlKeys {
 		mapped[legacyKeyToAction(k)] = true
 	}
-	regActions := iam.NewRegistry().Actions()
+	var regActions []string
+	for _, a := range iam.NewRegistry().Actions() {
+		// Service accounts postdate the legacy keys migration 000064 converted.
+		if !strings.HasPrefix(a, "service_accounts:") {
+			regActions = append(regActions, a)
+		}
+	}
 	var mappedList []string
 	for a := range mapped {
 		mappedList = append(mappedList, a)

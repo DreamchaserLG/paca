@@ -28,14 +28,48 @@ Interactive diagram: [https://dbdiagram.io/d/Paca-69c212ae78c6c4bc7a4fc190](http
 | `000068_add_roles_assign.sql` | Changing a member's roles now needs only `roles:assign`. Adds `roles:assign` to every `Allow` statement that grants `project.members:write` (or `project.members:*`) on resources that reach role resources, so existing roles keep that ability. Idempotent; updates `roles.updated_at` only for changed roles. |
 | `000065_drop_project_is_public.sql` | Drops `projects.is_public`. There is no public mode: every project route needs a signed-in caller whose roles allow the action, so the flag (which only let anonymous visitors in) and its data are removed. |
 
+| `000066_unified_accounts.sql` | Introduces `accounts` (one row per user, agent or service account) as the single home for identity, name, avatar and soft-delete; `users` and `agents` become extension tables keyed by the account id; `role_attachments`, `project_members`, `api_keys` and the audit columns reference `accounts`; the duplicated and legacy columns are dropped. See [unified accounts](accounts-redesign.md). |
+
 *(Migrations between `000008` and `000017`/`000022`/`000031` that touch other subsystems — tasks, sprints, docs, notifications, etc. — are omitted here; see `services/api/migrations/` for the full, authoritative list.)*
 
 ## Schema (DBML)
 
 ```dbml
+// --- ACCOUNTS (000066, see accounts-redesign.md) ---
+// Every actor is one accounts row: a human user, an agent or a service account.
+// users / agents are extension tables whose primary key IS the account id (the
+// ids of existing users and agents are reused, so no foreign key is rewritten).
+// Each fact is stored once: name/description/avatar and the soft-delete flag live
+// here and nowhere else. Service accounts need nothing beyond these columns, so
+// they have no extension table.
+//
+// Identifier uniqueness: users.username and agents.handle must be unique among
+// LIVE accounts, but a partial index cannot look at accounts.deleted_at. Rather
+// than copying deleted_at onto users/agents (a second source of truth), ONE
+// constraint-trigger function, attached to users and to agents, rejects a
+// duplicate whose account is not deleted. Scope: username workspace-wide;
+// handle per project_id (project agent) or workspace-wide (global agent).
+Table accounts {
+  id uuid [primary key]
+  kind text [not null, note: 'user | agent | service_account. The only place an actor\'s type is stored. UNIQUE (id, kind) is the target of the kind-pinning FKs from users and agents.']
+  name text [not null, note: 'Display name (was users.full_name and agents.name).']
+  description text [not null, default: '']
+  avatar_key text [null, note: '256x256 object key (was on users and agents).']
+  avatar_thumb_key text [null, note: '64x64 object key.']
+  created_by uuid [null, ref: > accounts.id, note: 'Who created the account (was agents.created_by). ON DELETE SET NULL.']
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+  deleted_at timestamp [null, note: 'The ONLY soft-delete flag. "Is this actor alive" is answered here; users and agents carry no copy. A deleted account no longer authenticates and frees its username / handle.']
+
+  indexes {
+    (id, kind) [unique]
+    (kind) [note: 'Partial: WHERE deleted_at IS NULL']
+  }
+}
+
 // --- IAM ROLES (000064) ---
-// A role is a JSON policy document. A user, agent or project member holds any
-// number of roles through role_attachments. This replaces global_roles /
+// A role is a JSON policy document. An account (user, agent or service account) holds any
+// number of roles through role_attachments; a project member is an account. This replaces global_roles /
 // project_roles below, which are legacy: still present after 000064 (their data
 // was converted) but no longer read for authorization.
 Table roles {
@@ -55,31 +89,30 @@ Table roles {
 Table role_attachments {
   id uuid [primary key]
   role_id uuid [not null, ref: > roles.id, note: 'ON DELETE CASCADE']
-  principal_type text [not null, note: 'user | agent']
-  principal_id uuid [not null]
+  account_id uuid [not null, ref: > accounts.id, note: 'Replaces principal_type + principal_id (the type is accounts.kind). A real FK, so deleting an account removes its attachments instead of orphaning them. ON DELETE CASCADE.']
   project_id uuid [null, ref: > projects.id, note: 'NULL = platform-wide; otherwise the role applies only inside this project.']
-  created_by uuid [null, ref: > users.id]
+  created_by uuid [null, ref: > accounts.id]
   created_at timestamp [not null]
 
   indexes {
-    (role_id, principal_type, principal_id) [unique, note: 'Partial: WHERE project_id IS NULL (uq_role_attachments_platform)']
-    (role_id, principal_type, principal_id, project_id) [unique, note: 'Partial: WHERE project_id IS NOT NULL (uq_role_attachments_project)']
-    (principal_type, principal_id)
+    (role_id, account_id) [unique, note: 'Partial: WHERE project_id IS NULL (uq_role_attachments_platform)']
+    (role_id, account_id, project_id) [unique, note: 'Partial: WHERE project_id IS NOT NULL (uq_role_attachments_project)']
+    (account_id)
     (project_id)
   }
 }
 
 // --- USER & GLOBAL ROLE MANAGEMENT ---
+// Human-only data. name, avatar and soft-delete live on accounts.
 Table users {
-  id uuid [primary key]
-  username varchar [unique, not null]
+  id uuid [primary key, ref: - accounts.id, note: 'Equals accounts.id. Composite FK (id, kind) -> accounts (id, kind) with kind = user pins the type; ON DELETE CASCADE.']
+  kind text [not null, default: 'user', note: 'Constant (CHECK kind = user). Exists only so the composite FK can pin the account type; carries no information.']
+  username varchar [not null, note: 'Login name. Unique among LIVE accounts, enforced by the shared constraint trigger described under accounts (the index cannot see accounts.deleted_at). Was unique among non-deleted users (000016).']
+  email text [null, note: 'Unique among LIVE accounts (same trigger as username; was uni_users_email_active). Plus a plain lower(email) lookup index; queries join accounts for liveness.']
   password_hash varchar [not null]
-  full_name varchar
-  role_id uuid [null, ref: > global_roles.id, note: 'LEGACY. Nullable since 000066 and not used for authorization: a user\'s roles are role_attachments rows.']
   must_change_password boolean [not null, default: false]
-  created_at timestamp
-  updated_at timestamp
-  deleted_at timestamp [null]
+  // Dropped by the contract step: full_name (-> accounts.name), avatar_key / avatar_thumb_key (-> accounts),
+  // role_id (LEGACY, roles are role_attachments), created_at / updated_at / deleted_at (-> accounts).
 }
 
 // LEGACY since 000064: converted into roles; no longer read for authorization.
@@ -99,7 +132,7 @@ Table projects {
   description text [not null, default: '']
   task_id_prefix varchar [not null, default: '', note: 'Short uppercase alphanumeric tag prepended to task_number to form human-readable task ID, e.g. "PACA" → "PACA-1"']
   settings jsonb [not null, default: '{}']
-  created_by uuid [ref: > users.id]
+  created_by uuid [ref: > accounts.id]
   created_at timestamp
 }
 
@@ -112,18 +145,15 @@ Table project_roles {
 }
 
 Table project_members {
-  id uuid [primary key]
+  id uuid [primary key, note: 'Stays the actor reference for tasks, activities, assignees, docs and conversations.']
   project_id uuid [ref: > projects.id]
-  user_id uuid [null, ref: > users.id, note: 'null for agent members']
-  project_role_id uuid [null, ref: > project_roles.id, note: 'LEGACY. Nullable since 000066 and not used for authorization: a member\'s roles are role_attachments scoped to the project.']
-  member_type varchar [not null, default: 'human', note: 'human | agent']
-  agent_id uuid [null, ref: > agents.id, note: 'null for human members']
+  account_id uuid [not null, ref: > accounts.id, note: 'Replaces user_id + agent_id + member_type + ck_pm_member_type_ref. The member kind is accounts.kind. ON DELETE CASCADE.']
   created_at timestamp [not null]
   deleted_at timestamp [null, note: 'Soft-delete timestamp. Re-adding a removed member restores the row rather than inserting a new one.']
+  // project_role_id (LEGACY, nullable since 000066) is dropped by the contract step.
 
   indexes {
-    (project_id, user_id) [unique, note: 'Partial unique: WHERE deleted_at IS NULL AND member_type = human']
-    (project_id, agent_id) [unique, note: 'Partial unique: WHERE deleted_at IS NULL AND member_type = agent']
+    (project_id, account_id) [unique, note: 'Partial unique: WHERE deleted_at IS NULL']
   }
 }
 
@@ -264,7 +294,7 @@ Table files {
   file_size bigint [not null, default: 0]
   upload_status text [not null, default: 'pending', note: 'pending | uploaded | failed']
   multipart_upload_id text [null, note: 'Non-null only while a multipart upload is in progress']
-  uploaded_by uuid [ref: > users.id]
+  uploaded_by uuid [ref: > accounts.id, note: 'Any account (a service account can upload).']
   created_at timestamp
   updated_at timestamp
 }
@@ -273,7 +303,7 @@ Table task_attachments {
   id uuid [primary key]
   task_id uuid [not null, ref: > tasks.id]
   file_id uuid [not null, ref: > files.id]
-  created_by uuid [ref: > users.id]
+  created_by uuid [ref: > accounts.id]
   created_at timestamp [not null]
 
   indexes {
@@ -382,12 +412,13 @@ Table notifications {
 // --- API KEY ---
 Table api_keys {
   id uuid [primary key]
-  user_id uuid [not null, ref: > users.id]
+  account_id uuid [not null, ref: > accounts.id, note: 'Was user_id. Any account kind: a user\'s personal key, a service account\'s key, an agent\'s MCP key (was agents.mcp_api_key_hash). ON DELETE CASCADE.']
   name text [not null]
-  key_prefix text [not null, note: 'First 8 hex characters of the raw key, for display only']
+  key_prefix text [not null, note: 'First 8 hex characters of the raw key, for display only. Empty for keys migrated from agents.mcp_api_key_hash.']
   key_hash text [not null, unique, note: 'SHA-256 hex digest of the raw key used for lookup/validation']
   last_used_at timestamp [null]
   expires_at timestamp [null]
+  created_by uuid [null, ref: > accounts.id, note: 'Who minted it (the admin, for a service account). ON DELETE SET NULL.']
   created_at timestamp
   revoked_at timestamp [null]
 }
@@ -415,21 +446,18 @@ Table api_keys {
 //                          assignment, @mention, project chat) — nothing
 //                          else keys off agents.project_id, only the
 //                          project_members row.
-// global_role_id (LEGACY since 000064; a global agent's roles are now
-// role_attachments rows with principal_type = 'agent') mirrored users.role_id: it governed what a global agent may
-// do at global scope (i.e. via project-management-shaped tools called from
-// the home/admin chat, with no project context of its own). A project-scoped
-// agent never has a global_role_id — see ck_agents_scope.
+// 000066 (accounts-redesign.md): agent_scope is dropped because it only
+// mirrored "project_id IS NULL"; global_role_id, name, avatar_*, created_by,
+// created_at, updated_at, deleted_at and mcp_api_key_hash move to accounts /
+// role_attachments / api_keys. The agent id equals its accounts.id.
+// A hard delete of a project must also delete its project agents' accounts rows
+// (agents.project_id cascades to the agents row only; deleting the accounts row
+// cascades to agents).
 Table agents {
-  id uuid [primary key]
-  project_id uuid [null, ref: > projects.id, note: 'NULL for a global-scope agent (agent_scope = global)']
-  agent_scope varchar [not null, default: 'project', note: '''project | global. ck_agents_scope enforces:
-    project -> project_id NOT NULL AND global_role_id NULL
-    global  -> project_id NULL''']
-  global_role_id uuid [null, ref: > global_roles.id, note: 'LEGACY since 000064, unused for authorization (see role_attachments). Only ever set for a global-scope agent. ON DELETE RESTRICT.']
-  name varchar [not null]
-  handle varchar [not null, note: '@mention handle. Unique per project for a project-scoped agent; unique workspace-wide for a global agent (see indexes below).']
-  avatar_url varchar [null]
+  id uuid [primary key, ref: - accounts.id, note: 'Equals accounts.id. Composite FK (id, kind) -> accounts (id, kind) with kind = agent pins the type; ON DELETE CASCADE.']
+  kind text [not null, default: 'agent', note: 'Constant (CHECK kind = agent); only for the composite FK.']
+  project_id uuid [null, ref: > projects.id, note: 'NULL = global agent (workspace-level, invited into projects through project_members). Set = project agent. Only agents have a project, so it lives here, not on accounts.']
+  handle varchar [not null, note: '@mention handle. Unique among live agents per project (project agent) or workspace-wide (global agent). Same shared constraint trigger as users.username.']
   agent_type varchar [not null, default: 'llm', note: '''llm | acp (000022).
     llm — runs an LLM reasoning loop in-cluster via llm_provider/llm_model/llm_api_key_secret.
     acp — delegates to a coding CLI (Claude Code, Codex, Gemini CLI, or custom) the user runs
@@ -446,17 +474,11 @@ Table agents {
   timeout_minutes integer [not null, default: 30]
   git_committer_name varchar [not null, default: 'paca-agent']
   git_committer_email varchar [not null]
-  created_by uuid [null, ref: > users.id]
-  created_at timestamp
-  updated_at timestamp
-  deleted_at timestamp [null]
-
   indexes {
-    (project_id, handle) [unique, note: 'Partial unique: WHERE deleted_at IS NULL AND project_id IS NOT NULL']
-    (handle) [unique, note: 'Partial unique: WHERE deleted_at IS NULL AND project_id IS NULL — closes the gap standard SQL NULL semantics leave in the index above for global agents']
-    (agent_scope)
-    (global_role_id) [note: 'Partial: WHERE global_role_id IS NOT NULL']
+    (project_id) [note: 'Lookups by owning project']
   }
+  // Uniqueness of handle among live agents (per project / workspace-wide) is enforced by the
+  // shared constraint trigger, because liveness is accounts.deleted_at.
 }
 
 // Per-agent secret environment variables, encrypted at rest, injected into

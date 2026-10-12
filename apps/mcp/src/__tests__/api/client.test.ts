@@ -88,14 +88,14 @@ describe("PacaAPIClient – request headers", () => {
 		);
 	});
 
-	it("sends X-Agent-ID header when agentId is configured", async () => {
+	it("never sends X-Agent-ID, even when agentId is set", async () => {
 		vi.stubGlobal("fetch", mockFetchOk([]));
 		const client = makeClient({ agentId: "agent-abc" });
 		await client.listProjects();
 		const [, options] = (fetch as any).mock.calls[0] as [string, RequestInit];
-		expect((options.headers as Record<string, string>)["X-Agent-ID"]).toBe(
-			"agent-abc",
-		);
+		expect(
+			(options.headers as Record<string, string>)["X-Agent-ID"],
+		).toBeUndefined();
 	});
 
 	it("omits X-Agent-ID when agentId is not configured", async () => {
@@ -108,41 +108,8 @@ describe("PacaAPIClient – request headers", () => {
 		).toBeUndefined();
 	});
 
-	it("sends X-Actor-User-ID header when actorUserId is configured", async () => {
-		vi.stubGlobal("fetch", mockFetchOk([]));
-		const client = makeClient({ agentId: "agent-abc", actorUserId: "user-7" });
-		await client.listProjects();
-		const [, options] = (fetch as any).mock.calls[0] as [string, RequestInit];
-		expect((options.headers as Record<string, string>)["X-Actor-User-ID"]).toBe(
-			"user-7",
-		);
-	});
 
-	it("omits X-Actor-User-ID when actorUserId is not configured", async () => {
-		vi.stubGlobal("fetch", mockFetchOk([]));
-		const client = makeClient({ agentId: "agent-abc" });
-		await client.listProjects();
-		const [, options] = (fetch as any).mock.calls[0] as [string, RequestInit];
-		expect(
-			(options.headers as Record<string, string>)["X-Actor-User-ID"],
-		).toBeUndefined();
-	});
 
-	it("omits X-Actor-User-ID when actorUserId is configured without agentId", async () => {
-		// Regression test: actorUserId is only ever meaningful alongside an
-		// agent identity (PacaConfig.actorUserId's doc comment: "unset for a
-		// personal API key"). A misconfigured or stray PACA_ACTOR_USER_ID with
-		// no PACA_AGENT_ID must never reach the server as a personal API key's
-		// header — that would misattribute a human's own actions to whatever
-		// actor id happened to leak into the env.
-		vi.stubGlobal("fetch", mockFetchOk([]));
-		const client = makeClient({ agentId: undefined, actorUserId: "user-7" });
-		await client.listProjects();
-		const [, options] = (fetch as any).mock.calls[0] as [string, RequestInit];
-		expect(
-			(options.headers as Record<string, string>)["X-Actor-User-ID"],
-		).toBeUndefined();
-	});
 });
 
 // ---------------------------------------------------------------------------

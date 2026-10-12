@@ -22,9 +22,9 @@ func NewIAMAttributeLoaders(db *sqlx.DB) []iam.AttributeLoader {
 			"task.type_id":   "task_type_id",
 		}, multi: map[string]string{
 			// Assignees are project_members rows; expose the member's
-			// principal id (user_id or agent_id) so the value is comparable
+			// account id so the value is comparable
 			// with principal.id.
-			"task.assignee_id": `SELECT COALESCE(pm.user_id, pm.agent_id)::text
+			"task.assignee_id": `SELECT pm.account_id::text
 				FROM task_assignees ta JOIN project_members pm ON pm.id = ta.member_id
 				WHERE ta.task_id = $1::uuid AND pm.deleted_at IS NULL
 				  AND ($2::text = '' OR EXISTS (SELECT 1 FROM tasks t WHERE t.id = ta.task_id AND t.project_id::text = $2::text))`,
@@ -50,11 +50,11 @@ func NewIAMAttributeLoaders(db *sqlx.DB) []iam.AttributeLoader {
 					WHERE ($2::text = '' OR f.project_id::text = $2::text)
 				) SELECT id::text FROM anc`,
 		}}},
-		&scalarLoader{db: db, kind: "agent", table: "agents", where: "deleted_at IS NULL",
+		&scalarLoader{db: db, kind: "agent", table: "agents", where: "EXISTS (SELECT 1 FROM accounts ac WHERE ac.id = agents.id AND ac.deleted_at IS NULL)",
 			// Project agents carry project_id; global agents (project_id NULL)
 			// reach a project through an active membership.
 			projectWhere: `(project_id = $2::uuid OR EXISTS (SELECT 1 FROM project_members pm
-				WHERE pm.agent_id = agents.id AND pm.project_id = $2::uuid AND pm.deleted_at IS NULL))`,
+				WHERE pm.account_id = agents.id AND pm.project_id = $2::uuid AND pm.deleted_at IS NULL))`,
 			cols: map[string]string{
 				"agent.environment_id": "default_environment_id",
 			}},

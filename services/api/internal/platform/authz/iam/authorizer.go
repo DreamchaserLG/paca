@@ -11,12 +11,12 @@ import (
 // Principal is who is asking: a user or an agent, identified by its
 // lowercase UUID string.
 type Principal struct {
-	Type string // "user" | "agent"
+	Type string // "user" | "agent" | "service_account" (accountdom.Kind)
 	ID   string
 }
 
 func (p Principal) valid() bool {
-	return p.ID != "" && (p.Type == "user" || p.Type == "agent")
+	return p.ID != "" && (p.Type == PrincipalUser || p.Type == PrincipalAgent || p.Type == PrincipalServiceAccount)
 }
 
 // Store loads a principal's active role grants (parsed policies). A stored
@@ -338,6 +338,8 @@ func PlatformRootFor(action string) string {
 	switch domain {
 	case "users":
 		return "user/*"
+	case "service_accounts":
+		return "service_account/*"
 	case "roles":
 		return "role/*"
 	case "plugins":

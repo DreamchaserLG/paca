@@ -587,9 +587,10 @@ export async function createProjectAgent(
 export async function createGlobalAgent(
 	request: APIRequestContext,
 	name: string,
+	kind: "llm" | "acp" = "llm",
 ): Promise<SeededAgent> {
 	const response = await request.post(`${API_URL}/admin/agents`, {
-		data: { name, handle: handleFor(name), ...agentTypeFields("llm", {}) },
+		data: { name, handle: handleFor(name), ...agentTypeFields(kind, {}) },
 	});
 	expect(response.ok()).toBeTruthy();
 	const agent = (await response.json()).data;

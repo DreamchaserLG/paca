@@ -17,6 +17,13 @@ const (
 	// CodeUnauthenticated represents an unauthenticated request.
 	CodeUnauthenticated Code = "AUTH_UNAUTHENTICATED"
 
+	// CodeServiceAccountNotFound represents a service account that was not found.
+	CodeServiceAccountNotFound Code = "SERVICE_ACCOUNT_NOT_FOUND"
+	// CodeServiceAccountNameInvalid indicates a service account name is empty or too long.
+	CodeServiceAccountNameInvalid Code = "SERVICE_ACCOUNT_NAME_INVALID"
+	// CodeServiceAccountDescriptionTooLong indicates a service account description is too long.
+	CodeServiceAccountDescriptionTooLong Code = "SERVICE_ACCOUNT_DESCRIPTION_TOO_LONG"
+
 	// CodeUserNotFound represents a user that was not found.
 	CodeUserNotFound Code = "USER_NOT_FOUND"
 	// CodeUserInvalidCursor indicates a client-supplied pagination cursor failed to decode.
@@ -163,9 +170,8 @@ const (
 	CodeActivityNotAComment Code = "ACTIVITY_NOT_A_COMMENT"
 	// CodeCommentContentInvalid indicates an empty or invalid comment content.
 	CodeCommentContentInvalid Code = "ACTIVITY_COMMENT_CONTENT_INVALID"
-	// CodeCommentActorUnidentified indicates the caller authenticated with the
-	// shared agent API key but did not supply an X-Agent-ID header, so there is
-	// no project member identity to attribute the comment to.
+	// CodeCommentActorUnidentified indicates the caller is the built-in system
+	// actor, so there is no project member identity to attribute the comment to.
 	CodeCommentActorUnidentified Code = "ACTIVITY_COMMENT_ACTOR_UNIDENTIFIED"
 
 	// --- Task link errors ------------------------------------------------
@@ -205,9 +211,9 @@ const (
 	CodeDocActivityNotAComment Code = "DOC_ACTIVITY_NOT_A_COMMENT"
 	// CodeDocCommentContentInvalid indicates an empty or invalid comment content.
 	CodeDocCommentContentInvalid Code = "DOC_COMMENT_CONTENT_INVALID"
-	// CodeDocCommentActorUnidentified indicates the caller authenticated with
-	// the shared agent API key but did not supply an X-Agent-ID header, so
-	// there is no project member identity to attribute the comment to.
+	// CodeDocCommentActorUnidentified indicates the caller is the built-in
+	// system actor, so there is no project member identity to attribute the
+	// comment to.
 	CodeDocCommentActorUnidentified Code = "DOC_COMMENT_ACTOR_UNIDENTIFIED"
 
 	// CodeNotificationNotFound indicates the requested notification does not exist

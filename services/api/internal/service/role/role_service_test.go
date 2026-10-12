@@ -21,6 +21,7 @@ type fakeRepo struct {
 	roles    map[uuid.UUID]*roledom.Role
 	users    map[uuid.UUID]bool
 	agents   map[uuid.UUID]bool // global agents
+	svcAccts map[uuid.UUID]bool // service accounts
 	projects map[uuid.UUID]bool
 	members  map[uuid.UUID]*roledom.Member
 
@@ -33,7 +34,7 @@ type fakeRepo struct {
 
 func newFakeRepo() *fakeRepo {
 	return &fakeRepo{
-		roles: map[uuid.UUID]*roledom.Role{}, users: map[uuid.UUID]bool{}, agents: map[uuid.UUID]bool{},
+		roles: map[uuid.UUID]*roledom.Role{}, users: map[uuid.UUID]bool{}, agents: map[uuid.UUID]bool{}, svcAccts: map[uuid.UUID]bool{},
 		projects: map[uuid.UUID]bool{}, members: map[uuid.UUID]*roledom.Member{},
 	}
 }
@@ -122,6 +123,9 @@ func (f *fakeRepo) UserExists(_ context.Context, id uuid.UUID) (bool, error) { r
 func (f *fakeRepo) GlobalAgentExists(_ context.Context, id uuid.UUID) (bool, error) {
 	return f.agents[id], nil
 }
+func (f *fakeRepo) ServiceAccountExists(_ context.Context, id uuid.UUID) (bool, error) {
+	return f.svcAccts[id], nil
+}
 func (f *fakeRepo) ProjectExists(_ context.Context, id uuid.UUID) (bool, error) {
 	return f.projects[id], nil
 }
@@ -134,7 +138,7 @@ func (f *fakeRepo) FindMember(_ context.Context, project, member uuid.UUID) (*ro
 	return m, nil
 }
 
-func (f *fakeRepo) ListAttached(context.Context, string, uuid.UUID, *uuid.UUID) ([]*roledom.Role, error) {
+func (f *fakeRepo) ListAttached(context.Context, uuid.UUID, *uuid.UUID) ([]*roledom.Role, error) {
 	return f.attached, nil
 }
 
@@ -441,7 +445,7 @@ func TestReplaceUserRoles(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := f.repo.replaced[0]
-	if got.PrincipalType != roledom.PrincipalUser || got.PrincipalID != u || got.ProjectID != nil ||
+	if got.AccountID != u || got.ProjectID != nil ||
 		len(got.RoleIDs) != 2 || got.CreatedBy == nil || *got.CreatedBy != by {
 		t.Fatalf("replace input = %+v", got)
 	}
@@ -478,7 +482,7 @@ func TestReplaceAgentRoles(t *testing.T) {
 	if _, err := f.svc.ReplaceAgentRoles(t.Context(), a, []uuid.UUID{plat.ID}, nil); err != nil {
 		t.Fatal(err)
 	}
-	if got := f.repo.replaced[0]; got.PrincipalType != roledom.PrincipalAgent || got.PrincipalID != a || got.ProjectID != nil {
+	if got := f.repo.replaced[0]; got.AccountID != a || got.ProjectID != nil {
 		t.Fatalf("replace input = %+v", got)
 	}
 }
@@ -497,8 +501,8 @@ func TestReplaceMemberRoles(t *testing.T) {
 	if _, err := f.svc.ReplaceMemberRoles(t.Context(), p, mUser, nil, nil); !errors.Is(err, roledom.ErrMemberNotFound) {
 		t.Fatalf("unknown member: %v", err)
 	}
-	f.repo.members[mUser] = &roledom.Member{ID: mUser, ProjectID: p, PrincipalType: roledom.PrincipalUser, PrincipalID: user}
-	f.repo.members[mAgent] = &roledom.Member{ID: mAgent, ProjectID: p, PrincipalType: roledom.PrincipalAgent, PrincipalID: agent}
+	f.repo.members[mUser] = &roledom.Member{ID: mUser, ProjectID: p, AccountID: user}
+	f.repo.members[mAgent] = &roledom.Member{ID: mAgent, ProjectID: p, AccountID: agent}
 
 	if _, err := f.svc.ReplaceMemberRoles(t.Context(), p, mUser, []uuid.UUID{foreign.ID}, nil); !errors.Is(err, roledom.ErrNotAttachable) {
 		t.Fatalf("another project's role: %v", err)
@@ -506,13 +510,13 @@ func TestReplaceMemberRoles(t *testing.T) {
 	if _, err := f.svc.ReplaceMemberRoles(t.Context(), p, mUser, []uuid.UUID{plat.ID, own.ID}, nil); err != nil {
 		t.Fatalf("platform + own project roles: %v", err)
 	}
-	if got := f.repo.replaced[0]; got.PrincipalType != roledom.PrincipalUser || got.PrincipalID != user || got.ProjectID == nil || *got.ProjectID != p {
+	if got := f.repo.replaced[0]; got.AccountID != user || got.ProjectID == nil || *got.ProjectID != p {
 		t.Fatalf("user member input = %+v", got)
 	}
 	if _, err := f.svc.ReplaceMemberRoles(t.Context(), p, mAgent, []uuid.UUID{own.ID}, nil); err != nil {
 		t.Fatal(err)
 	}
-	if got := f.repo.replaced[1]; got.PrincipalType != roledom.PrincipalAgent || got.PrincipalID != agent {
+	if got := f.repo.replaced[1]; got.AccountID != agent {
 		t.Fatalf("agent member must be attached as an agent principal: %+v", got)
 	}
 	// A member of another project is not found through this project.
@@ -688,5 +692,28 @@ func TestProjectRoleResourcesMustBeInsideItsProject(t *testing.T) {
 	}
 	if issues := f.svc.ValidatePolicy(json.RawMessage(pol("project/*")), nil); len(issues) != 0 {
 		t.Errorf("workspace validate: %v", issues)
+	}
+}
+
+func TestServiceAccountRoles_ChecksTargetAndReplaces(t *testing.T) {
+	f := newFixture()
+	plat := f.repo.addRole(&roledom.Role{Name: "P", Policy: json.RawMessage(`{"version":"2026-10-01","statements":[{"effect":"Allow","actions":["tasks:read"],"resources":["project/p1/*"]}]}`)})
+	sa, by := uuid.New(), uuid.New()
+
+	if _, err := f.svc.ListServiceAccountRoles(t.Context(), sa); !errors.Is(err, roledom.ErrServiceAccountNotFound) {
+		t.Fatalf("unknown service account: %v", err)
+	}
+	if _, err := f.svc.ReplaceServiceAccountRoles(t.Context(), sa, []uuid.UUID{plat.ID}, &by); !errors.Is(err, roledom.ErrServiceAccountNotFound) {
+		t.Fatalf("unknown service account (replace): %v", err)
+	}
+
+	f.repo.svcAccts[sa] = true
+	f.repo.changed = []uuid.UUID{plat.ID}
+	if _, err := f.svc.ReplaceServiceAccountRoles(t.Context(), sa, []uuid.UUID{plat.ID}, &by); err != nil {
+		t.Fatal(err)
+	}
+	got := f.repo.replaced[len(f.repo.replaced)-1]
+	if got.AccountID != sa || got.ProjectID != nil || len(got.RoleIDs) != 1 || *got.CreatedBy != by {
+		t.Fatalf("replace input = %+v", got)
 	}
 }

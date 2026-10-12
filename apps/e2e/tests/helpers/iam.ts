@@ -358,33 +358,42 @@ export async function listSprintIds(
 // ─── Agents acting as themselves ─────────────────────────────────────────────
 
 /**
- * The shared secret the agent runner presents (`AGENT_API_KEY` of the e2e
- * stack). Together with `X-Agent-ID` it makes a request the agent's own, judged
- * against the agent's attachments and not those of the bot user behind the key.
+ * Generates the agent's own API key (the one shown once in its settings) as the
+ * signed-in administrator. An agent is whoever its key proves: a request with
+ * it is judged against the agent's own role attachments. Only ACP agents have
+ * a key generated this way, so tests acting as an agent create an `acp` one.
+ * Pass the project for a project agent, none for a global agent.
  */
-export const AGENT_API_KEY =
-	process.env.E2E_AGENT_API_KEY ?? "e2e-agent-api-key";
-
-/** An API context that acts as the agent. Dispose it when done. */
-export async function agentContext(
-	playwright: Playwright,
+export async function createAgentKey(
+	request: APIRequestContext,
 	agentId: string,
+	projectId?: string,
+): Promise<string> {
+	const path = projectId
+		? `${API_URL}/projects/${projectId}/agents/${agentId}/mcp-agent-key`
+		: `${API_URL}/admin/agents/${agentId}/mcp-agent-key`;
+	const response = await request.post(path);
+	expect(response.ok(), await response.text()).toBeTruthy();
+	return (await response.json()).data.token as string;
+}
+
+/** An API context that authenticates with `apiKey`. Dispose it when done. */
+export async function keyContext(
+	playwright: Playwright,
+	apiKey: string,
 ): Promise<APIRequestContext> {
 	return playwright.request.newContext({
-		extraHTTPHeaders: {
-			"X-API-Key": AGENT_API_KEY,
-			"X-Agent-ID": agentId,
-		},
+		extraHTTPHeaders: { "X-API-Key": apiKey },
 	});
 }
 
-/** Runs `fn` as the agent and disposes the context. */
+/** Runs `fn` authenticated with `apiKey` (an agent's) and disposes the context. */
 export async function asAgent<T>(
 	playwright: Playwright,
-	agentId: string,
+	apiKey: string,
 	fn: (api: APIRequestContext) => Promise<T>,
 ): Promise<T> {
-	const api = await agentContext(playwright, agentId);
+	const api = await keyContext(playwright, apiKey);
 	try {
 		return await fn(api);
 	} finally {

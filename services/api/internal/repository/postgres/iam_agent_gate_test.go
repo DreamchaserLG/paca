@@ -49,11 +49,11 @@ func TestIAMGateAgentPrincipalOverRealStore(t *testing.T) {
 	}
 
 	user := fx.user(false)
-	fx.attach(role, "user", user, &p1)
-	fx.member(p1, user, false, false)
+	fx.attach(role, user, &p1)
+	fx.member(p1, user, false)
 
 	agent := fx.agent(nil, false)
-	fx.attach(role, "agent", agent, &p1)
+	fx.attach(role, agent, &p1)
 
 	if got := serve(user, uuid.Nil, p1); got != http.StatusNoContent {
 		t.Fatalf("user member: got %d, want 204", got)
@@ -62,7 +62,7 @@ func TestIAMGateAgentPrincipalOverRealStore(t *testing.T) {
 		t.Fatalf("agent attached but not a member of the project: got %d, want 403", got)
 	}
 
-	fx.member(p1, agent, true, false)
+	fx.member(p1, agent, false)
 	if got := serve(user, agent, p1); got != http.StatusNoContent {
 		t.Fatalf("agent member with its own attachment: got %d, want 204", got)
 	}

@@ -48,8 +48,8 @@ func TestIAMAttributeLoaders(t *testing.T) {
 			task, p, typ, status, sprint)
 		u := fx.user(false)
 		a := fx.agent(&p, false)
-		um, am := fx.member(p, u, false, false), fx.member(p, a, true, false)
-		gone := fx.member(p, fx.user(false), false, true)
+		um, am := fx.member(p, u, false), fx.member(p, a, false)
+		gone := fx.member(p, fx.user(false), true)
 		for _, m := range []uuid.UUID{um, am, gone} {
 			pgExec(t, db, `INSERT INTO task_assignees (task_id, member_id) VALUES ($1, $2)`, task, m)
 		}
@@ -189,7 +189,7 @@ func TestIAMAttributeLoaders(t *testing.T) {
 		}
 		conv := uuid.New()
 		pgExec(t, db, `INSERT INTO agent_conversations (id, agent_id, project_id, trigger_type, triggered_by_member_id, environment_id)
-			VALUES ($1,$2,$3,'chat_message',$4,$5)`, conv, ag, p, fx.member(p, fx.user(false), false, false), env)
+			VALUES ($1,$2,$3,'chat_message',$4,$5)`, conv, ag, p, fx.member(p, fx.user(false), false), env)
 		if got := loadSorted(t, loaders["conversation"], conv.String(), p.String(), "conversation.environment_id"); !reflect.DeepEqual(got, map[string][]string{"conversation.environment_id": {env.String()}}) {
 			t.Fatalf("conversation: %v", got)
 		}
@@ -202,13 +202,13 @@ func TestIAMAuthorizerEndToEnd(t *testing.T) {
 	fx := newIAMFx(t, db)
 	p := fx.project()
 	u := fx.user(false)
-	fx.member(p, u, false, false)
+	fx.member(p, u, false)
 	s5, s6, t5, t6 := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 	pgExec(t, db, `INSERT INTO sprints (id, project_id, name) VALUES ($1,$3,'S5'), ($2,$3,'S6')`, s5, s6, p)
 	pgExec(t, db, `INSERT INTO tasks (id, project_id, task_number, sprint_id, title) VALUES ($1,$3,1,$4,'a'), ($2,$3,2,$5,'b')`, t5, t6, p, s5, s6)
 	pol := `{"version":"1","statements":[{"effect":"Allow","actions":["tasks:read"],"resources":["project/*/task/*"],
 		"conditions":{"StringEquals":{"task.sprint_id":["` + s5.String() + `"]}}}]}`
-	fx.attach(fx.role(pol), "user", u, &p)
+	fx.attach(fx.role(pol), u, &p)
 
 	store := NewIAMStore(db)
 	a := iam.NewAuthorizer(store, iam.NewRegistry(), iam.NewAttributeSchema())
@@ -235,14 +235,14 @@ func TestIAMAuthorizeChangeDocMoveEndToEnd(t *testing.T) {
 	db := newIAMPGTestDB(t)
 	fx := newIAMFx(t, db)
 	p, u := fx.project(), fx.user(false)
-	fx.member(p, u, false, false)
+	fx.member(p, u, false)
 	abc, sub, out, doc := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 	pgExec(t, db, `INSERT INTO doc_folders (id, project_id, name) VALUES ($1,$2,'ABC'), ($3,$2,'OUT')`, abc, p, out)
 	pgExec(t, db, `INSERT INTO doc_folders (id, project_id, parent_id, name) VALUES ($1,$2,$3,'sub')`, sub, p, abc)
 	pgExec(t, db, `INSERT INTO documents (id, project_id, folder_id) VALUES ($1,$2,$3)`, doc, p, abc)
 	pol := `{"version":"1","statements":[{"effect":"Allow","actions":["docs:write"],"resources":["project/*/doc/*"],
 		"conditions":{"In":{"doc.ancestor_folder_ids":["` + abc.String() + `"]}}}]}`
-	fx.attach(fx.role(pol), "user", u, &p)
+	fx.attach(fx.role(pol), u, &p)
 	a := iam.NewAuthorizer(NewIAMStore(db), iam.NewRegistry(), iam.NewAttributeSchema())
 	for _, l := range NewIAMAttributeLoaders(db) {
 		a.RegisterLoader(l)
@@ -277,7 +277,7 @@ func TestIAMCrossProjectDenied(t *testing.T) {
 	fx := newIAMFx(t, db)
 	p1, p2 := fx.project(), fx.project()
 	u := fx.user(false)
-	fx.member(p1, u, false, false)
+	fx.member(p1, u, false)
 
 	// Entities that live in p2 (and global agent reachable from p2 only).
 	env, task, doc, folder, conv := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
@@ -287,7 +287,7 @@ func TestIAMCrossProjectDenied(t *testing.T) {
 	pgExec(t, db, `INSERT INTO documents (id, project_id, folder_id) VALUES ($1,$2,$3)`, doc, p2, folder)
 	agP2 := fx.agent(&p2, false)
 	globalAg := fx.agent(nil, false)
-	memberP2 := fx.member(p2, globalAg, true, false)
+	memberP2 := fx.member(p2, globalAg, false)
 	pgExec(t, db, `UPDATE agents SET default_environment_id = $2 WHERE id IN ($1, $3)`, agP2, env, globalAg)
 	pgExec(t, db, `INSERT INTO agent_conversations (id, agent_id, project_id, trigger_type, triggered_by_member_id, environment_id)
 		VALUES ($1,$2,$3,'chat_message',$4,$5)`, conv, agP2, p2, memberP2, env)
@@ -310,7 +310,7 @@ func TestIAMCrossProjectDenied(t *testing.T) {
 			t.Run(c.resKind+"/"+c.key+"/"+name, func(t *testing.T) {
 				pol := `{"version":"1","statements":[{"effect":"Allow","actions":["` + c.action + `"],"resources":["project/*/` + c.resKind + `/*"],"conditions":{` + cond + `}}]}`
 				role := fx.role(pol)
-				fx.attach(role, "user", u, &p1)
+				fx.attach(role, u, &p1)
 				a := iam.NewAuthorizer(NewIAMStore(db), iam.NewRegistry(), iam.NewAttributeSchema())
 				for _, l := range NewIAMAttributeLoaders(db) {
 					a.RegisterLoader(l)

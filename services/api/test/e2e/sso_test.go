@@ -275,7 +275,7 @@ func TestSSOSignIn(t *testing.T) {
 		wg.Wait()
 		var count int
 		if err := env.db.GetContext(env.ctx, &count,
-			`SELECT COUNT(*) FROM users WHERE username LIKE 'racer%' AND deleted_at IS NULL`); err != nil {
+			`SELECT COUNT(*) FROM users u JOIN accounts a ON a.id = u.id WHERE u.username LIKE 'racer%' AND a.deleted_at IS NULL`); err != nil {
 			t.Fatal(err)
 		}
 		if count != 1 {

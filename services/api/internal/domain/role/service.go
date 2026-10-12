@@ -49,6 +49,8 @@ type Service interface {
 	ReplaceUserRoles(ctx context.Context, userID uuid.UUID, roleIDs []uuid.UUID, createdBy *uuid.UUID) ([]*Role, error)
 	ListAgentRoles(ctx context.Context, agentID uuid.UUID) ([]*Role, error)
 	ReplaceAgentRoles(ctx context.Context, agentID uuid.UUID, roleIDs []uuid.UUID, createdBy *uuid.UUID) ([]*Role, error)
+	ListServiceAccountRoles(ctx context.Context, serviceAccountID uuid.UUID) ([]*Role, error)
+	ReplaceServiceAccountRoles(ctx context.Context, serviceAccountID uuid.UUID, roleIDs []uuid.UUID, createdBy *uuid.UUID) ([]*Role, error)
 	ListMemberRoles(ctx context.Context, projectID, memberID uuid.UUID) ([]*Role, error)
 	ReplaceMemberRoles(ctx context.Context, projectID, memberID uuid.UUID, roleIDs []uuid.UUID, createdBy *uuid.UUID) ([]*Role, error)
 

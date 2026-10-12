@@ -30,6 +30,10 @@ func (f *fakeAttachments) AgentRoleIDs(ctx context.Context, id uuid.UUID) ([]uui
 	return f.UserRoleIDs(ctx, id)
 }
 
+func (f *fakeAttachments) ServiceAccountRoleIDs(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+	return f.UserRoleIDs(ctx, id)
+}
+
 func (f *fakeAttachments) MemberRoleIDs(ctx context.Context, _, id uuid.UUID) ([]uuid.UUID, error) {
 	return f.UserRoleIDs(ctx, id)
 }
@@ -307,6 +311,10 @@ func (f *fakeRoleService) ListUserRoles(context.Context, uuid.UUID) ([]*roledom.
 }
 
 func (f *fakeRoleService) ListAgentRoles(context.Context, uuid.UUID) ([]*roledom.Role, error) {
+	return f.roles, f.err
+}
+
+func (f *fakeRoleService) ListServiceAccountRoles(context.Context, uuid.UUID) ([]*roledom.Role, error) {
 	return f.roles, f.err
 }
 

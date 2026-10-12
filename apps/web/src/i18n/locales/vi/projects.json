@@ -1261,7 +1261,14 @@
 			"modeUser": "Người dùng",
 			"modeAgent": "Agent AI",
 			"agentLabel": "Agent",
-			"noAgentsAvailable": "Không có agent toàn cục nào để mời."
+			"noAgentsAvailable": "Không có agent toàn cục nào để mời.",
+			"modeServiceAccount": "Tài khoản dịch vụ",
+			"serviceAccountLabel": "Tài khoản dịch vụ",
+			"noServiceAccountsAvailable": "Không có tài khoản dịch vụ nào để thêm.",
+			"searchAgentsPlaceholder": "Tìm theo tên hoặc handle…",
+			"noAgentsMatch": "Không có agent nào khớp với tìm kiếm.",
+			"searchServiceAccountsPlaceholder": "Tìm theo tên hoặc mô tả…",
+			"noServiceAccountsMatch": "Không có tài khoản dịch vụ nào khớp với tìm kiếm."
 		},
 		"roleChip": {
 			"changeRole": "Đổi vai trò",
@@ -1278,7 +1285,8 @@
 		"memberRow": {
 			"removeMember": "Xóa thành viên",
 			"agentBadge": "Tác nhân",
-			"actions": "Thao tác với thành viên"
+			"actions": "Thao tác với thành viên",
+			"serviceAccountBadge": "Tài khoản dịch vụ"
 		},
 		"removeDialog": {
 			"title": "Xóa thành viên",

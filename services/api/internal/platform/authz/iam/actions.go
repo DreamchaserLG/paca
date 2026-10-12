@@ -11,6 +11,12 @@ const (
 	ActionUsersWrite  Action = "users:write"
 	ActionUsersDelete Action = "users:delete"
 
+	// Service accounts: workspace-level non-human accounts with their own API
+	// keys and roles. Managing a service account includes minting its keys, so
+	// service_accounts:write is root-equivalent over what the account may do.
+	ActionServiceAccountsRead  Action = "service_accounts:read"
+	ActionServiceAccountsWrite Action = "service_accounts:write"
+
 	// Roles: defining, reading and attaching roles (platform-wide and
 	// project roles alike).
 	ActionRolesRead   Action = "roles:read"
@@ -77,6 +83,7 @@ const (
 func BuiltinActions() []Action {
 	return []Action{
 		ActionUsersRead, ActionUsersWrite, ActionUsersDelete,
+		ActionServiceAccountsRead, ActionServiceAccountsWrite,
 		ActionRolesRead, ActionRolesWrite, ActionRolesAssign,
 		ActionProjectsRead, ActionProjectsWrite, ActionProjectsCreate, ActionProjectsDelete,
 		ActionProjectMembersRead, ActionProjectMembersWrite,

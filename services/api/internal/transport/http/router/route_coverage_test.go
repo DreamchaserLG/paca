@@ -279,29 +279,32 @@ func mergeRoutes(maps ...map[string]string) map[string]string {
 // collection routes of the platform roles are gated on the platform root
 // "role/*" (a Global gate).
 var roleRoutes = map[string]string{
-	"GET /api/v1/admin/roles/{roleId}":                   resRole,
-	"PUT /api/v1/admin/roles/{roleId}":                   resRole,
-	"DELETE /api/v1/admin/roles/{roleId}":                resRole,
-	"PUT /api/v1/admin/roles/{roleId}/default":           resRole,
-	"GET /api/v1/admin/users/{userId}/roles":             resUser,
-	"GET /api/v1/admin/agents/{agentId}/roles":           resGlobalAgent,
-	"PUT /api/v1/admin/agents/{agentId}/roles":           resGlobalAgent,
-	"GET /api/v1/projects/{projectId}/roles/":            resProjectRoleCollection,
-	"POST /api/v1/projects/{projectId}/roles/":           resProjectRoleCollection,
-	"GET /api/v1/projects/{projectId}/roles/{roleId}":    resProjectRole,
-	"PUT /api/v1/projects/{projectId}/roles/{roleId}":    resProjectRole,
-	"DELETE /api/v1/projects/{projectId}/roles/{roleId}": resProjectRole,
+	"GET /api/v1/admin/roles/{roleId}":                            resRole,
+	"PUT /api/v1/admin/roles/{roleId}":                            resRole,
+	"DELETE /api/v1/admin/roles/{roleId}":                         resRole,
+	"PUT /api/v1/admin/roles/{roleId}/default":                    resRole,
+	"GET /api/v1/admin/users/{userId}/roles":                      resUser,
+	"GET /api/v1/admin/service-accounts/{serviceAccountId}/roles": resServiceAccount,
+	"PUT /api/v1/admin/service-accounts/{serviceAccountId}/roles": resServiceAccount,
+	"GET /api/v1/admin/agents/{agentId}/roles":                    resGlobalAgent,
+	"PUT /api/v1/admin/agents/{agentId}/roles":                    resGlobalAgent,
+	"GET /api/v1/projects/{projectId}/roles/":                     resProjectRoleCollection,
+	"POST /api/v1/projects/{projectId}/roles/":                    resProjectRoleCollection,
+	"GET /api/v1/projects/{projectId}/roles/{roleId}":             resProjectRole,
+	"PUT /api/v1/projects/{projectId}/roles/{roleId}":             resProjectRole,
+	"DELETE /api/v1/projects/{projectId}/roles/{roleId}":          resProjectRole,
 }
 
 // assignGates pins exactly which routes carry the role-assignment gate
 // (roles:assign on the resource of each role added or removed) and in which
 // scope. Every route that changes who holds a role must be listed.
 var assignGates = map[string]string{
-	"PUT /api/v1/admin/users/{userId}/roles":                    resAssignRoles,
-	"PUT /api/v1/admin/agents/{agentId}/roles":                  resAssignRoles,
-	"PUT /api/v1/projects/{projectId}/members/{memberId}/roles": resAssignProjectRoles,
-	"POST /api/v1/projects/{projectId}/members/":                resAssignProjectRoles,
-	"POST /api/v1/projects/{projectId}/agents/":                 resAssignProjectRoles,
+	"PUT /api/v1/admin/users/{userId}/roles":                      resAssignRoles,
+	"PUT /api/v1/admin/service-accounts/{serviceAccountId}/roles": resAssignRoles,
+	"PUT /api/v1/admin/agents/{agentId}/roles":                    resAssignRoles,
+	"PUT /api/v1/projects/{projectId}/members/{memberId}/roles":   resAssignProjectRoles,
+	"POST /api/v1/projects/{projectId}/members/":                  resAssignProjectRoles,
+	"POST /api/v1/projects/{projectId}/agents/":                   resAssignProjectRoles,
 }
 
 // assignBody is a body naming one role, so the assignment gate has something
@@ -312,6 +315,10 @@ const assignBody = `{"role_ids":["11111111-1111-1111-1111-111111111111"]}`
 type noRoleAttachments struct{}
 
 func (noRoleAttachments) UserRoleIDs(context.Context, uuid.UUID) ([]uuid.UUID, error) {
+	return nil, nil
+}
+
+func (noRoleAttachments) ServiceAccountRoleIDs(context.Context, uuid.UUID) ([]uuid.UUID, error) {
 	return nil, nil
 }
 

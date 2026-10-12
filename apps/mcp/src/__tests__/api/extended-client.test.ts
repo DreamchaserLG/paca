@@ -60,11 +60,11 @@ describe("PacaAPIExtendedClient", () => {
 		expect(fetchMock.mock.calls[0][1].headers["X-API-Key"]).toBe("key123");
 	});
 
-	it("includes X-Agent-ID header when agentId is set", async () => {
+	it("never sends X-Agent-ID, even when agentId is set", async () => {
 		fetchMock.mockResolvedValue(okEnvelope([]));
 		const client = new PacaAPIExtendedClient(CONFIG_WITH_AGENT);
 		await client.listProjectMembers("p1");
-		expect(fetchMock.mock.calls[0][1].headers["X-Agent-ID"]).toBe("agent-1");
+		expect(fetchMock.mock.calls[0][1].headers["X-Agent-ID"]).toBeUndefined();
 	});
 
 	it("omits X-Agent-ID header when agentId is absent", async () => {

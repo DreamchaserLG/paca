@@ -195,7 +195,7 @@ func TestServiceAccountsAPI_EndToEnd(t *testing.T) {
 	t.Run("a user's keys are out of reach of the service account routes", func(t *testing.T) {
 		var own struct{ ID string }
 		own.ID = uuid.NewString()
-		if _, err := e.db.Exec(`INSERT INTO api_keys (id, account_id, name, key_prefix, key_hash) VALUES ($1, $2, 'mine', 'abcd1234', 'hash')`, own.ID, nobody); err != nil {
+		if _, err := e.db.ExecContext(t.Context(), `INSERT INTO api_keys (id, account_id, name, key_prefix, key_hash) VALUES ($1, $2, 'mine', 'abcd1234', 'hash')`, own.ID, nobody); err != nil {
 			t.Fatal(err)
 		}
 		// The manager holds service_accounts:write, but nobody is not a service account.

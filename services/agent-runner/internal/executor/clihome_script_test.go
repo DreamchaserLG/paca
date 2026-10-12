@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"context"
 	"os/exec"
 	"strings"
 	"testing"
@@ -42,6 +43,6 @@ func TestCLIHomeBootstrapScript_RunsOnRealFilesystem(t *testing.T) {
 }
 
 func execSh(script string) (string, error) {
-	out, err := exec.Command("/bin/sh", "-c", script).CombinedOutput()
+	out, err := exec.CommandContext(context.Background(), "/bin/sh", "-c", script).CombinedOutput()
 	return string(out), err
 }

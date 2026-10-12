@@ -150,7 +150,9 @@ func (r *ServiceAccountRepository) Update(ctx context.Context, a *accountdom.Acc
 	return nil
 }
 
-// Delete implements accountdom.ServiceAccountRepository.
+// Delete implements accountdom.ServiceAccountRepository. It is a soft delete
+// that detaches roles and memberships; restoring a service account is not
+// supported.
 func (r *ServiceAccountRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	now := time.Now().UTC()
 	return WithTx(ctx, r.db, func(tx *sqlx.Tx) error {
@@ -165,6 +167,11 @@ func (r *ServiceAccountRepository) Delete(ctx context.Context, id uuid.UUID) err
 		}
 		if _, err := tx.ExecContext(ctx, `UPDATE project_members SET deleted_at = $1 WHERE account_id = $2 AND deleted_at IS NULL`, now, id.String()); err != nil {
 			return fmt.Errorf("service account repo: delete memberships: %w", err)
+		}
+		// Keys already stop resolving with the account (see apiKeyFrom); revoking
+		// them too keeps them dead for any reader that does not join accounts.
+		if _, err := tx.ExecContext(ctx, `UPDATE api_keys SET revoked_at = $1 WHERE account_id = $2 AND revoked_at IS NULL`, now, id.String()); err != nil {
+			return fmt.Errorf("service account repo: revoke keys: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, `DELETE FROM role_attachments WHERE account_id = $1::uuid`, id.String()); err != nil {
 			return fmt.Errorf("service account repo: delete attachments: %w", err)

@@ -247,6 +247,46 @@ func RequireAssignRoles(a *iam.Authorizer, t AssignTarget) func(http.Handler) ht
 	}
 }
 
+// RequireHoldsTargetRoles gates an action that lets the caller act as the
+// target (minting an API key for a service account): the caller must hold
+// roles:assign on every role the target holds now, i.e. be allowed to grant the
+// target's full authority. Without it a holder of a narrow write permission
+// could borrow a more privileged account's authority.
+func RequireHoldsTargetRoles(a *iam.Authorizer, t AssignTarget) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			p, err := IAMPrincipalFrom(r)
+			if err != nil {
+				presenter.Error(w, r, err)
+				return
+			}
+			var current []uuid.UUID
+			if t.Current != nil {
+				if current, err = t.Current(r); err != nil {
+					presenter.Error(w, r, err)
+					return
+				}
+			}
+			if len(current) > 0 && a == nil {
+				presenter.Error(w, r, apierr.New(apierr.CodeInternalError, "authorization not configured"))
+				return
+			}
+			for _, id := range current {
+				res, err := a.Authorize(r.Context(), p, string(iam.ActionRolesAssign), "role/"+id.String())
+				if err != nil {
+					presenter.Error(w, r, err)
+					return
+				}
+				if !res.Allowed {
+					presenter.Error(w, r, errNotAssignable)
+					return
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 var errNotAssignable = apierr.New(apierr.CodeForbidden, "you are not allowed to assign or remove one of these roles")
 
 // symmetricDifference returns the ids in exactly one of old and updated

@@ -294,6 +294,14 @@ func (g guards) AssignServiceAccountRoles() func(http.Handler) http.Handler {
 	return markGate(resAssignRoles, httpmw.RequireAssignRoles(g.iam, httpmw.ServiceAccountRolesTarget(g.roleAttachments, "serviceAccountId")))
 }
 
+// HoldServiceAccountRoles is the gate of POST
+// /admin/service-accounts/{serviceAccountId}/api-keys: a key lets its holder act
+// as the service account, so the caller must be allowed to assign every role the
+// account holds (see httpmw.RequireHoldsTargetRoles).
+func (g guards) HoldServiceAccountRoles() func(http.Handler) http.Handler {
+	return markGate(resAssignRoles, httpmw.RequireHoldsTargetRoles(g.iam, httpmw.ServiceAccountRolesTarget(g.roleAttachments, "serviceAccountId")))
+}
+
 // AssignUserRoles is the assignment gate of PUT /admin/users/{userId}/roles:
 // roles:assign on "role/{roleId}" for each role added to or removed from the
 // user (see httpmw.RequireAssignRoles). Declare it after the route's other gates.

@@ -29,6 +29,11 @@ const agentKeyName = "agent-runner"
 // conversation would make the sandbox look stale and be recreated each time.
 // Revoking the key (in api_keys) moves the agent to the next epoch, whose key
 // is new.
+//
+// Revoking therefore ROTATES the key rather than cutting the agent off: the
+// next call registers the next epoch's key. To stop an agent, delete or
+// disable the agent itself. Anyone holding the platform secret can derive
+// every agent's key, so it must be protected like the keys themselves.
 type AgentKeyRepository struct {
 	db     *sqlx.DB
 	secret []byte

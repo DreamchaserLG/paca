@@ -164,6 +164,18 @@ A plugin declares its actions in `customPermissions[].key` of its manifest. Each
 
 **Agents and service accounts.** Every caller is one account (`accounts`): a user, an agent or a service account. A request is judged by the role attachments of the account its credential proves, and by nothing else: an agent authenticates with its own API key, a service account with one of its keys, a user with a session or a key. There is no shared agent key and no header naming another account (`X-Agent-ID`, `X-Actor-User-ID` mean nothing), so an agent can only do what its own roles allow, never what the human chatting with it could. The same holds for plugin `permission_check` and `db_query`/`db_exec` (GHSA-g6mx-8g92-w9v5).
 
+## Authentication and principals
+
+`applyAuthn` is the single place that turns a credential into an account: a session token (cookie or Bearer) is a user; an API key (`Authorization: ApiKey` or `X-API-Key`) resolves through `api_keys` to the account that owns it, whatever its kind, and a deleted account's key does not resolve. The result is a `Principal{AccountID, Kind, Method}` in the request context (`middleware.PrincipalFrom`); `IAMPrincipalFrom` turns it into the `iam.Principal` the authorizer judges.
+
+- **An agent is whoever its API key proves.** A person generates a key for an ACP agent (`POST .../mcp-agent-key`, an `api_keys` row named `MCP key`, shown once). For the agents `services/agent-runner` runs, the runner provides the key itself (`AgentKeyRepository.APIKeyFor`): an `api_keys` row named `agent-runner`, derived as `HMAC-SHA256(ENCRYPTION_KEY, agent id, revocation epoch)` so it is the same on every call and only its hash is stored. Stability matters because a sandbox bakes `PACA_API_KEY` into its environment; a random key per conversation would make the sandbox look stale and be recreated each time. Revoking the row moves the agent to the next epoch, so **revoking rotates the key rather than cutting the agent off**; to stop an agent, delete or disable the agent. Anyone holding `ENCRYPTION_KEY` can derive every agent's key.
+- **Key management needs a session.** `RequireJWTAuth` guards minting and revoking a service account's keys, so a leaked key cannot create more credentials.
+- **Minting a key is bounded by role assignment.** A key lets its holder act with the account's roles, so `POST /admin/service-accounts/{id}/api-keys` also requires `roles:assign` on every platform role the account holds (`RequireHoldsTargetRoles`). `service_accounts:write` alone cannot borrow a more privileged account's access. Project roles come from project membership and are not checked.
+
+### Service accounts
+
+IAM action domain `service_accounts` (`read`, `write`) on resource root `service_account/*`; `principal.type` also accepts `service_account`. The `user/` and `agent/` resource names are unchanged, so no stored policy breaks. Built-in `ADMIN` does not get the new actions; `SUPER_ADMIN` holds them through `*`. Assigning a service account's roles needs `roles:assign` per role added or removed, like users and agents. A new service account holds no role, has no `users` row so it cannot sign in, and cannot manage credentials. Deleting it soft-deletes the account, revokes its keys and removes its attachments and memberships. It joins a project with `POST /projects/{id}/members` and `service_account_id`; project-scoped roles apply only while it is a member. Endpoints: [service accounts API](../api/service-accounts.md).
+
 ## Where it is enforced: the router
 
 `internal/transport/http/router/router.go` builds each route with a gate from `guards.go`. Every gate checks **all** the actions it is given, on the resource it names, through the IAM authorizer:
@@ -254,7 +266,7 @@ Choosing roles for an account or agent is a separate request made once it exists
 
 - There are no public projects and no anonymous access to project data: every project route needs a signed-in caller. The workspace-wide `projects:read` on `project` shows the project itself (`GET /projects/{projectId}`, and the project list), never what is inside it: tasks, documents, sprints and the rest are judged on their own resources, so a `Deny` or an `Allow` limited to some children always applies.
 - `GET /projects` decides between "all projects" and "my projects" from the authenticated account, so an agent or service account sees the projects it is a member of unless a role gives it the workspace-wide `projects:read`.
-- Restricting an agent or environment is no special feature: it is an ordinary `Deny` role (see the guide). Migration 000064 does **not** convert legacy restricted agents/environments: they become open to everyone their roles allow, and an administrator recreates each restriction with a `Deny` role (see the [guide](../guides/roles-and-policies.md#restrict-an-agent) and the [release notes](../releases/2026-10-iam-authorization.md#recreate-your-restrictions)).
+- Restricting an agent or environment is no special feature: it is an ordinary `Deny` role (see the guide). Migration 000064 does **not** convert legacy restricted agents/environments: they become open to everyone their roles allow, and an administrator recreates each restriction with a `Deny` role (see the [guide](../guides/roles-and-policies.md#restrict-an-agent) and [Upgrading](../deployment/README.md#upgrading-to-iam-authorization-migrations-000064-000068)).
 
 ## Design notes
 

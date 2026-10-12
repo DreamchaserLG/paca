@@ -252,7 +252,7 @@ func New(deps Deps) http.Handler {
 					r.With(require.ServiceAccount(iam.ActionServiceAccountsWrite)).Delete("/service-accounts/{serviceAccountId}/avatar", sa.DeleteAvatar)
 
 					r.With(httpmw.RequireJWTAuth(), require.ServiceAccount(iam.ActionServiceAccountsRead)).Get("/service-accounts/{serviceAccountId}/api-keys", sa.ListAPIKeys)
-					r.With(httpmw.RequireJWTAuth(), require.ServiceAccount(iam.ActionServiceAccountsWrite)).Post("/service-accounts/{serviceAccountId}/api-keys", sa.CreateAPIKey)
+					r.With(httpmw.RequireJWTAuth(), require.ServiceAccount(iam.ActionServiceAccountsWrite), require.HoldServiceAccountRoles()).Post("/service-accounts/{serviceAccountId}/api-keys", sa.CreateAPIKey)
 					r.With(httpmw.RequireJWTAuth(), require.ServiceAccount(iam.ActionServiceAccountsWrite)).Delete("/service-accounts/{serviceAccountId}/api-keys/{keyId}", sa.RevokeAPIKey)
 				}
 

@@ -3,7 +3,7 @@
 //
 // users and agents are extension tables keyed by the account id (userdom.User
 // and agentdom.Agent carry their own fields on top); a service account has
-// nothing beyond what Account holds. See docs/architecture/accounts-redesign.md.
+// nothing beyond what Account holds. See docs/architecture/database-schema.md (Accounts model).
 package accountdom
 
 import (

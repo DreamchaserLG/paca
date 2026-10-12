@@ -132,7 +132,6 @@ make migrate-up   # requires DATABASE_URL to be set
 | App login | `admin` / `adminpassword` |
 | PostgreSQL | `paca:paca@localhost:5432/paca` |
 | RustFS console | `rustfsadmin` / `rustfsadmin` at http://localhost:9001 |
-| Agent API key | `dev-agent-api-key-change-in-production` |
 
 These are intentionally weak defaults — never use them in production.
 

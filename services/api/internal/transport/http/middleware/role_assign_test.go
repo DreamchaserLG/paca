@@ -321,3 +321,35 @@ func (f *fakeRoleService) ListServiceAccountRoles(context.Context, uuid.UUID) ([
 func (f *fakeRoleService) ListMemberRoles(context.Context, uuid.UUID, uuid.UUID) ([]*roledom.Role, error) {
 	return f.roles, f.err
 }
+
+func TestRequireHoldsTargetRoles(t *testing.T) {
+	a, b := uuid.New(), uuid.New()
+	cases := []struct {
+		name   string
+		grants []iam.Grant
+		held   []uuid.UUID
+		lookup *fakeAttachments
+		want   int
+	}{
+		{"target holding nothing needs no permission", nil, nil, nil, http.StatusNoContent},
+		{"caller may assign every held role", assignGrant("role/*"), []uuid.UUID{a, b}, nil, http.StatusNoContent},
+		{"caller may assign only one of two held roles", assignGrant("role/" + a.String()), []uuid.UUID{a, b}, nil, http.StatusForbidden},
+		{"caller without roles:assign is refused", []iam.Grant{platformGrant([]string{"service_accounts:write"}, []string{"*"})}, []uuid.UUID{a}, nil, http.StatusForbidden},
+		{"lookup failure is 500", assignGrant("*"), nil, &fakeAttachments{err: errors.New("db")}, http.StatusInternalServerError},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			userID := uuid.New()
+			store := &fakeIAMStore{grants: map[iam.Principal][]iam.Grant{{Type: "user", ID: userID.String()}: tc.grants}}
+			lookup := tc.lookup
+			if lookup == nil {
+				lookup = &fakeAttachments{held: tc.held}
+			}
+			gate := RequireHoldsTargetRoles(newFakeIAM(store), ServiceAccountRolesTarget(lookup, "id"))
+			rec, _ := serveChat(t, "/sa/{id}/api-keys", "/sa/"+uuid.NewString()+"/api-keys", `{"name":"k"}`, asCaller(userID, uuid.Nil), gate)
+			if rec.Code != tc.want {
+				t.Fatalf("status = %d (%s), want %d", rec.Code, rec.Body.String(), tc.want)
+			}
+		})
+	}
+}

@@ -1,6 +1,6 @@
 -- 000066_unified_accounts.sql
 -- One `accounts` row per actor (user, agent or service account). See
--- docs/architecture/accounts-redesign.md.
+-- docs/architecture/database-schema.md ("Accounts model").
 --
 --   accounts            identity shared by every kind: kind, name, description,
 --                       avatar, created_by, timestamps and the ONLY soft-delete

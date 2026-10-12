@@ -188,7 +188,6 @@ fully isolated.
 | `E2E_BASE_URL` | `http://localhost`     | Base URL of the running app    |
 | `E2E_USERNAME` | `admin`                | Test user username             |
 | `E2E_PASSWORD` | `e2e-admin-password`   | Test user password             |
-| `E2E_AGENT_API_KEY` | `e2e-agent-api-key` | Shared agent key of the stack, used by `tests/iam/evaluation.spec.ts` to act as an agent |
 | `E2E_WORKERS`  | `3` (`2` on CI)        | Parallel workers per browser   |
 | `E2E_BROWSERS` | all five projects      | Browsers run by `bun run test` |
 

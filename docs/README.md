@@ -21,8 +21,6 @@ This directory is the main documentation home for Paca.
 - [api/http-design.md](api/http-design.md): HTTP API paths, endpoint responsibilities, and future resource design.
 - [api/roles-and-policies.md](api/roles-and-policies.md): roles, role assignment, validate/simulate and "my permissions" endpoints.
 - [api/service-accounts.md](api/service-accounts.md): service accounts, their API keys and roles.
-- [architecture/accounts-redesign.md](architecture/accounts-redesign.md): the unified accounts model (users, agents and service accounts).
-- [releases/](releases/README.md): release notes with upgrade and migration instructions.
 - [deployment/README.md](deployment/README.md): deployment and environment documentation index.
 - [product/overview.md](product/overview.md): product concepts and workflow direction.
 - [plugins/overview.md](plugins/overview.md): plugin system — architecture, extension points, and security model.

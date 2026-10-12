@@ -192,7 +192,7 @@ func TestUnifiedAccountsMigration(t *testing.T) {
 		if err := agentIn(p2, "other"); err != nil {
 			t.Errorf("a new handle in another project: %v", err)
 		}
-		expectDup("global handle", agentIn(nil, "helper"), "uq_agents_project_handle")
+		expectDup("global handle", agentIn(nil, "helper"), "uq_agents_global_handle")
 		if err := agentIn(p1, "helper"); err != nil {
 			t.Errorf("the same handle in a project vs the workspace is fine: %v", err)
 		}

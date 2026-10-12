@@ -192,6 +192,23 @@ func TestServiceAccountsAPI_EndToEnd(t *testing.T) {
 		}
 	})
 
+	t.Run("a user's keys are out of reach of the service account routes", func(t *testing.T) {
+		var own struct{ ID string }
+		own.ID = uuid.NewString()
+		if _, err := e.db.Exec(`INSERT INTO api_keys (id, account_id, name, key_prefix, key_hash) VALUES ($1, $2, 'mine', 'abcd1234', 'hash')`, own.ID, nobody); err != nil {
+			t.Fatal(err)
+		}
+		// The manager holds service_accounts:write, but nobody is not a service account.
+		res := e.call(manager, http.MethodDelete, "/admin/service-accounts/"+nobody.String()+"/api-keys/"+own.ID, nil)
+		if res.code != http.StatusNotFound || res.errorCode() != "SERVICE_ACCOUNT_NOT_FOUND" {
+			t.Fatalf("revoking a user's key: %d %s", res.code, res.body)
+		}
+		var revoked *string
+		if err := e.db.Get(&revoked, `SELECT revoked_at::text FROM api_keys WHERE id = $1`, own.ID); err != nil || revoked != nil {
+			t.Fatalf("the user's key must stay active: %v %v", revoked, err)
+		}
+	})
+
 	t.Run("revoking a key stops it", func(t *testing.T) {
 		if res := e.call(manager, http.MethodDelete, "/admin/service-accounts/"+created.ID+"/api-keys/"+key.ID, nil); res.code != http.StatusNoContent {
 			t.Fatalf("revoke: %d %s", res.code, res.body)

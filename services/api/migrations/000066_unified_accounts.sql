@@ -283,7 +283,10 @@ BEGIN
                   CONSTRAINT = CASE broken
                       WHEN 'username' THEN 'uni_users_username_active'
                       WHEN 'email'    THEN 'uni_users_email_active'
-                      ELSE 'uq_agents_project_handle' END;
+                      ELSE CASE WHEN (SELECT project_id FROM agents WHERE id = NEW.id) IS NULL
+                                THEN 'uq_agents_global_handle'
+                                ELSE 'uq_agents_project_handle' END
+                  END;
     END IF;
     RETURN NULL;
 END $$;

@@ -608,7 +608,7 @@ func TestE2EProject_DeleteCascadesRolesAndMembers(t *testing.T) {
 	if err := env.projectRepo.AddMember(context.Background(), &projectdom.ProjectMember{
 		ID:        uuid.New(),
 		ProjectID: projUUID,
-		UserID:    cascadeMember.ID,
+		AccountID: cascadeMember.ID,
 	}, []uuid.UUID{roleUUID}, nil); err != nil {
 		t.Fatalf("seed project member: %v", err)
 	}

@@ -193,6 +193,12 @@ func (h *ServiceAccountHandler) RevokeAPIKey(w http.ResponseWriter, r *http.Requ
 		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid key ID"))
 		return
 	}
+	// Like the other key routes, only a service account's keys are reachable
+	// here: a user's or agent's id in the path must not revoke their keys.
+	if _, err := h.svc.Get(r.Context(), id); err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
 	if err := h.keys.Revoke(r.Context(), id, keyID); err != nil {
 		presenter.Error(w, r, err)
 		return

@@ -650,7 +650,7 @@ func (r *AgentRepository) SoftDeleteAgentWithMembership(ctx context.Context, pro
 }
 
 // FindGlobalAgentByHandle looks up a global agent by its instance-wide
-// unique handle (uq_agents_global_handle). See its doc comment in
+// unique handle (enforced among live agents by the account-identifier trigger). See its doc comment in
 // domain/agent/repository.go for how this differs from FindAgentByHandle.
 func (r *AgentRepository) FindGlobalAgentByHandle(ctx context.Context, handle string) (*agentdom.Agent, error) {
 	var row agentRecord

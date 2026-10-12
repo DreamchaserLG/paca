@@ -62,7 +62,7 @@ type AgentRepository interface {
 
 	ListGlobalAgents(ctx context.Context) ([]*Agent, error)
 	// FindGlobalAgentByHandle looks up a global agent by its instance-wide
-	// unique handle (uq_agents_global_handle). Distinct from
+	// unique handle (enforced among live agents by the account-identifier trigger). Distinct from
 	// FindAgentByHandle, which resolves within one project's visible agents
 	// (its own project-scoped agents plus any global agents invited into it)
 	// via the project_members join and would never match on projectID ==

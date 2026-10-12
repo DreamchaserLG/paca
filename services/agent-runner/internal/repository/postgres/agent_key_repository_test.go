@@ -16,7 +16,8 @@ func TestDeriveAgentKey(t *testing.T) {
 		t.Fatalf("key format = %q", k)
 	}
 	// Stable: a sandbox bakes the key in, so the same agent must always get the same one.
-	if deriveAgentKey(secret, a, 0) != deriveAgentKey(secret, a, 0) {
+	first, again := deriveAgentKey(secret, a, 0), deriveAgentKey(secret, a, 0)
+	if first != again {
 		t.Fatal("the key must be deterministic")
 	}
 	// Distinct per agent, per revocation epoch and per platform secret.

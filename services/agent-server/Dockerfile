@@ -203,6 +203,30 @@ RUN npm install -g @anthropic-ai/claude-code @openai/codex @google/gemini-cli \
     && curl -fsSL https://cursor.com/install | bash \
     && ln -sf /home/goose/.local/bin/cursor-agent /usr/local/bin/cursor-agent
 
+# Provider-CLI login state must live on the environment's persistent volume
+# (/home/paca/workspaces is the only path that survives a container/Pod
+# recreate). Each CLI's config dir is therefore a symlink, baked in here,
+# onto /home/paca/workspaces/.cli-home/<cli_provider> — so a login made at any
+# time, even from the environment terminal before any conversation has run,
+# is written straight to the volume. (Creating a real directory first and
+# swapping it for a symlink later destroyed a just-completed login: the first
+# conversation showed "Authentication required".) The volume is mounted at
+# runtime, so the link targets are created by the agent-runner
+# (sandbox.EnsureCLIHomeDirs, and executor.syncProviderCLIConfig) — keep the
+# names below in step with providercli.HomeRoot and each adapter's
+# Name()/HomeDirName(); TestDockerfileCLIHomeSymlinks enforces it.
+#
+# CLAUDE_CONFIG_DIR moves ~/.claude.json (account state, MCP servers) inside
+# the persisted directory too — it otherwise sits outside ~/.claude and is
+# lost on recreate. Verified against claude 2.1.284: `claude auth status`
+# reports configDirectory and creates .claude.json under it. Codex/Gemini/
+# Cursor keep all their state inside their one config dir.
+ENV CLAUDE_CONFIG_DIR=/home/paca/workspaces/.cli-home/claude-code
+RUN ln -sfn /home/paca/workspaces/.cli-home/claude-code  /home/goose/.claude \
+ && ln -sfn /home/paca/workspaces/.cli-home/codex        /home/goose/.codex \
+ && ln -sfn /home/paca/workspaces/.cli-home/cursor-agent /home/goose/.cursor \
+ && ln -sfn /home/paca/workspaces/.cli-home/gemini-cli   /home/goose/.gemini
+
 # Real sshd for static environments' layer-4 SSH access (see
 # docs/ai-agent/environment-management.md's "Terminal / SSH Access" Phase B
 # section and internal/sandbox/environmentssh.go, which starts this

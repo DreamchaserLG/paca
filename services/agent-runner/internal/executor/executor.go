@@ -892,20 +892,9 @@ func (e *Executor) coldStartEnvironment(ctx, turnCtx context.Context, cfg agent.
 	return client, sessionID, envNote, nil
 }
 
-// providerCLIHomeRoot is where syncProviderCLIConfig points each CLI's own
-// config/home directory — a dot-prefixed subdirectory of the same
-// persisted workspace mount environmentGooseDataDir uses above, keyed by
-// cli_provider so each provider gets its own isolated subtree. A CLI's own
-// login credentials, written under its home dir (~/.claude, ~/.codex,
-// etc.), must survive environment container recreation exactly the same
-// way goose's own session store does — see environmentGooseDataDir's doc
-// comment for the underlying "only /home/paca/workspaces persists across
-// a recreate" fact this relies on.
-const providerCLIHomeRoot = "/home/paca/workspaces/.cli-home"
-
 // syncProviderCLIConfig bootstraps a provider_cli agent's CLI home
-// directory onto the environment's persistent volume (idempotent, safe to
-// re-run on every attach — same contract environmentssh.go's
+// directory's persistent-volume target (idempotent, safe to re-run on
+// every attach — same contract environmentssh.go's
 // BootstrapEnvironmentSSH already relies on for the SSH host key) and
 // syncs its configured MCP servers (and, for adapters that support it,
 // skills — see providercli.Adapter.SupportsSkillSync) into the CLI's own
@@ -919,27 +908,17 @@ func (e *Executor) syncProviderCLIConfig(ctx context.Context, backendRef string,
 		return fmt.Errorf("unknown cli_provider %q", cfg.CLIProvider)
 	}
 
-	// 1. Symlink bootstrap: point ~/<HomeDirName> at this provider's own
-	// subtree of the persistent volume. Idempotent — a target that's
-	// already the correct symlink is left alone; anything else (missing,
-	// a stale symlink, or a real file/dir the CLI itself created before
-	// this ever ran) is replaced. One uniform mechanism for every
-	// provider rather than relying on each CLI's own (inconsistent,
-	// not-fully-confirmed) config-dir override env var.
-	persistDir := providerCLIHomeRoot + "/" + cfg.CLIProvider
-	target := sandboxWorkdir + "/" + adapter.HomeDirName()
-	bootstrapCmd := fmt.Sprintf(`mkdir -p "%[1]s"
-if [ -L "%[2]s" ]; then
-  cur=$(readlink -f "%[2]s")
-  want=$(readlink -f "%[1]s")
-  if [ "$cur" != "$want" ]; then rm -f "%[2]s"; ln -s "%[1]s" "%[2]s"; fi
-elif [ -e "%[2]s" ]; then
-  rm -rf "%[2]s"; ln -s "%[1]s" "%[2]s"
-else
-  ln -s "%[1]s" "%[2]s"
-fi`, persistDir, target)
-	if out, code, err := e.sandboxMgr.ExecEnvironment(ctx, backendRef, []string{"/bin/sh", "-c", bootstrapCmd}); err != nil || code != 0 {
-		return fmt.Errorf("bootstrap cli home symlink: exit %d: %s: %w", code, out, err)
+	// 1. Ensure this provider's persisted home directory exists. The
+	// ~/<HomeDirName> symlink onto it is baked into the agent-server image
+	// (services/agent-server/Dockerfile) — so a login made before this ever
+	// runs (e.g. from the environment terminal, before the first
+	// conversation) already lands on the persistent volume instead of in a
+	// real directory that would need replacing. Only the symlink's target,
+	// which lives on the runtime-mounted volume and so can't exist in the
+	// image, has to be created here. Idempotent.
+	persistDir := providercli.HomeRoot + "/" + cfg.CLIProvider
+	if out, code, err := e.sandboxMgr.ExecEnvironment(ctx, backendRef, []string{"mkdir", "-p", persistDir}); err != nil || code != 0 {
+		return fmt.Errorf("create cli home dir: exit %d: %s: %w", code, out, err)
 	}
 
 	// 2. Read the current content of every file the adapter wants to merge
@@ -986,10 +965,10 @@ fi`, persistDir, target)
 		entries = append(entries, fileEntry{RelPath: f.RelPath, Content: f.Content})
 	}
 	// adapter.HomeDirName() (e.g. ".claude") is excluded from the tar's
-	// auto-generated directory entries — the bootstrap step above already
-	// made it a symlink onto the persistent volume, and a literal
-	// directory header at that exact path conflicts with the symlink
-	// already there (see buildFileTar's own doc comment on this).
+	// auto-generated directory entries — the image makes it a symlink onto
+	// the persistent volume, and a literal directory header at that exact
+	// path conflicts with the symlink already there (see buildFileTar's own
+	// doc comment on this).
 	tarBuf, err := buildFileTar(entries, map[string]bool{adapter.HomeDirName(): true})
 	if err != nil {
 		return fmt.Errorf("build cli config tar: %w", err)

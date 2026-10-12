@@ -1,6 +1,9 @@
 package agentdom
 
-import "errors"
+import (
+	"errors"
+	"strings"
+)
 
 // Agent errors
 var (
@@ -140,3 +143,19 @@ var (
 var (
 	ErrChatSessionNotFound = errors.New("chat session not found")
 )
+
+// FieldNotSupportedError is the concrete error behind
+// ErrFieldNotSupportedForAgentType; it carries the offending field names so
+// the transport layer can expose them as structured details.
+type FieldNotSupportedError struct {
+	Fields []string
+}
+
+func (e *FieldNotSupportedError) Error() string {
+	return ErrFieldNotSupportedForAgentType.Error() + ": " + strings.Join(e.Fields, ", ")
+}
+
+// Is makes errors.Is(err, ErrFieldNotSupportedForAgentType) match.
+func (e *FieldNotSupportedError) Is(target error) bool {
+	return target == ErrFieldNotSupportedForAgentType
+}

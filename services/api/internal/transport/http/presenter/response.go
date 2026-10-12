@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/Paca-AI/api/internal/apierr"
 	accountdom "github.com/Paca-AI/api/internal/domain/account"
@@ -109,6 +110,10 @@ func Error(w http.ResponseWriter, r *http.Request, err error) {
 	if apiErr != nil {
 		details = apiErr.Details
 		issues = apiErr.Issues
+	}
+	var fieldErr *agentdom.FieldNotSupportedError
+	if details == nil && errors.As(err, &fieldErr) {
+		details = map[string]string{"fields": strings.Join(fieldErr.Fields, ",")}
 	}
 
 	httpx.WriteJSON(w, status, envelope{

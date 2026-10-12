@@ -190,34 +190,50 @@ func uuidPtrEqual(a, b *uuid.UUID) bool {
 	return *a == *b
 }
 
-// rejectLLMOnlyFields returns ErrFieldNotSupportedForAgentType, naming each
-// offending field, when a non-empty system_prompt or git committer identity
-// is supplied for an ACP/provider_cli agent — these are LLM-only (see the
-// doc comment on Agent.SystemPrompt), so accepting them would report success
-// while never storing or using the value. Empty values are tolerated so a
-// generic client payload that echoes defaults still works.
-func rejectLLMOnlyFields(systemPrompt, committerName, committerEmail string) error {
+// llmOnlyFields groups the values that only apply to LLM agents, so call
+// sites name each one instead of passing three positional strings.
+type llmOnlyFields struct {
+	SystemPrompt      string
+	GitCommitterName  string
+	GitCommitterEmail string
+}
+
+func llmOnlyFieldsFromUpdate(systemPrompt, committerName, committerEmail *string) llmOnlyFields {
+	var f llmOnlyFields
+	if systemPrompt != nil {
+		f.SystemPrompt = *systemPrompt
+	}
+	if committerName != nil {
+		f.GitCommitterName = *committerName
+	}
+	if committerEmail != nil {
+		f.GitCommitterEmail = *committerEmail
+	}
+	return f
+}
+
+// rejectLLMOnlyFields returns a *agentdom.FieldNotSupportedError (matching
+// ErrFieldNotSupportedForAgentType), naming each offending field, when a
+// non-empty system_prompt or git committer identity is supplied for a
+// non-LLM agent — these are LLM-only (see the doc comment on
+// Agent.SystemPrompt), so accepting them would report success while never
+// storing or using the value. Empty values are tolerated so a generic client
+// payload that echoes defaults still works.
+func rejectLLMOnlyFields(f llmOnlyFields) error {
 	var fields []string
-	if systemPrompt != "" {
+	if f.SystemPrompt != "" {
 		fields = append(fields, "system_prompt")
 	}
-	if committerName != "" {
+	if f.GitCommitterName != "" {
 		fields = append(fields, "git_committer_name")
 	}
-	if committerEmail != "" {
+	if f.GitCommitterEmail != "" {
 		fields = append(fields, "git_committer_email")
 	}
 	if len(fields) == 0 {
 		return nil
 	}
-	return fmt.Errorf("%w: %s", agentdom.ErrFieldNotSupportedForAgentType, strings.Join(fields, ", "))
-}
-
-func derefStr(p *string) string {
-	if p == nil {
-		return ""
-	}
-	return *p
+	return &agentdom.FieldNotSupportedError{Fields: fields}
 }
 
 // encryptKey encrypts plaintext if an encryptor is configured; otherwise returns plaintext unchanged.
@@ -287,11 +303,6 @@ func (s *Service) CreateAgent(ctx context.Context, projectID uuid.UUID, in agent
 		UpdatedAt:        now,
 	}
 
-	if agentType != agentdom.AgentTypeLLM {
-		if err := rejectLLMOnlyFields(in.SystemPrompt, in.GitCommitterName, in.GitCommitterEmail); err != nil {
-			return nil, err
-		}
-	}
 	switch agentType {
 	case agentdom.AgentTypeACP:
 		if !agentdom.ValidACPProviders[in.ACPProvider] {
@@ -300,12 +311,18 @@ func (s *Service) CreateAgent(ctx context.Context, projectID uuid.UUID, in agent
 		if in.ACPProvider == agentdom.ACPProviderCustom && len(in.ACPCommand) == 0 {
 			return nil, agentdom.ErrACPCommandRequired
 		}
+		if err := rejectLLMOnlyFields(llmOnlyFields{in.SystemPrompt, in.GitCommitterName, in.GitCommitterEmail}); err != nil {
+			return nil, err
+		}
 		provider := in.ACPProvider
 		a.ACPProvider = &provider
 		a.ACPCommand = in.ACPCommand
 	case agentdom.AgentTypeProviderCLI:
 		if !agentdom.ValidCLIProviders[in.CLIProvider] {
 			return nil, agentdom.ErrCLIProviderInvalid
+		}
+		if err := rejectLLMOnlyFields(llmOnlyFields{in.SystemPrompt, in.GitCommitterName, in.GitCommitterEmail}); err != nil {
+			return nil, err
 		}
 		authMode := in.CLIAuthMode
 		if authMode == "" {
@@ -462,7 +479,7 @@ func (s *Service) UpdateAgent(ctx context.Context, projectID, agentID uuid.UUID,
 	// agent is rejected (rejectLLMOnlyFields) — dropping a role prompt
 	// silently left callers believing it was configured.
 	if a.AgentType != agentdom.AgentTypeLLM && a.AgentType != "" {
-		if err := rejectLLMOnlyFields(derefStr(in.SystemPrompt), derefStr(in.GitCommitterName), derefStr(in.GitCommitterEmail)); err != nil {
+		if err := rejectLLMOnlyFields(llmOnlyFieldsFromUpdate(in.SystemPrompt, in.GitCommitterName, in.GitCommitterEmail)); err != nil {
 			return nil, err
 		}
 	}
@@ -741,14 +758,14 @@ func (s *Service) CreateGlobalAgent(ctx context.Context, in agentdom.CreateGloba
 	}
 
 	if agentType == agentdom.AgentTypeACP {
-		if err := rejectLLMOnlyFields(in.SystemPrompt, in.GitCommitterName, in.GitCommitterEmail); err != nil {
-			return nil, err
-		}
 		if !agentdom.ValidACPProviders[in.ACPProvider] {
 			return nil, agentdom.ErrACPProviderInvalid
 		}
 		if in.ACPProvider == agentdom.ACPProviderCustom && len(in.ACPCommand) == 0 {
 			return nil, agentdom.ErrACPCommandRequired
+		}
+		if err := rejectLLMOnlyFields(llmOnlyFields{in.SystemPrompt, in.GitCommitterName, in.GitCommitterEmail}); err != nil {
+			return nil, err
 		}
 		provider := in.ACPProvider
 		a.ACPProvider = &provider
@@ -828,8 +845,8 @@ func (s *Service) UpdateGlobalAgent(ctx context.Context, agentID uuid.UUID, in a
 	}
 	// See the equivalent block in UpdateAgent for why LLM/ACP fields are
 	// guarded by the agent's existing (immutable) type.
-	if a.AgentType == agentdom.AgentTypeACP {
-		if err := rejectLLMOnlyFields(derefStr(in.SystemPrompt), derefStr(in.GitCommitterName), derefStr(in.GitCommitterEmail)); err != nil {
+	if a.AgentType != agentdom.AgentTypeLLM && a.AgentType != "" {
+		if err := rejectLLMOnlyFields(llmOnlyFieldsFromUpdate(in.SystemPrompt, in.GitCommitterName, in.GitCommitterEmail)); err != nil {
 			return nil, err
 		}
 	}

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Bot, Plus } from "lucide-react";
+import { Plus, ServerCog } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -73,7 +73,7 @@ function ServiceAccountsPage() {
 				<div>
 					<div className="mb-1 flex items-center gap-2.5">
 						<div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-							<Bot className="size-4" />
+							<ServerCog className="size-4" />
 						</div>
 						<h1 className="text-xl font-semibold tracking-tight">
 							{t("serviceAccounts.header.title")}
@@ -104,7 +104,7 @@ function ServiceAccountsPage() {
 
 			{!isPermissionsLoading && !canRead ? (
 				<NoPermissionState
-					icon={Bot}
+					icon={ServerCog}
 					title={t("serviceAccounts.noPermission.title")}
 					description={t("serviceAccounts.noPermission.description")}
 				/>
@@ -121,7 +121,7 @@ function ServiceAccountsPage() {
 				/>
 			) : accounts.length === 0 ? (
 				<div className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-14 text-center">
-					<Bot className="size-9 text-muted-foreground/50" />
+					<ServerCog className="size-9 text-muted-foreground/50" />
 					<div>
 						<p className="font-medium">{t("serviceAccounts.empty.title")}</p>
 						<p className="text-sm text-muted-foreground">

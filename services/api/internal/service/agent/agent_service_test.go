@@ -965,26 +965,65 @@ func TestUpdateAgent_ACPAgentIgnoresLLMFields(t *testing.T) {
 	newModel := "gpt-4"
 	newAPIKey := "sk-leaked-onto-acp-agent"
 	newBaseURL := "https://api.openai.com/v1"
-	newSystemPrompt := "you are a helpful assistant"
-	newCommitterName := "someone"
-	newCommitterEmail := "someone@example.com"
 
 	result, err := svc.UpdateAgent(context.Background(), projectID, agentID, agentdom.UpdateAgentInput{
-		LLMModel:          &newModel,
-		LLMAPIKey:         &newAPIKey,
-		LLMBaseURL:        &newBaseURL,
-		SystemPrompt:      &newSystemPrompt,
-		GitCommitterName:  &newCommitterName,
-		GitCommitterEmail: &newCommitterEmail,
+		LLMModel:   &newModel,
+		LLMAPIKey:  &newAPIKey,
+		LLMBaseURL: &newBaseURL,
 	})
 
 	assert.NoError(t, err)
 	assert.Empty(t, result.LLMModel)
 	assert.Empty(t, result.LLMAPIKeySecret)
 	assert.Empty(t, result.LLMBaseURL)
-	assert.Empty(t, result.SystemPrompt)
-	assert.Empty(t, result.GitCommitterName)
-	assert.Empty(t, result.GitCommitterEmail)
+}
+
+// system_prompt and the git committer identity are LLM-only; setting them on
+// an ACP agent must fail loudly (naming the fields) instead of being dropped.
+func TestUpdateAgent_ACPAgentRejectsLLMOnlyFields(t *testing.T) {
+	projectID := uuid.New()
+	agentID := uuid.New()
+	provider := agentdom.ACPProviderClaudeCode
+	agent := &agentdom.Agent{
+		ID:          agentID,
+		ProjectID:   projectID,
+		AgentType:   agentdom.AgentTypeACP,
+		ACPProvider: &provider,
+	}
+	repo := &mockAgentRepo{
+		findAgentByID: func(_ context.Context, _ uuid.UUID) (*agentdom.Agent, error) { return agent, nil },
+		updateAgent:   func(_ context.Context, _ *agentdom.Agent) error { return nil },
+	}
+	svc := New(repo, &mockProjectRepo{}, nil, &mockPluginRepo{})
+
+	prompt := "You are the Planner"
+	email := "x@example.com"
+	_, err := svc.UpdateAgent(context.Background(), projectID, agentID, agentdom.UpdateAgentInput{
+		SystemPrompt:      &prompt,
+		GitCommitterEmail: &email,
+	})
+	assert.ErrorIs(t, err, agentdom.ErrFieldNotSupportedForAgentType)
+	assert.ErrorContains(t, err, "system_prompt")
+	assert.ErrorContains(t, err, "git_committer_email")
+	assert.NotContains(t, err.Error(), "git_committer_name")
+
+	// Empty values are a no-op and stay accepted.
+	empty := ""
+	_, err = svc.UpdateAgent(context.Background(), projectID, agentID, agentdom.UpdateAgentInput{SystemPrompt: &empty})
+	assert.NoError(t, err)
+}
+
+func TestCreateAgent_ACPRejectsLLMOnlyFields(t *testing.T) {
+	svc := New(&mockAgentRepo{}, &mockProjectRepo{}, nil, &mockPluginRepo{})
+	_, err := svc.CreateAgent(context.Background(), uuid.New(), agentdom.CreateAgentInput{
+		Name:         "ACP",
+		Handle:       "acp",
+		AgentType:    agentdom.AgentTypeACP,
+		ACPProvider:  agentdom.ACPProviderClaudeCode,
+		SystemPrompt: "role prompt",
+	})
+	assert.ErrorIs(t, err, agentdom.ErrFieldNotSupportedForAgentType)
+	assert.ErrorContains(t, err, "system_prompt")
 }
 
 func TestUpdateAgent_LLMAgentIgnoresACPFields(t *testing.T) {
@@ -3947,7 +3986,7 @@ func TestCreateAgent_ACPGooseProviderSuccess(t *testing.T) {
 	assert.Empty(t, result.ACPCommand)
 }
 
-func TestCreateAgent_ACPIgnoresSystemPromptAndGitCommitterFields(t *testing.T) {
+func TestCreateAgent_ACPRejectsSystemPromptAndGitCommitterFields(t *testing.T) {
 	projectID := uuid.New()
 	projectRoleID := uuid.New()
 
@@ -3961,7 +4000,7 @@ func TestCreateAgent_ACPIgnoresSystemPromptAndGitCommitterFields(t *testing.T) {
 	}
 	svc := New(repo, projectRepoWithRole(projectID), nil, &mockPluginRepo{})
 
-	result, err := svc.CreateAgent(context.Background(), projectID, agentdom.CreateAgentInput{
+	_, err := svc.CreateAgent(context.Background(), projectID, agentdom.CreateAgentInput{
 		Name:              "ACP Agent",
 		Handle:            "acp-agent",
 		AgentType:         agentdom.AgentTypeACP,
@@ -3972,10 +4011,7 @@ func TestCreateAgent_ACPIgnoresSystemPromptAndGitCommitterFields(t *testing.T) {
 		GitCommitterEmail: "someone@example.com",
 	})
 
-	assert.NoError(t, err)
-	assert.Empty(t, result.SystemPrompt)
-	assert.Empty(t, result.GitCommitterName)
-	assert.Empty(t, result.GitCommitterEmail)
+	assert.ErrorIs(t, err, agentdom.ErrFieldNotSupportedForAgentType)
 }
 
 func TestGenerateACPBridgeToken_Success(t *testing.T) {
@@ -6077,4 +6113,87 @@ func TestAdvanceFolderQueue_ChecksEachCandidatesOwnFolderNotJustTheOneThatFreed(
 	if assert.Len(t, reinserted, 1, "the older, still-blocked item must be put back, not dropped") {
 		assert.Equal(t, itemOld.ID, reinserted[0].ID)
 	}
+}
+
+func TestCreateGlobalAgent_ACPRejectsLLMOnlyFields(t *testing.T) {
+	repo := &mockAgentRepo{
+		findGlobalAgentByHandle: func(_ context.Context, _ string) (*agentdom.Agent, error) {
+			return nil, agentdom.ErrAgentNotFound
+		},
+	}
+	svc := New(repo, &mockProjectRepo{}, nil, &mockPluginRepo{})
+
+	_, err := svc.CreateGlobalAgent(context.Background(), agentdom.CreateGlobalAgentInput{
+		Name:             "Global ACP",
+		Handle:           "global-acp",
+		AgentType:        agentdom.AgentTypeACP,
+		ACPProvider:      agentdom.ACPProviderClaudeCode,
+		SystemPrompt:     "role prompt",
+		GitCommitterName: "someone",
+	})
+
+	assert.ErrorIs(t, err, agentdom.ErrFieldNotSupportedForAgentType)
+	var fe *agentdom.FieldNotSupportedError
+	if assert.ErrorAs(t, err, &fe) {
+		assert.Equal(t, []string{"system_prompt", "git_committer_name"}, fe.Fields)
+	}
+}
+
+func TestUpdateGlobalAgent_ACPRejectsLLMOnlyFields(t *testing.T) {
+	provider := agentdom.ACPProviderClaudeCode
+	repo := &mockAgentRepo{
+		findAgentByID: func(_ context.Context, id uuid.UUID) (*agentdom.Agent, error) {
+			return &agentdom.Agent{ID: id, AgentScope: agentdom.AgentScopeGlobal, AgentType: agentdom.AgentTypeACP, ACPProvider: &provider}, nil
+		},
+		updateAgent: func(_ context.Context, _ *agentdom.Agent) error { return nil },
+	}
+	svc := New(repo, &mockProjectRepo{}, nil, &mockPluginRepo{})
+
+	email := "x@example.com"
+	_, err := svc.UpdateGlobalAgent(context.Background(), uuid.New(), agentdom.UpdateAgentInput{GitCommitterEmail: &email})
+	assert.ErrorIs(t, err, agentdom.ErrFieldNotSupportedForAgentType)
+	assert.ErrorContains(t, err, "git_committer_email")
+
+	empty := ""
+	_, err = svc.UpdateGlobalAgent(context.Background(), uuid.New(), agentdom.UpdateAgentInput{GitCommitterEmail: &empty})
+	assert.NoError(t, err)
+}
+
+func TestCreateAgent_ProviderCLIRejectsLLMOnlyFields(t *testing.T) {
+	projectID := uuid.New()
+	repo := &mockAgentRepo{
+		findAgentByHandle: func(_ context.Context, _ uuid.UUID, _ string) (*agentdom.Agent, error) {
+			return nil, agentdom.ErrAgentNotFound
+		},
+	}
+	svc := New(repo, projectRepoWithRole(projectID), nil, &mockPluginRepo{})
+
+	_, err := svc.CreateAgent(context.Background(), projectID, agentdom.CreateAgentInput{
+		Name:              "CLI Agent",
+		Handle:            "cli-agent",
+		AgentType:         agentdom.AgentTypeProviderCLI,
+		CLIProvider:       agentdom.CLIProviderClaudeCode,
+		SystemPrompt:      "role prompt",
+		GitCommitterEmail: "x@example.com",
+	})
+
+	assert.ErrorIs(t, err, agentdom.ErrFieldNotSupportedForAgentType)
+	assert.ErrorContains(t, err, "system_prompt, git_committer_email")
+}
+
+func TestUpdateAgent_ProviderCLIRejectsLLMOnlyFields(t *testing.T) {
+	projectID := uuid.New()
+	agentID := uuid.New()
+	provider := agentdom.CLIProviderClaudeCode
+	repo := &mockAgentRepo{
+		findAgentByID: func(_ context.Context, _ uuid.UUID) (*agentdom.Agent, error) {
+			return &agentdom.Agent{ID: agentID, ProjectID: projectID, AgentType: agentdom.AgentTypeProviderCLI, CLIProvider: &provider}, nil
+		},
+		updateAgent: func(_ context.Context, _ *agentdom.Agent) error { return nil },
+	}
+	svc := New(repo, &mockProjectRepo{}, nil, &mockPluginRepo{})
+
+	prompt := "role prompt"
+	_, err := svc.UpdateAgent(context.Background(), projectID, agentID, agentdom.UpdateAgentInput{SystemPrompt: &prompt})
+	assert.ErrorIs(t, err, agentdom.ErrFieldNotSupportedForAgentType)
 }

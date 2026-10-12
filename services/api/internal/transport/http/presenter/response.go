@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/Paca-AI/api/internal/apierr"
 	accountdom "github.com/Paca-AI/api/internal/domain/account"
@@ -109,6 +110,10 @@ func Error(w http.ResponseWriter, r *http.Request, err error) {
 	if apiErr != nil {
 		details = apiErr.Details
 		issues = apiErr.Issues
+	}
+	var fieldErr *agentdom.FieldNotSupportedError
+	if details == nil && errors.As(err, &fieldErr) {
+		details = map[string]string{"fields": strings.Join(fieldErr.Fields, ",")}
 	}
 
 	httpx.WriteJSON(w, status, envelope{
@@ -383,6 +388,8 @@ func statusAndCodeFor(err error) (int, apierr.Code) {
 		return http.StatusBadRequest, apierr.CodeAgentACPProviderInvalid
 	case errors.Is(err, agentdom.ErrACPCommandRequired):
 		return http.StatusBadRequest, apierr.CodeAgentACPCommandRequired
+	case errors.Is(err, agentdom.ErrFieldNotSupportedForAgentType):
+		return http.StatusBadRequest, apierr.CodeAgentFieldNotSupportedForType
 	case errors.Is(err, agentdom.ErrMCPServerNotFound):
 		return http.StatusNotFound, apierr.CodeAgentMCPServerNotFound
 	case errors.Is(err, agentdom.ErrSkillNotFound):
@@ -696,6 +703,7 @@ func httpStatusForCode(code apierr.Code) int {
 		apierr.CodeAgentTypeInvalid,
 		apierr.CodeAgentACPProviderInvalid,
 		apierr.CodeAgentACPCommandRequired,
+		apierr.CodeAgentFieldNotSupportedForType,
 		apierr.CodeAgentEnvVarKeyInvalid,
 		apierr.CodeAgentEnvVarKeyReserved,
 		apierr.CodeAgentSkillNameReserved,

@@ -305,3 +305,24 @@ func TestStatusAndCodeFor_SkillNameInvalid(t *testing.T) {
 		t.Errorf("expected (400,%s), got (%d,%s)", apierr.CodeAgentSkillNameInvalid, status, code)
 	}
 }
+
+func TestError_FieldNotSupportedForAgentType(t *testing.T) {
+	w := httptest.NewRecorder()
+	r := newTestRequest("")
+
+	Error(w, r, fmt.Errorf("wrap: %w", &agentdom.FieldNotSupportedError{Fields: []string{"system_prompt", "git_committer_email"}}))
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+	var env envelope
+	if err := json.Unmarshal(w.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if env.ErrorCode != string(apierr.CodeAgentFieldNotSupportedForType) {
+		t.Fatalf("expected %q, got %q", apierr.CodeAgentFieldNotSupportedForType, env.ErrorCode)
+	}
+	if env.ErrorDetails["fields"] != "system_prompt,git_committer_email" {
+		t.Fatalf("unexpected fields detail: %q", env.ErrorDetails["fields"])
+	}
+}

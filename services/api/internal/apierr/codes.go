@@ -295,6 +295,8 @@ const (
 	CodeAgentTypeInvalid Code = "AGENT_TYPE_INVALID"
 	// CodeAgentACPProviderInvalid indicates acp_provider is not one of the supported values.
 	CodeAgentACPProviderInvalid Code = "AGENT_ACP_PROVIDER_INVALID"
+	// CodeAgentFieldNotSupportedForType indicates an LLM-only field was set on an ACP or provider_cli agent.
+	CodeAgentFieldNotSupportedForType Code = "AGENT_FIELD_NOT_SUPPORTED_FOR_TYPE"
 	// CodeAgentACPCommandRequired indicates acp_command is required for the given acp_provider.
 	CodeAgentACPCommandRequired Code = "AGENT_ACP_COMMAND_REQUIRED"
 	// CodeAgentMCPServerNotFound indicates the requested MCP server does not exist.

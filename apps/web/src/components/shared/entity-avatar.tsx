@@ -1,3 +1,4 @@
+import { User } from "lucide-react";
 import type { ReactNode } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/initials";
@@ -42,7 +43,7 @@ export interface EntityAvatarProps {
 	/** "circle" (default), "rounded" (a rounded square), or "inherit" to take
 	 * the radius of the wrapper (see AvatarUpload). */
 	shape?: "circle" | "rounded" | "inherit";
-	/** Shown instead of initials when a human has no name (e.g. an icon). */
+	/** Shown instead of initials when a human has no name; defaults to a user icon. */
 	fallback?: ReactNode;
 	/** An <AvatarBadge> overlaid on the avatar's corner. */
 	badge?: ReactNode;
@@ -107,7 +108,11 @@ export function EntityAvatar({
 					type !== "human" && "p-[15%]",
 				)}
 			>
-				{type === "human" ? getInitials(name) || fallback : <PacaMark />}
+				{type === "human" ? (
+					getInitials(name) || fallback || <User className="size-1/2" />
+				) : (
+					<PacaMark />
+				)}
 			</AvatarFallback>
 			{badge}
 		</Avatar>

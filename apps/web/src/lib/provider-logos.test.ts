@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	agentAvatar,
 	memberAvatar,
+	notificationActorAvatar,
 	resolveAvatarSrc,
 	serviceAccountAvatar,
 } from "./provider-logos";
@@ -75,5 +76,21 @@ describe("avatar adapters", () => {
 		} as Parameters<typeof agentAvatar>[0]);
 		expect(identity.avatarUrl).toBeNull();
 		expect(serviceAccountAvatar({ name: "CI" }).type).toBe("service_account");
+	});
+
+	it("maps a notification actor, including provider_cli agents", () => {
+		const identity = notificationActorAvatar({
+			actor_full_name: "",
+			actor_username: "bot",
+			actor_avatar_thumb_url: null,
+			actor_member_type: "agent",
+			actor_agent_type: "provider_cli",
+			actor_agent_cli_provider: "codex",
+		} as Parameters<typeof notificationActorAvatar>[0]);
+		expect(identity.name).toBe("bot");
+		expect(identity.type).toBe("agent");
+		expect(
+			resolveAvatarSrc(identity.type, identity.avatarUrl, identity.agent),
+		).toBe("/provider-logos/codex.svg");
 	});
 });

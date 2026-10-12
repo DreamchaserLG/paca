@@ -41,4 +41,21 @@ describe("EntityAvatar fallback", () => {
 		);
 		expect(getByText("icon")).toBeInTheDocument();
 	});
+
+	it("falls back to a user icon for a nameless human with no fallback", () => {
+		const { container } = render(<EntityAvatar name="" />);
+		expect(container.querySelector("svg")).toBeInTheDocument();
+	});
+
+	it("applies the requested shape radius", () => {
+		const { container } = render(<EntityAvatar name="Ada" shape="rounded" />);
+		expect(container.firstElementChild?.className).toContain("rounded-lg");
+	});
+
+	it("renders the badge slot", () => {
+		const { getByText } = render(
+			<EntityAvatar name="Ada" badge={<span>dot</span>} />,
+		);
+		expect(getByText("dot")).toBeInTheDocument();
+	});
 });

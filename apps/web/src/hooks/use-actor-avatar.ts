@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { projectMembersQueryOptions } from "@/lib/project-api";
 import { type AvatarIdentity, memberAvatar } from "@/lib/provider-logos";
 
@@ -24,11 +24,17 @@ export function useActorAvatar(projectId: string) {
 	const { data: members = [] } = useQuery(
 		projectMembersQueryOptions(projectId),
 	);
+	const byId = useMemo(() => {
+		const map = new Map<string, (typeof members)[number]>();
+		for (const m of members) {
+			map.set(m.id, m);
+			if (m.user_id) map.set(m.user_id, m);
+		}
+		return map;
+	}, [members]);
 	return useCallback(
 		(actor: ActorRef): AvatarIdentity => {
-			const member = actor.id
-				? members.find((m) => m.id === actor.id || m.user_id === actor.id)
-				: undefined;
+			const member = actor.id ? byId.get(actor.id) : undefined;
 			if (member) return memberAvatar(member);
 			return {
 				name: actor.name || actor.username || "",
@@ -36,6 +42,6 @@ export function useActorAvatar(projectId: string) {
 				avatarUrl: actor.avatarUrl,
 			};
 		},
-		[members],
+		[byId],
 	);
 }

@@ -222,10 +222,17 @@ RUN npm install -g @anthropic-ai/claude-code @openai/codex @google/gemini-cli \
 # reports configDirectory and creates .claude.json under it. Codex/Gemini/
 # Cursor keep all their state inside their one config dir.
 ENV CLAUDE_CONFIG_DIR=/home/paca/workspaces/.cli-home/claude-code
-RUN ln -sfn /home/paca/workspaces/.cli-home/claude-code  /home/goose/.claude \
- && ln -sfn /home/paca/workspaces/.cli-home/codex        /home/goose/.codex \
- && ln -sfn /home/paca/workspaces/.cli-home/cursor-agent /home/goose/.cursor \
- && ln -sfn /home/paca/workspaces/.cli-home/gemini-cli   /home/goose/.gemini
+# `ln -sfn` onto an existing real directory would create the link INSIDE it
+# and still exit 0, so any leftover empty directory is removed first (rmdir
+# fails the build if an installer put real content there), and every link is
+# verified afterwards.
+RUN set -e; \
+    for pair in claude-code:.claude codex:.codex cursor-agent:.cursor gemini-cli:.gemini; do \
+      provider="${pair%%:*}"; dir="/home/goose/${pair#*:}"; \
+      if [ -d "$dir" ] && [ ! -L "$dir" ]; then rmdir "$dir"; fi; \
+      ln -sfn "/home/paca/workspaces/.cli-home/$provider" "$dir"; \
+      test "$(readlink "$dir")" = "/home/paca/workspaces/.cli-home/$provider"; \
+    done
 
 # Real sshd for static environments' layer-4 SSH access (see
 # docs/ai-agent/environment-management.md's "Terminal / SSH Access" Phase B

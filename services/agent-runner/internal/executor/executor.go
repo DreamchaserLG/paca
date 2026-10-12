@@ -892,6 +892,38 @@ func (e *Executor) coldStartEnvironment(ctx, turnCtx context.Context, cfg agent.
 	return client, sessionID, envNote, nil
 }
 
+// cliHomeBootstrapScript returns the idempotent sh script that makes
+// ~/<HomeDirName> a symlink onto the provider's persisted volume directory
+// without ever discarding data. See syncProviderCLIConfig step 1.
+func cliHomeBootstrapScript(adapter providercli.Adapter, provider string) string {
+	persistDir := providercli.HomeRoot + "/" + provider
+	link := sandboxWorkdir + "/" + adapter.HomeDirName()
+	script := fmt.Sprintf(`set -e
+mkdir -p "%[1]s"
+if [ -L "%[2]s" ]; then
+  if [ "$(readlink -f "%[2]s")" != "$(readlink -f "%[1]s")" ]; then ln -sfn "%[1]s" "%[2]s"; fi
+elif [ -d "%[2]s" ]; then
+  cp -an "%[2]s"/. "%[1]s"/ && rm -rf "%[2]s" && ln -s "%[1]s" "%[2]s"
+elif [ -e "%[2]s" ]; then
+  echo "%[2]s exists and is not a directory" >&2; exit 1
+else
+  ln -s "%[1]s" "%[2]s"
+fi
+`, persistDir, link)
+	if provider == "claude-code" {
+		// Older images don't set CLAUDE_CONFIG_DIR, so Claude Code reads
+		// ~/.claude.json rather than <home dir>/.claude.json — the file the
+		// MCP sync writes. Point the legacy path at the same file.
+		script += fmt.Sprintf(`if [ -z "$CLAUDE_CONFIG_DIR" ]; then
+  legacy="%[1]s/.claude.json"; new="%[2]s/.claude.json"
+  if [ -f "$legacy" ] && [ ! -L "$legacy" ] && [ ! -e "$new" ]; then mv "$legacy" "$new"; fi
+  if [ ! -e "$legacy" ] && [ ! -L "$legacy" ]; then ln -s "$new" "$legacy"; fi
+fi
+`, sandboxWorkdir, persistDir)
+	}
+	return script
+}
+
 // syncProviderCLIConfig bootstraps a provider_cli agent's CLI home
 // directory's persistent-volume target (idempotent, safe to re-run on
 // every attach — same contract environmentssh.go's
@@ -908,17 +940,19 @@ func (e *Executor) syncProviderCLIConfig(ctx context.Context, backendRef string,
 		return fmt.Errorf("unknown cli_provider %q", cfg.CLIProvider)
 	}
 
-	// 1. Ensure this provider's persisted home directory exists. The
-	// ~/<HomeDirName> symlink onto it is baked into the agent-server image
-	// (services/agent-server/Dockerfile) — so a login made before this ever
-	// runs (e.g. from the environment terminal, before the first
-	// conversation) already lands on the persistent volume instead of in a
-	// real directory that would need replacing. Only the symlink's target,
-	// which lives on the runtime-mounted volume and so can't exist in the
-	// image, has to be created here. Idempotent.
-	persistDir := providercli.HomeRoot + "/" + cfg.CLIProvider
-	if out, code, err := e.sandboxMgr.ExecEnvironment(ctx, backendRef, []string{"mkdir", "-p", persistDir}); err != nil || code != 0 {
-		return fmt.Errorf("create cli home dir: exit %d: %s: %w", code, out, err)
+	// 1. Ensure this provider's persisted home directory exists and that
+	// ~/<HomeDirName> points at it. Current agent-server images bake the
+	// symlink in (services/agent-server/Dockerfile), so a login made before
+	// this ever runs (e.g. from the environment terminal, before the first
+	// conversation) already lands on the persistent volume; only the
+	// symlink's target, which lives on the runtime-mounted volume, has to be
+	// created here. Environments created from an OLDER image have a real
+	// ~/<HomeDirName> instead: it is migrated non-destructively (contents
+	// copied without overwriting what is already on the volume, and the
+	// directory removed only after the copy succeeded) so a login made
+	// before this ran is never lost. Idempotent.
+	if out, code, err := e.sandboxMgr.ExecEnvironment(ctx, backendRef, []string{"/bin/sh", "-c", cliHomeBootstrapScript(adapter, cfg.CLIProvider)}); err != nil || code != 0 {
+		return fmt.Errorf("bootstrap cli home: exit %d: %s: %w", code, out, err)
 	}
 
 	// 2. Read the current content of every file the adapter wants to merge

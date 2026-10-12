@@ -181,6 +181,8 @@ const PLATFORM_RESOURCES = [
 	"sso",
 	"agent",
 	"agent/*",
+	"service_account",
+	"service_account/*",
 	"project",
 ];
 

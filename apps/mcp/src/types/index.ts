@@ -10,7 +10,11 @@ export interface PacaConfig {
 	 * URL (e.g. `http://gateway`).
 	 */
 	gatewayURL?: string;
-	/** Agent UUID forwarded as X-Agent-ID on every API request. */
+	/**
+	 * The agent this MCP server runs for (selects agent mode). It is not sent
+	 * to the API: the agent is identified by the API key (apiKey), which is
+	 * the agent's own.
+	 */
 	agentId?: string;
 	/**
 	 * Project UUID — required when agentId is provided AND the agent is
@@ -22,19 +26,10 @@ export interface PacaConfig {
 	 */
 	projectId?: string;
 	/**
-	 * Human user UUID this agent is acting on behalf of, forwarded as
-	 * X-Actor-User-ID on every API request. Only ever set for a global agent
-	 * dispatched from a trigger that names a human actor (e.g. a global-chat
-	 * message) — lets server-side attribution (e.g. who created a project)
-	 * point at that human instead of the shared agent-bot identity. Unset
-	 * for a personal API key or a project-scoped agent's automation runs.
-	 */
-	actorUserId?: string;
-	/**
 	 * UUID of the conversation this MCP server instance is running as part
 	 * of, forwarded as X-Conversation-ID on every API request — set
 	 * unconditionally by agent-runner's buildMCPServers (PACA_CONVERSATION_ID),
-	 * unlike projectId/actorUserId. Lets services/api's
+	 * unlike projectId. Lets services/api's
 	 * GetConversationForAgent (the read_conversation tool's backing
 	 * endpoint) authorize a cross-conversation read against *this*
 	 * conversation's own project/actor/owning member, instead of trusting

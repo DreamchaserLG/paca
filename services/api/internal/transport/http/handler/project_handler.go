@@ -374,17 +374,11 @@ func (h *ProjectHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The caller is the creator, whatever kind of account it is: an agent that
+	// creates a project does so with its own permissions and owns the result.
 	var createdBy *uuid.UUID
-	if actorUserID, ok := middleware.AgentActorUserIDFromRequest(r); ok {
-		// A global agent's MCP tool call acting on behalf of a specific human
-		// (e.g. "create a project for me" from the home-page chat) — attribute
-		// the project to that human, not the shared agent-bot identity that
-		// claims.Subject would otherwise resolve to. See parseActorUserIDHeader.
-		createdBy = &actorUserID
-	} else if claims := middleware.ClaimsFrom(r); claims != nil {
-		if uid, err := uuid.Parse(claims.Subject); err == nil {
-			createdBy = &uid
-		}
+	if p, ok := middleware.PrincipalFrom(r); ok {
+		createdBy = &p.AccountID
 	}
 
 	p, err := h.svc.Create(r.Context(), projectdom.CreateProjectInput{

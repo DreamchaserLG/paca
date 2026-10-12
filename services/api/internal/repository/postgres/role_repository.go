@@ -286,12 +286,17 @@ func (r *RoleRepository) SetDefault(ctx context.Context, id uuid.UUID) error {
 
 // UserExists implements roledom.Repository.
 func (r *RoleRepository) UserExists(ctx context.Context, id uuid.UUID) (bool, error) {
-	return r.exists(ctx, `SELECT EXISTS (SELECT 1 FROM users WHERE id = $1::uuid AND deleted_at IS NULL)`, id)
+	return r.exists(ctx, `SELECT EXISTS (SELECT 1 FROM users u JOIN accounts a ON a.id = u.id WHERE u.id = $1::uuid AND a.deleted_at IS NULL)`, id)
 }
 
 // GlobalAgentExists implements roledom.Repository.
 func (r *RoleRepository) GlobalAgentExists(ctx context.Context, id uuid.UUID) (bool, error) {
-	return r.exists(ctx, `SELECT EXISTS (SELECT 1 FROM agents WHERE id = $1::uuid AND deleted_at IS NULL AND agent_scope = 'global')`, id)
+	return r.exists(ctx, `SELECT EXISTS (SELECT 1 FROM agents g JOIN accounts a ON a.id = g.id WHERE g.id = $1::uuid AND a.deleted_at IS NULL AND g.project_id IS NULL)`, id)
+}
+
+// ServiceAccountExists implements roledom.Repository.
+func (r *RoleRepository) ServiceAccountExists(ctx context.Context, id uuid.UUID) (bool, error) {
+	return r.exists(ctx, `SELECT EXISTS (SELECT 1 FROM accounts WHERE id = $1::uuid AND kind = 'service_account' AND deleted_at IS NULL)`, id)
 }
 
 // ProjectExists implements roledom.Repository.
@@ -309,48 +314,38 @@ func (r *RoleRepository) exists(ctx context.Context, q string, id uuid.UUID) (bo
 
 // FindMember implements roledom.Repository.
 func (r *RoleRepository) FindMember(ctx context.Context, projectID, memberID uuid.UUID) (*roledom.Member, error) {
-	var rec struct {
-		ID          string `db:"id"`
-		ProjectID   string `db:"project_id"`
-		MemberType  string `db:"member_type"`
-		PrincipalID string `db:"principal_id"`
-	}
-	err := r.db.GetContext(ctx, &rec, `
-		SELECT pm.id, pm.project_id, pm.member_type, COALESCE(pm.user_id, pm.agent_id) AS principal_id
+	var accountID string
+	err := r.db.GetContext(ctx, &accountID, `
+		SELECT pm.account_id
 		FROM project_members pm
-		WHERE pm.id = $1::uuid AND pm.project_id = $2::uuid AND pm.deleted_at IS NULL
-		  AND CASE pm.member_type
-		        WHEN 'agent' THEN EXISTS (SELECT 1 FROM agents a WHERE a.id = pm.agent_id AND a.deleted_at IS NULL)
-		        ELSE EXISTS (SELECT 1 FROM users u WHERE u.id = pm.user_id AND u.deleted_at IS NULL)
-		      END`, memberID.String(), projectID.String())
+		JOIN accounts a ON a.id = pm.account_id AND a.deleted_at IS NULL
+		WHERE pm.id = $1::uuid AND pm.project_id = $2::uuid AND pm.deleted_at IS NULL`,
+		memberID.String(), projectID.String())
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, roledom.ErrMemberNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("role repo: find member: %w", err)
 	}
-	m := &roledom.Member{ID: memberID, ProjectID: projectID, PrincipalType: roledom.PrincipalUser}
-	if rec.MemberType == "agent" {
-		m.PrincipalType = roledom.PrincipalAgent
-	}
-	if m.PrincipalID, err = uuid.Parse(rec.PrincipalID); err != nil {
-		return nil, fmt.Errorf("role repo: find member: bad principal id: %w", err)
+	m := &roledom.Member{ID: memberID, ProjectID: projectID}
+	if m.AccountID, err = uuid.Parse(accountID); err != nil {
+		return nil, fmt.Errorf("role repo: find member: bad account id: %w", err)
 	}
 	return m, nil
 }
 
 // ListAttached implements roledom.Repository.
-func (r *RoleRepository) ListAttached(ctx context.Context, principalType string, principalID uuid.UUID, projectID *uuid.UUID) ([]*roledom.Role, error) {
+func (r *RoleRepository) ListAttached(ctx context.Context, accountID uuid.UUID, projectID *uuid.UUID) ([]*roledom.Role, error) {
 	var recs []roleRecord
 	err := r.db.SelectContext(ctx, &recs, `
 		SELECT `+roleCols+`,
 		       (SELECT COUNT(*) FROM role_attachments x
-		         WHERE x.role_id = r.id AND ($4::uuid IS NULL OR x.project_id = $4::uuid)) AS attachment_count
+		         WHERE x.role_id = r.id AND ($2::uuid IS NULL OR x.project_id = $2::uuid)) AS attachment_count
 		FROM roles r
 		WHERE r.id IN (SELECT ra.role_id FROM role_attachments ra
-		                WHERE ra.principal_type = $1 AND ra.principal_id = $2::uuid
-		                  AND ra.project_id IS NOT DISTINCT FROM $3::uuid)
-		ORDER BY r.name`, principalType, principalID.String(), nullableUUID(projectID), nullableUUID(projectID))
+		                WHERE ra.account_id = $1::uuid
+		                  AND ra.project_id IS NOT DISTINCT FROM $2::uuid)
+		ORDER BY r.name`, accountID.String(), nullableUUID(projectID))
 	if err != nil {
 		return nil, fmt.Errorf("role repo: list attached: %w", err)
 	}
@@ -409,8 +404,8 @@ func (r *RoleRepository) ReplaceAttachments(ctx context.Context, in roledom.Repl
 		var existing []string
 		if err := tx.SelectContext(ctx, &existing, `
 			SELECT role_id::text FROM role_attachments
-			WHERE principal_type = $1 AND principal_id = $2::uuid AND project_id IS NOT DISTINCT FROM $3::uuid`,
-			in.PrincipalType, in.PrincipalID.String(), scope); err != nil {
+			WHERE account_id = $1::uuid AND project_id IS NOT DISTINCT FROM $2::uuid`,
+			in.AccountID.String(), scope); err != nil {
 			return fmt.Errorf("role repo: replace (existing): %w", err)
 		}
 		want := uuidStrings(in.RoleIDs)
@@ -423,9 +418,9 @@ func (r *RoleRepository) ReplaceAttachments(ctx context.Context, in roledom.Repl
 		if len(stale) > 0 {
 			if _, err := tx.ExecContext(ctx, `
 				DELETE FROM role_attachments
-				WHERE principal_type = $1 AND principal_id = $2::uuid AND project_id IS NOT DISTINCT FROM $3::uuid
-				  AND role_id = ANY($4::uuid[])`,
-				in.PrincipalType, in.PrincipalID.String(), scope, stale); err != nil {
+				WHERE account_id = $1::uuid AND project_id IS NOT DISTINCT FROM $2::uuid
+				  AND role_id = ANY($3::uuid[])`,
+				in.AccountID.String(), scope, stale); err != nil {
 				return fmt.Errorf("role repo: replace (delete): %w", err)
 			}
 		}
@@ -434,9 +429,9 @@ func (r *RoleRepository) ReplaceAttachments(ctx context.Context, in roledom.Repl
 				continue
 			}
 			if _, err := tx.ExecContext(ctx, `
-				INSERT INTO role_attachments (role_id, principal_type, principal_id, project_id, created_by)
-				VALUES ($1::uuid, $2, $3::uuid, $4::uuid, $5::uuid)`,
-				w, in.PrincipalType, in.PrincipalID.String(), scope, nullableUUID(in.CreatedBy)); err != nil {
+				INSERT INTO role_attachments (role_id, account_id, project_id, created_by)
+				VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid)`,
+				w, in.AccountID.String(), scope, nullableUUID(in.CreatedBy)); err != nil {
 				var pgErr *pgconn.PgError
 				if errors.As(err, &pgErr) && pgErr.Code == "23503" {
 					// created_by or project vanished, or the role was deleted
@@ -500,14 +495,14 @@ func lockKey(ctx context.Context, tx *sqlx.Tx, key string) error {
 // live users that can sign in (password_hash '!' marks the seeded agent-bot
 // account, which cannot) — the people who can administer the workspace.
 const wildcardHoldersSQL = `
-SELECT COUNT(DISTINCT ra.principal_id)
+SELECT COUNT(DISTINCT ra.account_id)
 FROM role_attachments ra
 JOIN roles r ON r.id = ra.role_id
-JOIN users u ON u.id = ra.principal_id
-WHERE ra.principal_type = 'user'
-  AND ra.project_id IS NULL
+JOIN users u ON u.id = ra.account_id
+JOIN accounts ac ON ac.id = u.id
+WHERE ra.project_id IS NULL
   AND r.project_id IS NULL
-  AND u.deleted_at IS NULL
+  AND ac.deleted_at IS NULL
   AND u.password_hash <> '!'
   AND EXISTS (
         SELECT 1

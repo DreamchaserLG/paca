@@ -184,7 +184,7 @@ func TestFlow_Members_ViewerEditorRemoveReadd(t *testing.T) {
 		t.Errorf("the policy cache was not told about the role that gained a holder: %v", e.inv.ids)
 	}
 	var by *string
-	if err := e.db.Get(&by, `SELECT created_by::text FROM role_attachments WHERE principal_id = $1 AND role_id = $2`, alice, viewerRole); err != nil || by == nil || *by != creator.String() {
+	if err := e.db.Get(&by, `SELECT created_by::text FROM role_attachments WHERE account_id = $1 AND role_id = $2`, alice, viewerRole); err != nil || by == nil || *by != creator.String() {
 		t.Errorf("created_by = %v %v", by, err)
 	}
 
@@ -231,7 +231,7 @@ func TestFlow_Members_ViewerEditorRemoveReadd(t *testing.T) {
 		t.Error("a removed member still reads the project")
 	}
 	var n int
-	if err := e.db.Get(&n, `SELECT COUNT(*) FROM role_attachments WHERE principal_id = $1 AND project_id = $2`, alice, p.ID); err != nil || n != 0 {
+	if err := e.db.Get(&n, `SELECT COUNT(*) FROM role_attachments WHERE account_id = $1 AND project_id = $2`, alice, p.ID); err != nil || n != 0 {
 		t.Errorf("attachments left after removal: %d %v", n, err)
 	}
 	// Re-adding starts from exactly the new roles.
@@ -248,8 +248,8 @@ func TestFlow_Members_ViewerEditorRemoveReadd(t *testing.T) {
 
 	// Stale project-scoped attachments of a non-member (left by an older
 	// removal path) never leak into a new membership.
-	pgExec(t, e.db, `UPDATE project_members SET deleted_at = NOW() WHERE project_id = $1 AND user_id = $2`, p.ID, alice)
-	pgExec(t, e.db, `INSERT INTO role_attachments (role_id, principal_type, principal_id, project_id) VALUES ($1, 'user', $2, $3)`, e.role(p.ID, "Admin"), alice, p.ID)
+	pgExec(t, e.db, `UPDATE project_members SET deleted_at = NOW() WHERE project_id = $1 AND account_id = $2`, p.ID, alice)
+	pgExec(t, e.db, `INSERT INTO role_attachments (role_id, account_id, project_id) VALUES ($1, $2, $3)`, e.role(p.ID, "Admin"), alice, p.ID)
 	if _, err := e.svc.AddMember(ctx, p.ID, projectdom.AddMemberInput{UserID: alice, RoleIDs: []uuid.UUID{viewerRole}}); err != nil {
 		t.Fatal(err)
 	}
@@ -397,7 +397,7 @@ func TestFlow_AgentMembers(t *testing.T) {
 	if err := e.agent.SoftDeleteAgentWithMembership(ctx, p.ID, a.ID); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.db.Get(&n, `SELECT COUNT(*) FROM role_attachments WHERE principal_id = $1`, a.ID); err != nil || n != 0 {
+	if err := e.db.Get(&n, `SELECT COUNT(*) FROM role_attachments WHERE account_id = $1`, a.ID); err != nil || n != 0 {
 		t.Errorf("attachments left after deleting the agent: %d %v", n, err)
 	}
 
@@ -428,7 +428,7 @@ func TestFlow_AgentMembers(t *testing.T) {
 	if err := e.agent.SoftDeleteGlobalAgentCascade(ctx, g.ID); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.db.Get(&n, `SELECT COUNT(*) FROM role_attachments WHERE principal_id = $1`, g.ID); err != nil || n != 0 {
+	if err := e.db.Get(&n, `SELECT COUNT(*) FROM role_attachments WHERE account_id = $1`, g.ID); err != nil || n != 0 {
 		t.Errorf("attachments left after deleting the global agent: %d %v", n, err)
 	}
 }

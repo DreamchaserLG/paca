@@ -1198,6 +1198,7 @@ var alwaysBlockedWriteTables = map[string]struct{}{
 	"role_attachments":    {},
 	"project_members":     {},
 	"users":               {},
+	"accounts":            {},
 	"api_keys":            {},
 	"password_set_tokens": {},
 }
@@ -1703,13 +1704,14 @@ func (r *Runtime) registerCoreFunctions(b wazero.HostModuleBuilder, _ plugindom.
 			}
 
 			rows, err := r.services.DB.QueryContext(ctx,
-				`SELECT pm.id, u.username, u.full_name,
+				`SELECT pm.id, u.username, ac.name AS full_name,
 				        COALESCE((SELECT string_agg(r.name, ', ' ORDER BY r.name)
 				                    FROM role_attachments ra JOIN roles r ON r.id = ra.role_id
 				                   WHERE ra.project_id = pm.project_id
-				                     AND ra.principal_type = 'user' AND ra.principal_id = pm.user_id), '') AS role_name
+				                     AND ra.account_id = pm.account_id), '') AS role_name
 				 FROM project_members pm
-				 JOIN users u ON u.id = pm.user_id
+				 JOIN users u ON u.id = pm.account_id
+				 JOIN accounts ac ON ac.id = u.id
 				 WHERE pm.project_id = $1 AND pm.deleted_at IS NULL`, projectID)
 			if err != nil {
 				copy(stack, writeErrorResult(m, err))
@@ -1799,19 +1801,17 @@ type HTTPRequest struct {
 	Headers    map[string]string `json:"headers"`
 	Body       []byte            `json:"body"`
 
-	// AgentID is set when the request was made by an agent (an agent API key
-	// naming one). It stays on the host — never serialised to the plugin — and
-	// exists so permission_check can judge the agent by its own role, the way
-	// the router's gates do, instead of by UserID: for an agent-key request
-	// that is the shared bot user behind the key, seeded SUPER_ADMIN.
-	AgentID string `json:"-"`
+	// AccountKind is the accountdom.Kind of the caller (UserID is its account
+	// id): "user", "agent" or "service_account". It stays on the host — never
+	// serialised to the plugin — and exists so permission_check judges the
+	// caller as the same principal the router's gates do. Empty means a user.
+	AccountKind string `json:"-"`
 }
 
 // callerHolds reports whether the caller behind req may perform action, judged
-// by the IAM engine the way the router's gates judge it: an agent as itself —
-// never the shared bot user an agent's key resolves to, whose SUPER_ADMIN
-// role would let every agent pass any check a plugin makes — and a human as
-// the user. The action is checked on project/<id> when the request carries a
+// by the IAM engine the way the router's gates judge it: as the account the
+// request authenticated as (a user, an agent or a service account), by that
+// account's own role attachments and no one else's. The action is checked on project/<id> when the request carries a
 // project (a built-in action on project/<id>, a plugin's own on
 // project/<id>/plugin/<pluginID>), otherwise on the action's platform root,
 // or — for a plugin's own (or any non-platform) action — on the plugin's
@@ -1841,20 +1841,15 @@ func (r *Runtime) callerHolds(ctx context.Context, req *HTTPRequest, pluginID st
 		return false
 	}
 
-	var principal iam.Principal
-	if req.AgentID != "" {
-		agentID, err := uuid.Parse(req.AgentID)
-		if err != nil {
-			return false
-		}
-		principal = iam.Agent(agentID.String())
-	} else {
-		userID, err := uuid.Parse(req.UserID)
-		if err != nil {
-			return false
-		}
-		principal = iam.User(userID.String())
+	accountID, err := uuid.Parse(req.UserID)
+	if err != nil {
+		return false
 	}
+	kind := req.AccountKind
+	if kind == "" {
+		kind = iam.PrincipalUser
+	}
+	principal := iam.Principal{Type: kind, ID: accountID.String()}
 	granted, err := iam.AllowedAll(ctx, r.services.Authorizer, principal, resource, action)
 	return err == nil && granted
 }

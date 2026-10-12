@@ -75,6 +75,14 @@ const sandboxWorkdir = "/home/goose"
 // have something to find after a recreate.
 const environmentGooseDataDir = "/home/paca/workspaces/.goose"
 
+// AgentKeyIssuer provides the API key an agent's Paca MCP server presents to
+// services/api. The key authenticates as the agent's own account and is the
+// same on every call for that agent (a sandbox bakes it into its environment, so
+// a key that changed per conversation would force a recreate each time).
+type AgentKeyIssuer interface {
+	APIKeyFor(ctx context.Context, agentID uuid.UUID) (string, error)
+}
+
 // Options holds service-level settings shared across every conversation
 // this process runs — the Go analog of services/ai-agent's config.Settings,
 // scoped to just the fields the executor itself needs.
@@ -82,12 +90,12 @@ type Options struct {
 	// Image is the pinned goose image reference; callers should pass a
 	// digest- or tag-pinned reference, not a floating one.
 	Image string
-	// PacaAPIKey/PacaAPIURL/PacaGatewayURL configure the built-in Paca MCP
-	// server appended to every conversation's MCP server list — mirrors
-	// build_mcp_config's "paca" entry in builder.py. Leave PacaAPIKey empty
-	// to omit the Paca MCP server entirely (matches builder.py's
-	// `if settings.paca_api_key:` gate).
-	PacaAPIKey     string
+	// AgentKeys/PacaAPIURL/PacaGatewayURL configure the built-in Paca MCP
+	// server appended to every conversation's MCP server list. The server
+	// authenticates as the agent itself, with an API key AgentKeys issues for
+	// it (there is no shared key). Leave AgentKeys nil, or PacaAPIURL empty,
+	// to omit the Paca MCP server entirely.
+	AgentKeys      AgentKeyIssuer
 	PacaAPIURL     string
 	PacaGatewayURL string
 	// MCPDevSourceDir, when set, is forwarded to every sandbox.Config so the
@@ -1166,16 +1174,23 @@ func (e *Executor) buildMCPServers(trigger agent.Trigger, cfg agent.Config) []ac
 // buildMCPServers' ACP-shaped entry (llm-type agents, appended to Goose's
 // own session/new MCP list) and buildPacaMCPServerForCLI's agent.MCPServer-
 // shaped entry (provider_cli agents, synced into the underlying CLI's own
-// config — see syncProviderCLIConfig). ok is false when e.opts.PacaAPIKey
-// is unset (self-hosted deployments that haven't wired the Paca MCP server
-// at all), the single condition under which neither caller should include
-// this server.
+// config — see syncProviderCLIConfig). ok is false when no AgentKeys issuer
+// or PacaAPIURL is configured, or issuing the agent's key fails: the
+// conditions under which neither caller should include this server.
 func (e *Executor) pacaMCPServerCommandAndEnv(trigger agent.Trigger, cfg agent.Config) (command string, args []string, env map[string]string, ok bool) {
-	if e.opts.PacaAPIKey == "" {
+	if e.opts.AgentKeys == nil || e.opts.PacaAPIURL == "" {
+		return "", nil, nil, false
+	}
+	keyCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	apiKey, err := e.opts.AgentKeys.APIKeyFor(keyCtx, cfg.ID)
+	if err != nil {
+		e.log.Warn("executor: failed to get the agent's API key; the Paca MCP server is omitted",
+			"agent_id", cfg.ID, "error", err)
 		return "", nil, nil, false
 	}
 	env = map[string]string{
-		"PACA_API_KEY":     e.opts.PacaAPIKey,
+		"PACA_API_KEY":     apiKey,
 		"PACA_API_URL":     e.opts.PacaAPIURL,
 		"PACA_GATEWAY_URL": e.opts.PacaGatewayURL,
 		"PACA_AGENT_ID":    cfg.ID.String(),
@@ -1190,19 +1205,6 @@ func (e *Executor) pacaMCPServerCommandAndEnv(trigger agent.Trigger, cfg agent.C
 	}
 	if trigger.ProjectID != uuid.Nil {
 		env["PACA_PROJECT_ID"] = trigger.ProjectID.String()
-	}
-	// services/api's verifyAgentIdentity rejects an X-Actor-User-ID claim
-	// outright for any non-global agent ("a project-scoped agent's actions
-	// are attributed via its project_members.id, never a raw actor_user_id")
-	// — so forwarding it here for a project-scoped agent doesn't just fail
-	// to help, it 401s *every* MCP call this agent makes, including ones
-	// that never touch actor identity at all (e.g. read_conversation),
-	// because the check runs in required auth middleware before any
-	// handler-specific logic. cfg.AgentScope is the same source of truth
-	// that check uses, so gate on it here too rather than trusting
-	// trigger.ActorUserID's presence alone.
-	if trigger.ActorUserID != nil && cfg.AgentScope == agent.AgentScopeGlobal {
-		env["PACA_ACTOR_USER_ID"] = trigger.ActorUserID.String()
 	}
 	if len(trigger.RepoPluginIDs) > 0 {
 		// Read by apps/mcp's repo-tools.ts to scope list_repositories and

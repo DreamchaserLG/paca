@@ -36,13 +36,13 @@ func dedupeUUIDs(ids []uuid.UUID) []uuid.UUID {
 	return out
 }
 
-// attachRolesTx attaches the roles to the principal in one scope
+// attachRolesTx attaches the roles to the account in one scope
 // (projectID nil = platform-wide) and returns the distinct role ids it
 // attached. A role that is already attached is left alone. It returns
 // roledom.ErrNotAttachable when a role does not exist or cannot be attached
 // in the scope: platform-wide only platform roles; inside a project the
 // platform roles and that project's own roles.
-func attachRolesTx(ctx context.Context, tx *sqlx.Tx, principalType string, principalID uuid.UUID,
+func attachRolesTx(ctx context.Context, tx *sqlx.Tx, accountID uuid.UUID,
 	projectID *uuid.UUID, roleIDs []uuid.UUID, createdBy *uuid.UUID,
 ) ([]uuid.UUID, error) {
 	ids := dedupeUUIDs(roleIDs)
@@ -77,17 +77,17 @@ func attachRolesTx(ctx context.Context, tx *sqlx.Tx, principalType string, princ
 	}
 
 	insert := `
-		INSERT INTO role_attachments (role_id, principal_type, principal_id, project_id, created_by)
-		VALUES ($1::uuid, $2, $3::uuid, $4::uuid, $5::uuid)
-		ON CONFLICT (role_id, principal_type, principal_id) WHERE project_id IS NULL DO NOTHING`
+		INSERT INTO role_attachments (role_id, account_id, project_id, created_by)
+		VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid)
+		ON CONFLICT (role_id, account_id) WHERE project_id IS NULL DO NOTHING`
 	if projectID != nil {
 		insert = `
-		INSERT INTO role_attachments (role_id, principal_type, principal_id, project_id, created_by)
-		VALUES ($1::uuid, $2, $3::uuid, $4::uuid, $5::uuid)
-		ON CONFLICT (role_id, principal_type, principal_id, project_id) WHERE project_id IS NOT NULL DO NOTHING`
+		INSERT INTO role_attachments (role_id, account_id, project_id, created_by)
+		VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid)
+		ON CONFLICT (role_id, account_id, project_id) WHERE project_id IS NOT NULL DO NOTHING`
 	}
 	for _, id := range ids {
-		if _, err := tx.ExecContext(ctx, insert, id.String(), principalType, principalID.String(),
+		if _, err := tx.ExecContext(ctx, insert, id.String(), accountID.String(),
 			nullableUUID(projectID), nullableUUID(createdBy)); err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == "23503" {
@@ -100,17 +100,17 @@ func attachRolesTx(ctx context.Context, tx *sqlx.Tx, principalType string, princ
 	return ids, nil
 }
 
-// attachDefaultRoleTx attaches the default platform role to the principal,
+// attachDefaultRoleTx attaches the default platform role to the account,
 // platform-wide. With none set it returns roledom.ErrNoDefault when required,
 // and attaches nothing otherwise. It returns the role id it attached (nil
 // when it attached none).
-func attachDefaultRoleTx(ctx context.Context, tx *sqlx.Tx, principalType string, principalID uuid.UUID, required bool) (*uuid.UUID, error) {
+func attachDefaultRoleTx(ctx context.Context, tx *sqlx.Tx, accountID uuid.UUID, required bool) (*uuid.UUID, error) {
 	var id string
 	err := tx.GetContext(ctx, &id, `
-		INSERT INTO role_attachments (role_id, principal_type, principal_id, project_id)
-		SELECT r.id, $1, $2::uuid, NULL FROM roles r WHERE r.is_default AND r.project_id IS NULL
-		ON CONFLICT (role_id, principal_type, principal_id) WHERE project_id IS NULL DO NOTHING
-		RETURNING role_id::text`, principalType, principalID.String())
+		INSERT INTO role_attachments (role_id, account_id, project_id)
+		SELECT r.id, $1::uuid, NULL FROM roles r WHERE r.is_default AND r.project_id IS NULL
+		ON CONFLICT (role_id, account_id) WHERE project_id IS NULL DO NOTHING
+		RETURNING role_id::text`, accountID.String())
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// Either no default role exists, or it was already attached.
@@ -132,17 +132,17 @@ func attachDefaultRoleTx(ctx context.Context, tx *sqlx.Tx, principalType string,
 	return &parsed, nil
 }
 
-// summariesTx returns the roles attached to the principal in one scope,
+// summariesTx returns the roles attached to the account in one scope,
 // sorted by name.
-func summariesTx(ctx context.Context, q sqlx.QueryerContext, principalType string, principalID uuid.UUID, projectID *uuid.UUID) ([]roledom.Summary, error) {
+func summariesTx(ctx context.Context, q sqlx.QueryerContext, accountID uuid.UUID, projectID *uuid.UUID) ([]roledom.Summary, error) {
 	var rows []struct {
 		ID   string `db:"id"`
 		Name string `db:"name"`
 	}
 	if err := sqlx.SelectContext(ctx, q, &rows, `
 		SELECT r.id, r.name FROM role_attachments ra JOIN roles r ON r.id = ra.role_id
-		WHERE ra.principal_type = $1 AND ra.principal_id = $2::uuid AND ra.project_id IS NOT DISTINCT FROM $3::uuid
-		ORDER BY r.name, r.id`, principalType, principalID.String(), nullableUUID(projectID)); err != nil {
+		WHERE ra.account_id = $1::uuid AND ra.project_id IS NOT DISTINCT FROM $2::uuid
+		ORDER BY r.name, r.id`, accountID.String(), nullableUUID(projectID)); err != nil {
 		return nil, fmt.Errorf("role summaries: %w", err)
 	}
 	out := make([]roledom.Summary, 0, len(rows))

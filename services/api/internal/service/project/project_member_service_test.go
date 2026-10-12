@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	accountdom "github.com/Paca-AI/api/internal/domain/account"
 	agentdom "github.com/Paca-AI/api/internal/domain/agent"
 	projectdom "github.com/Paca-AI/api/internal/domain/project"
 	roledom "github.com/Paca-AI/api/internal/domain/role"
@@ -393,4 +394,91 @@ func (r *roleCapturingRepo) AddMember(_ context.Context, m *projectdom.ProjectMe
 		r.onAdd(m, ids, by)
 	}
 	return nil
+}
+
+type serviceAccountLookupMock struct {
+	find func(ctx context.Context, id uuid.UUID) (*accountdom.Account, error)
+}
+
+func (m *serviceAccountLookupMock) FindByID(ctx context.Context, id uuid.UUID) (*accountdom.Account, error) {
+	return m.find(ctx, id)
+}
+
+// A service account is invited like any member: the membership is keyed by its
+// account id, so roles scoped to the project apply once it is added.
+func TestAddMember_InvitesServiceAccount(t *testing.T) {
+	projectID, accountID, roleID := uuid.New(), uuid.New(), uuid.New()
+	var stored *projectdom.ProjectMember
+	repo := &memberServiceRepoMock{
+		findByID: func(_ context.Context, id uuid.UUID) (*projectdom.Project, error) {
+			return &projectdom.Project{ID: id}, nil
+		},
+		findMember: func(_ context.Context, _, id uuid.UUID) (*projectdom.ProjectMember, error) {
+			assert.Equal(t, accountID, id, "membership is looked up by account id")
+			if stored == nil {
+				return nil, projectdom.ErrMemberNotFound
+			}
+			return stored, nil
+		},
+		addMember: func(_ context.Context, m *projectdom.ProjectMember) error {
+			stored = m
+			return nil
+		},
+	}
+	svc := New(repo, nil, nil).WithServiceAccounts(&serviceAccountLookupMock{
+		find: func(_ context.Context, id uuid.UUID) (*accountdom.Account, error) {
+			return &accountdom.Account{ID: id, Kind: accountdom.KindServiceAccount}, nil
+		},
+	})
+
+	got, err := svc.AddMember(context.Background(), projectID, projectdom.AddMemberInput{
+		ServiceAccountID: &accountID,
+		RoleIDs:          []uuid.UUID{roleID},
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, accountID, got.AccountID)
+}
+
+func TestAddMember_RejectsUnknownServiceAccount(t *testing.T) {
+	accountID := uuid.New()
+	repo := &memberServiceRepoMock{
+		findByID: func(_ context.Context, id uuid.UUID) (*projectdom.Project, error) {
+			return &projectdom.Project{ID: id}, nil
+		},
+	}
+	in := projectdom.AddMemberInput{ServiceAccountID: &accountID, RoleIDs: []uuid.UUID{uuid.New()}}
+
+	// Not wired at all, or unknown to the lookup: both are "not found".
+	_, err := New(repo, nil, nil).AddMember(context.Background(), uuid.New(), in)
+	assert.ErrorIs(t, err, accountdom.ErrServiceAccountNotFound)
+
+	svc := New(repo, nil, nil).WithServiceAccounts(&serviceAccountLookupMock{
+		find: func(context.Context, uuid.UUID) (*accountdom.Account, error) {
+			return nil, accountdom.ErrServiceAccountNotFound
+		},
+	})
+	_, err = svc.AddMember(context.Background(), uuid.New(), in)
+	assert.ErrorIs(t, err, accountdom.ErrServiceAccountNotFound)
+}
+
+func TestAddMember_RejectsServiceAccountAlreadyAMember(t *testing.T) {
+	accountID := uuid.New()
+	repo := &memberServiceRepoMock{
+		findByID: func(_ context.Context, id uuid.UUID) (*projectdom.Project, error) {
+			return &projectdom.Project{ID: id}, nil
+		},
+		findMember: func(context.Context, uuid.UUID, uuid.UUID) (*projectdom.ProjectMember, error) {
+			return &projectdom.ProjectMember{ID: uuid.New()}, nil
+		},
+	}
+	svc := New(repo, nil, nil).WithServiceAccounts(&serviceAccountLookupMock{
+		find: func(_ context.Context, id uuid.UUID) (*accountdom.Account, error) {
+			return &accountdom.Account{ID: id}, nil
+		},
+	})
+	_, err := svc.AddMember(context.Background(), uuid.New(), projectdom.AddMemberInput{
+		ServiceAccountID: &accountID, RoleIDs: []uuid.UUID{uuid.New()},
+	})
+	assert.ErrorIs(t, err, projectdom.ErrMemberAlreadyAdded)
 }

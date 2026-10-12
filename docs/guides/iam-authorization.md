@@ -5,7 +5,7 @@ This is the one page to read to understand how Paca decides who may do what, fro
 - [Roles and policies](roles-and-policies.md): writing policies, the editors and worked examples.
 - [Authorization architecture](../architecture/authorization.md): how the API enforces it, and how to add a route safely.
 - [Roles and policies API](../api/roles-and-policies.md): the endpoints.
-- [Release notes](../releases/2026-10-iam-authorization.md): upgrading from the old permission model.
+- [Upgrading](../deployment/README.md#upgrading-to-iam-authorization-migrations-000064-000068): moving from the old permission model.
 
 ## Concepts
 
@@ -237,7 +237,7 @@ Exactly one platform role is the **default**; it cannot be deleted and cannot be
 - **Default role.** Exactly one, undeletable, never a template.
 - **Built-in roles** can be edited, not deleted.
 - **Privileged operations have their own routes.** A user's roles change only through `PUT /admin/users/{id}/roles` (`roles:assign` on each role added or removed), a global agent's through `PUT /admin/agents/{id}/roles` (the same, plus `agents:write` on the agent); create/update of users and agents reject a role field.
-- **Agents are judged as themselves.** A request authenticated with an agent's API key is evaluated against that agent's own attachments, not those of the shared bot user behind the key.
+- **Agents and service accounts are judged as themselves.** A request authenticated with an agent's or a service account's API key is evaluated against that account's own attachments, and only those. An agent never borrows the permissions of the person it is chatting with.
 
 ## List scoping
 
@@ -278,7 +278,7 @@ Plugin manifests declare authorization with `requireActions` and IAM actions; `c
 
 Upgrading from the old flat-permission model is a breaking release with one-way migrations `000064` to `000068` (**back up first**). Roles, project roles, memberships and plugin manifests are converted and checked automatically before the migration commits.
 
-**Restricted agents and environments are not migrated.** After the upgrade they are open to everyone their roles allow until an administrator recreates each restriction with a `Deny` role (see [Restrict an agent](roles-and-policies.md#restrict-an-agent)). The migration logs how many it left behind. The legacy tables stay in the database, unread, so you can look up who had access. Read the [release notes](../releases/2026-10-iam-authorization.md) before upgrading.
+**Restricted agents and environments are not migrated.** After the upgrade they are open to everyone their roles allow until an administrator recreates each restriction with a `Deny` role (see [Restrict an agent](roles-and-policies.md#restrict-an-agent)). The migration logs how many it left behind. The legacy tables stay in the database, unread, so you can look up who had access. Read the [Upgrading](../deployment/README.md#upgrading-to-iam-authorization-migrations-000064-000068) before upgrading.
 
 ## Cheat sheet
 

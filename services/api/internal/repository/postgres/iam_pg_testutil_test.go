@@ -76,46 +76,45 @@ func (f *iamFx) project() uuid.UUID {
 	return id
 }
 
-func (f *iamFx) user(deleted bool) uuid.UUID {
-	id := uuid.New()
+// account inserts the accounts row every user and agent hangs off.
+func (f *iamFx) account(id uuid.UUID, kind, name string, deleted bool) {
 	var del any
 	if deleted {
 		del = "2026-01-01T00:00:00Z"
 	}
-	pgExec(f.t, f.db, `INSERT INTO users (id, username, password_hash, deleted_at) VALUES ($1, $2, 'x', $3)`,
-		id, "u_"+id.String()[:8], del)
+	pgExec(f.t, f.db, `INSERT INTO accounts (id, kind, name, deleted_at) VALUES ($1, $2, $3, $4)`, id, kind, name, del)
+}
+
+func (f *iamFx) user(deleted bool) uuid.UUID {
+	id := uuid.New()
+	f.account(id, "user", "u_"+id.String()[:8], deleted)
+	pgExec(f.t, f.db, `INSERT INTO users (id, username, password_hash) VALUES ($1, $2, 'x')`, id, "u_"+id.String()[:8])
 	return id
 }
 
 func (f *iamFx) agent(project *uuid.UUID, deleted bool) uuid.UUID {
 	id := uuid.New()
-	var del any
-	if deleted {
-		del = "2026-01-01T00:00:00Z"
-	}
-	scope := "project"
-	if project == nil {
-		scope = "global"
-	}
-	pgExec(f.t, f.db, `INSERT INTO agents (id, project_id, name, handle, llm_provider, llm_model, llm_api_key_secret, agent_scope, deleted_at)
-		VALUES ($1, $2, 'A', $3, 'openai', 'gpt', 'k', $4, $5)`, id, project, "h-"+id.String()[:8], scope, del)
+	f.account(id, "agent", "A", deleted)
+	pgExec(f.t, f.db, `INSERT INTO agents (id, project_id, handle, llm_provider, llm_model, llm_api_key_secret)
+		VALUES ($1, $2, $3, 'openai', 'gpt', 'k')`, id, project, "h-"+id.String()[:8])
 	return id
 }
 
-// member adds a project_members row for a user (agent=false) or an agent.
-func (f *iamFx) member(project, principal uuid.UUID, agent, deleted bool) uuid.UUID {
+// serviceAccount inserts a service account (an accounts row only).
+func (f *iamFx) serviceAccount(deleted bool) uuid.UUID {
+	id := uuid.New()
+	f.account(id, "service_account", "SA", deleted)
+	return id
+}
+
+// member adds a project_members row for any account (user, agent or service account).
+func (f *iamFx) member(project, account uuid.UUID, deleted bool) uuid.UUID {
 	id := uuid.New()
 	var del any
 	if deleted {
 		del = "2026-01-01T00:00:00Z"
 	}
-	if agent {
-		pgExec(f.t, f.db, `INSERT INTO project_members (id, project_id, agent_id, member_type, deleted_at)
-			VALUES ($1, $2, $3, 'agent', $4)`, id, project, principal, del)
-	} else {
-		pgExec(f.t, f.db, `INSERT INTO project_members (id, project_id, user_id, member_type, deleted_at)
-			VALUES ($1, $2, $3, 'human', $4)`, id, project, principal, del)
-	}
+	pgExec(f.t, f.db, `INSERT INTO project_members (id, project_id, account_id, deleted_at) VALUES ($1, $2, $3, $4)`, id, project, account, del)
 	return id
 }
 
@@ -125,7 +124,7 @@ func (f *iamFx) role(policy string) uuid.UUID {
 	return id
 }
 
-func (f *iamFx) attach(role uuid.UUID, ptype string, principal uuid.UUID, project *uuid.UUID) {
-	pgExec(f.t, f.db, `INSERT INTO role_attachments (role_id, principal_type, principal_id, project_id) VALUES ($1, $2, $3, $4)`,
-		role, ptype, principal, project)
+func (f *iamFx) attach(role, account uuid.UUID, project *uuid.UUID) {
+	pgExec(f.t, f.db, `INSERT INTO role_attachments (role_id, account_id, project_id) VALUES ($1, $2, $3)`,
+		role, account, project)
 }

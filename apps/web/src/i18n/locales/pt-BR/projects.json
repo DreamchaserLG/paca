@@ -1261,7 +1261,14 @@
 			"modeUser": "Usuário",
 			"modeAgent": "Agente de IA",
 			"agentLabel": "Agente",
-			"noAgentsAvailable": "Nenhum agente global disponível para convidar."
+			"noAgentsAvailable": "Nenhum agente global disponível para convidar.",
+			"modeServiceAccount": "Conta de serviço",
+			"serviceAccountLabel": "Conta de serviço",
+			"noServiceAccountsAvailable": "Não há contas de serviço para adicionar.",
+			"searchAgentsPlaceholder": "Buscar por nome ou identificador…",
+			"noAgentsMatch": "Nenhum agente corresponde à sua busca.",
+			"searchServiceAccountsPlaceholder": "Buscar por nome ou descrição…",
+			"noServiceAccountsMatch": "Nenhuma conta de serviço corresponde à sua busca."
 		},
 		"roleChip": {
 			"changeRole": "Alterar papel",
@@ -1278,7 +1285,8 @@
 		"memberRow": {
 			"removeMember": "Remover membro",
 			"agentBadge": "Agente",
-			"actions": "Ações do membro"
+			"actions": "Ações do membro",
+			"serviceAccountBadge": "Conta de serviço"
 		},
 		"removeDialog": {
 			"title": "Remover membro",

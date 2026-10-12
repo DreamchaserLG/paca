@@ -176,6 +176,7 @@ func allRoutes(t *testing.T, authorizer *iam.Authorizer) []routeUnderTest {
 		DocFile:         handler.NewDocFileHandler(nil),
 		Notification:    handler.NewNotificationHandler(nil),
 		APIKey:          handler.NewAPIKeyHandler(nil),
+		ServiceAccount:  handler.NewServiceAccountHandler(nil, nil),
 		Plugin:          handler.NewPluginHandler(nil, nil, nil),
 		Skills:          handler.NewSkillsHandler(nil, ""),
 		Agent:           handler.NewAgentHandler(nil, "", "", ""),

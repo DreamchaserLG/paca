@@ -1265,7 +1265,14 @@
 				"alreadyAdded": "This user or agent is already a member of the project.",
 				"roleForbidden": "You don't have permission to assign one of these roles.",
 				"roleNotFound": "That role no longer exists. Please choose another role."
-			}
+			},
+			"modeServiceAccount": "Service account",
+			"serviceAccountLabel": "Service account",
+			"noServiceAccountsAvailable": "No service accounts available to add.",
+			"searchAgentsPlaceholder": "Search by name or handle…",
+			"noAgentsMatch": "No agents match your search.",
+			"searchServiceAccountsPlaceholder": "Search by name or description…",
+			"noServiceAccountsMatch": "No service accounts match your search."
 		},
 		"roleChip": {
 			"changeRole": "Change role",
@@ -1282,7 +1289,8 @@
 		"memberRow": {
 			"removeMember": "Remove member",
 			"agentBadge": "Agent",
-			"actions": "Member actions"
+			"actions": "Member actions",
+			"serviceAccountBadge": "Service account"
 		},
 		"descriptionChip": {
 			"edit": "Edit description",

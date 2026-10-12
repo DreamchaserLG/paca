@@ -216,6 +216,40 @@ func (h *RoleHandler) ReplaceUserRoles(w http.ResponseWriter, r *http.Request) {
 	presenter.OK(w, r, dto.RolesFromEntities(roles))
 }
 
+// ListServiceAccountRoles handles GET /admin/service-accounts/{serviceAccountId}/roles.
+func (h *RoleHandler) ListServiceAccountRoles(w http.ResponseWriter, r *http.Request) {
+	id, err := urlID(r, "serviceAccountId", "service account")
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+	roles, err := h.svc.ListServiceAccountRoles(r.Context(), id)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+	presenter.OK(w, r, dto.RolesFromEntities(roles))
+}
+
+// ReplaceServiceAccountRoles handles PUT /admin/service-accounts/{serviceAccountId}/roles.
+func (h *RoleHandler) ReplaceServiceAccountRoles(w http.ResponseWriter, r *http.Request) {
+	id, err := urlID(r, "serviceAccountId", "service account")
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+	var req dto.ReplaceRolesRequest
+	if !middleware.BindJSON(w, r, &req) {
+		return
+	}
+	roles, err := h.svc.ReplaceServiceAccountRoles(r.Context(), id, req.RoleIDs, attachmentCreator(r))
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+	presenter.OK(w, r, dto.RolesFromEntities(roles))
+}
+
 // ListAgentRoles handles GET /admin/agents/{agentId}/roles.
 func (h *RoleHandler) ListAgentRoles(w http.ResponseWriter, r *http.Request) {
 	id, err := urlID(r, "agentId", "agent")

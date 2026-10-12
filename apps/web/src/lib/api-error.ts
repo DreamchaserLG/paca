@@ -26,6 +26,15 @@ export const ApiErrorCode = {
 	RoleNoDefault: "ROLE_NO_DEFAULT",
 	RoleRequired: "ROLE_REQUIRED",
 
+	// Service account domain errors.
+	ServiceAccountNotFound: "SERVICE_ACCOUNT_NOT_FOUND",
+	ServiceAccountNameInvalid: "SERVICE_ACCOUNT_NAME_INVALID",
+	ServiceAccountDescriptionTooLong: "SERVICE_ACCOUNT_DESCRIPTION_TOO_LONG",
+
+	// API key errors.
+	APIKeyNameInvalid: "API_KEY_NAME_INVALID",
+	APIKeyNameTooLong: "API_KEY_NAME_TOO_LONG",
+
 	// User domain errors.
 	UserNotFound: "USER_NOT_FOUND",
 	UsernameTaken: "USER_USERNAME_TAKEN",

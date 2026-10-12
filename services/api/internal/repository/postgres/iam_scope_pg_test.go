@@ -32,13 +32,13 @@ func newScopeFx(t *testing.T) *scopeFx {
 	db := newIAMPGTestDB(t)
 	fx := newIAMFx(t, db)
 	p, u := fx.project(), fx.user(false)
-	fx.member(p, u, false, false)
+	fx.member(p, u, false)
 	a := iam.NewAuthorizer(NewIAMStore(db), iam.NewRegistry(), iam.NewAttributeSchema())
 	return &scopeFx{t: t, db: db, fx: fx, p: p, u: u, auth: a, pr: iam.Principal{Type: "user", ID: u.String()}}
 }
 
 // role attaches policy to the user in the project.
-func (s *scopeFx) role(policy string) { s.fx.attach(s.fx.role(policy), "user", s.u, &s.p) }
+func (s *scopeFx) role(policy string) { s.fx.attach(s.fx.role(policy), s.u, &s.p) }
 
 // ctx returns a context carrying the user's scope for kind/action.
 func (s *scopeFx) ctx(action, kind string) context.Context {
@@ -118,7 +118,7 @@ func TestScopedTaskListPaginatesOverAllowedTasksOnly(t *testing.T) {
 func TestScopedTaskListDenyAssigneeAndNoAccess(t *testing.T) {
 	f := newScopeFx(t)
 	other := f.fx.user(false)
-	otherMember := f.fx.member(f.p, other, false, false)
+	otherMember := f.fx.member(f.p, other, false)
 	mine, theirs, unassigned := uuid.New(), uuid.New(), uuid.New()
 	for i, id := range []uuid.UUID{mine, theirs, unassigned} {
 		pgExec(t, f.db, `INSERT INTO tasks (id, project_id, task_number, title) VALUES ($1,$2,$3,'t')`, id, f.p, i+1)
@@ -147,7 +147,7 @@ func TestScopedTaskListDenyAssigneeAndNoAccess(t *testing.T) {
 	f.fx.attach(f.fx.role(`{"version":"1","statements":[
 		{"effect":"Allow","actions":["tasks:read"],"resources":["project/*"]},
 		{"effect":"Deny","actions":["tasks:read"],"resources":["project/*/task/*"],
-		 "conditions":{"In":{"task.assignee_id":["`+other.String()+`"]}}}]}`), "user", f.u, &f.p)
+		 "conditions":{"In":{"task.assignee_id":["`+other.String()+`"]}}}]}`), f.u, &f.p)
 	got := list(f.ctx("tasks:read", "task"))
 	if fmt.Sprint(got) != fmt.Sprint(sorted([]string{mine.String(), unassigned.String()})) {
 		t.Fatalf("listed %v, want the unassigned tasks only", got)
@@ -195,8 +195,8 @@ func TestScopedDocListUsesAncestorFolders(t *testing.T) {
 func TestScopedAgentEnvironmentSprintLists(t *testing.T) {
 	f := newScopeFx(t)
 	a1, a2 := f.fx.agent(&f.p, false), f.fx.agent(&f.p, false)
-	f.fx.member(f.p, a1, true, false)
-	f.fx.member(f.p, a2, true, false)
+	f.fx.member(f.p, a1, false)
+	f.fx.member(f.p, a2, false)
 	e1, e2 := uuid.New(), uuid.New()
 	pgExec(t, f.db, `INSERT INTO environments (id, project_id, name, slug, backend, secret_key_encrypted) VALUES ($1,$3,'E1','e1','docker','x'), ($2,$3,'E2','e2','kubernetes','x')`, e1, e2, f.p)
 	s1, s2 := uuid.New(), uuid.New()
@@ -260,7 +260,7 @@ func TestScopedViewWorkflowConversationLists(t *testing.T) {
 	env1, env2 := uuid.New(), uuid.New()
 	pgExec(t, f.db, `INSERT INTO environments (id, project_id, name, slug, backend, secret_key_encrypted) VALUES ($1,$3,'E1','e1','docker','x'), ($2,$3,'E2','e2','docker','x')`, env1, env2, f.p)
 	ag := f.fx.agent(&f.p, false)
-	member := f.fx.member(f.p, f.fx.user(false), false, false)
+	member := f.fx.member(f.p, f.fx.user(false), false)
 	c1, c2 := uuid.New(), uuid.New()
 	for c, env := range map[uuid.UUID]uuid.UUID{c1: env1, c2: env2} {
 		pgExec(t, f.db, `INSERT INTO agent_conversations (id, agent_id, project_id, trigger_type, triggered_by_member_id, environment_id)
@@ -353,8 +353,8 @@ func TestScopedViewListNegatedSprintKeepsProjectViews(t *testing.T) {
 func TestScopedAssignedTasksSpanProjectsWithOwnScopes(t *testing.T) {
 	f := newScopeFx(t)
 	p2 := f.fx.project()
-	m1 := f.fx.member(f.p, f.fx.user(false), false, false)
-	m2 := f.fx.member(p2, f.fx.user(false), false, false)
+	m1 := f.fx.member(f.p, f.fx.user(false), false)
+	m2 := f.fx.member(p2, f.fx.user(false), false)
 	s5, s6 := uuid.New(), uuid.New()
 	pgExec(t, f.db, `INSERT INTO sprints (id, project_id, name) VALUES ($1,$3,'S5'), ($2,$3,'S6')`, s5, s6, f.p)
 	in5, in6, other := uuid.New(), uuid.New(), uuid.New()
@@ -491,7 +491,7 @@ func TestScopedAnnotationLists(t *testing.T) {
 	}
 
 	// An allow limited to one annotation id lists just that one.
-	f.fx.attach(f.fx.role(policyJSON("Allow", "annotations:write", "project/*/annotation/"+ids[2], "")), "user", f.u, &f.p)
+	f.fx.attach(f.fx.role(policyJSON("Allow", "annotations:write", "project/*/annotation/"+ids[2], "")), f.u, &f.p)
 	if as, err := repo.ListForPortForward(f.ctx("annotations:write", "annotation"), pf); err != nil || fmt.Sprint(idsOf(as)) != fmt.Sprint([]string{ids[2]}) {
 		t.Fatalf("id-limited list = %v (%v), want only %s", idsOf(as), err, ids[2])
 	}

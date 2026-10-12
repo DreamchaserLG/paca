@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Paca-AI/api/internal/bootstrap/defaultroles"
+	accountdom "github.com/Paca-AI/api/internal/domain/account"
 	agentdom "github.com/Paca-AI/api/internal/domain/agent"
 	attachmentdom "github.com/Paca-AI/api/internal/domain/attachment"
 	projectdom "github.com/Paca-AI/api/internal/domain/project"
@@ -103,12 +104,14 @@ type agentLookup interface {
 
 // Service is the concrete implementation of projectdom.Service.
 type Service struct {
-	repo      projectdom.Repository
-	taskRepo  taskBootstrapper
-	agents    agentLookup
-	avatarSvc attachmentdom.AvatarService
-	encryptor *secret.Encryptor
-	activity  activitysvc.Recorder
+	repo     projectdom.Repository
+	taskRepo taskBootstrapper
+	agents   agentLookup
+	// serviceAccounts resolves a service account being invited into a project.
+	serviceAccounts serviceAccountLookup
+	avatarSvc       attachmentdom.AvatarService
+	encryptor       *secret.Encryptor
+	activity        activitysvc.Recorder
 	// roles is told which roles' attachments changed (see roleGrantsChanged).
 	roles RoleInvalidator
 }
@@ -141,6 +144,18 @@ func (s *Service) roleGrantsChanged(roleIDs []uuid.UUID) {
 // New returns a configured project service.
 func New(repo projectdom.Repository, taskRepo taskBootstrapper, agents agentLookup) *Service {
 	return &Service{repo: repo, taskRepo: taskRepo, agents: agents, activity: activitysvc.Discard}
+}
+
+// serviceAccountLookup is the part of the service account repository that
+// inviting one into a project needs.
+type serviceAccountLookup interface {
+	FindByID(ctx context.Context, id uuid.UUID) (*accountdom.Account, error)
+}
+
+// WithServiceAccounts enables inviting service accounts into projects.
+func (s *Service) WithServiceAccounts(lookup serviceAccountLookup) *Service {
+	s.serviceAccounts = lookup
+	return s
 }
 
 // WithAvatarService configures avatar upload support.

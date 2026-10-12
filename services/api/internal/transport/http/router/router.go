@@ -46,6 +46,8 @@ type Deps struct {
 	Plugin          *handler.PluginHandler
 	Skills          *handler.SkillsHandler
 	Agent           *handler.AgentHandler
+	// ServiceAccount serves /admin/service-accounts; optional.
+	ServiceAccount *handler.ServiceAccountHandler
 	// AgentEnvironments / SessionEnvironments back the chat environment
 	// gates (guards.ChatEnvironment / SessionEnvironment).
 	AgentEnvironments httpmw.AgentEnvironmentLookup
@@ -226,8 +228,32 @@ func New(deps Deps) http.Handler {
 					r.With(require.PlatformEntity("user", "userId", resUser, iam.ActionRolesRead)).Get("/users/{userId}/roles", deps.Role.ListUserRoles)
 					r.With(require.AssignUserRoles()).Put("/users/{userId}/roles", deps.Role.ReplaceUserRoles)
 
+					r.With(require.ServiceAccount(iam.ActionRolesRead, iam.ActionServiceAccountsRead)).Get("/service-accounts/{serviceAccountId}/roles", deps.Role.ListServiceAccountRoles)
+					r.With(require.ServiceAccount(iam.ActionServiceAccountsWrite), require.AssignServiceAccountRoles()).Put("/service-accounts/{serviceAccountId}/roles", deps.Role.ReplaceServiceAccountRoles)
+
 					r.With(require.GlobalAgentRoles(iam.ActionRolesRead, iam.ActionAgentsRead)).Get("/agents/{agentId}/roles", deps.Role.ListAgentRoles)
 					r.With(require.GlobalAgentRoles(iam.ActionAgentsWrite), require.AssignGlobalAgentRoles()).Put("/agents/{agentId}/roles", deps.Role.ReplaceAgentRoles)
+				}
+
+				// Service accounts: workspace-level non-human accounts with their own
+				// API keys and roles (roles are served with the role routes above).
+				// Minting or revoking a key needs a signed-in session, never another
+				// API key, so a leaked key cannot create more credentials.
+				if deps.ServiceAccount != nil {
+					sa := deps.ServiceAccount
+					r.With(require.Global(iam.ActionServiceAccountsRead)).Get("/service-accounts", sa.List)
+					r.With(require.Global(iam.ActionServiceAccountsWrite)).Post("/service-accounts", sa.Create)
+					r.With(require.ServiceAccount(iam.ActionServiceAccountsRead)).Get("/service-accounts/{serviceAccountId}", sa.Get)
+					r.With(require.ServiceAccount(iam.ActionServiceAccountsWrite)).Patch("/service-accounts/{serviceAccountId}", sa.Update)
+					r.With(require.ServiceAccount(iam.ActionServiceAccountsWrite)).Delete("/service-accounts/{serviceAccountId}", sa.Delete)
+
+					r.With(require.ServiceAccount(iam.ActionServiceAccountsWrite)).Post("/service-accounts/{serviceAccountId}/avatar/initiate-upload", sa.InitiateAvatarUpload)
+					r.With(require.ServiceAccount(iam.ActionServiceAccountsWrite)).Post("/service-accounts/{serviceAccountId}/avatar/complete-upload", sa.CompleteAvatarUpload)
+					r.With(require.ServiceAccount(iam.ActionServiceAccountsWrite)).Delete("/service-accounts/{serviceAccountId}/avatar", sa.DeleteAvatar)
+
+					r.With(httpmw.RequireJWTAuth(), require.ServiceAccount(iam.ActionServiceAccountsRead)).Get("/service-accounts/{serviceAccountId}/api-keys", sa.ListAPIKeys)
+					r.With(httpmw.RequireJWTAuth(), require.ServiceAccount(iam.ActionServiceAccountsWrite), require.HoldServiceAccountRoles()).Post("/service-accounts/{serviceAccountId}/api-keys", sa.CreateAPIKey)
+					r.With(httpmw.RequireJWTAuth(), require.ServiceAccount(iam.ActionServiceAccountsWrite)).Delete("/service-accounts/{serviceAccountId}/api-keys/{keyId}", sa.RevokeAPIKey)
 				}
 
 				// Global agent management — CRUD for AgentScopeGlobal agents,
@@ -372,8 +398,8 @@ func New(deps Deps) http.Handler {
 					// permission.
 					r.Get("/", deps.Agent.ListGlobalAgents)
 
-					// Agent self-service (agent-API-key authenticated via
-					// X-Agent-ID) — what the MCP server calls when running as a
+					// Agent self-service (authenticated with the agent's
+					// own API key) — what the MCP server calls when running as a
 					// global agent to populate its own permission map.
 					r.Get("/me/global-permissions", deps.Agent.GetMyGlobalPermissions)
 					r.Get("/me/projects", deps.Agent.GetMyInvitedProjects)

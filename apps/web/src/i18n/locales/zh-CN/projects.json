@@ -1261,7 +1261,14 @@
 			"modeUser": "用户",
 			"modeAgent": "AI 智能体",
 			"agentLabel": "智能体",
-			"noAgentsAvailable": "没有可邀请的全局智能体。"
+			"noAgentsAvailable": "没有可邀请的全局智能体。",
+			"modeServiceAccount": "服务账号",
+			"serviceAccountLabel": "服务账号",
+			"noServiceAccountsAvailable": "没有可添加的服务账号。",
+			"searchAgentsPlaceholder": "按名称或用户名搜索…",
+			"noAgentsMatch": "没有符合搜索条件的智能体。",
+			"searchServiceAccountsPlaceholder": "按名称或描述搜索…",
+			"noServiceAccountsMatch": "没有符合搜索条件的服务账号。"
 		},
 		"roleChip": {
 			"changeRole": "更改角色",
@@ -1278,7 +1285,8 @@
 		"memberRow": {
 			"removeMember": "移除成员",
 			"agentBadge": "代理",
-			"actions": "成员操作"
+			"actions": "成员操作",
+			"serviceAccountBadge": "服务账号"
 		},
 		"removeDialog": {
 			"title": "移除成员",

@@ -48,26 +48,21 @@ type AgentRepository interface {
 	// SetACPBridgeTokenHash stores the SHA-256 hash of a newly generated
 	// local-bridge auth token, replacing any previous one.
 	SetACPBridgeTokenHash(ctx context.Context, agentID uuid.UUID, hash string) error
-	// SetMCPAPIKeyHash stores the SHA-256 hash of a newly generated MCP API
-	// key, replacing any previous one — only one key is ever live per agent,
-	// so the previous key stops authenticating the moment this is called.
-	SetMCPAPIKeyHash(ctx context.Context, agentID uuid.UUID, hash string) error
+	// ReplaceAPIKeyHash gives the agent a single API key: its active keys are
+	// revoked and one with the given SHA-256 hash is created, so the previous
+	// key stops authenticating the moment this is called.
+	ReplaceAPIKeyHash(ctx context.Context, agentID uuid.UUID, hash string) error
 	// SetCLILoginVerifiedAt records that a provider_cli agent's CLI login
 	// was just confirmed (a file-existence probe — see VerifyCLILogin), by
 	// itself, never as part of the general UpdateAgent path — an unrelated
 	// name/model edit must never reset or backdate this timestamp.
 	SetCLILoginVerifiedAt(ctx context.Context, agentID uuid.UUID, t time.Time) error
-	// FindAgentByMCPAPIKeyHash resolves the agent whose current MCP API key
-	// hashes to hash, for the authn middleware to identify the caller
-	// directly from the key it presented — no separate identity claim
-	// needed. Returns ErrAgentNotFound if no live agent matches.
-	FindAgentByMCPAPIKeyHash(ctx context.Context, hash string) (*Agent, error)
 
 	// -- Global agents (AgentScope == AgentScopeGlobal, ProjectID == uuid.Nil).
 
 	ListGlobalAgents(ctx context.Context) ([]*Agent, error)
 	// FindGlobalAgentByHandle looks up a global agent by its instance-wide
-	// unique handle (uq_agents_global_handle). Distinct from
+	// unique handle (enforced among live agents by the account-identifier trigger). Distinct from
 	// FindAgentByHandle, which resolves within one project's visible agents
 	// (its own project-scoped agents plus any global agents invited into it)
 	// via the project_members join and would never match on projectID ==
@@ -234,13 +229,6 @@ type ChatSessionRepository interface {
 	// ListGlobalChatSessions is ListChatSessions' sibling for global chat
 	// sessions, keyed by actor_user_id instead of member_id.
 	ListGlobalChatSessions(ctx context.Context, agentID, actorUserID uuid.UUID) ([]*AgentChatSession, error)
-	// HasActiveGlobalChatSession reports whether agentID has ever started a
-	// global chat session with actorUserID. Used by the agent-API-key
-	// authentication middleware (middleware.AgentIdentityVerifier) to verify
-	// an X-Actor-User-ID claim is backed by a real session rather than an
-	// arbitrary value riding on the single shared static agent API key —
-	// see that type's doc comment for the full threat model.
-	HasActiveGlobalChatSession(ctx context.Context, agentID, actorUserID uuid.UUID) (bool, error)
 }
 
 // ListConversationsFilter carries optional filters for listing conversations.

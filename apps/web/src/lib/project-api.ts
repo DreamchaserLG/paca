@@ -64,8 +64,10 @@ export interface ProjectMember {
 	roles: RoleSummary[];
 	username: string;
 	full_name: string;
-	member_type?: string; // "human" | "agent"
+	member_type?: string; // "human" | "agent" | "service_account"
 	agent_id?: string;
+	/** The member's account when member_type is "service_account". */
+	service_account_id?: string;
 	agent_name?: string;
 	agent_handle?: string;
 	avatar_url?: string | null;
@@ -185,7 +187,8 @@ export async function addProjectMember(
 	projectId: string,
 	payload:
 		| { user_id: string; role_ids: string[]; description?: string }
-		| { agent_id: string; role_ids: string[] },
+		| { agent_id: string; role_ids: string[] }
+		| { service_account_id: string; role_ids: string[] },
 ): Promise<ProjectMember> {
 	const { data } = await apiClient.instance.post<
 		SuccessEnvelope<ProjectMember>

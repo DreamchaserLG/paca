@@ -83,7 +83,6 @@ type mockAgentRepo struct {
 	setACPBridgeTokenHash                func(ctx context.Context, agentID uuid.UUID, hash string) error
 	setMCPAPIKeyHash                     func(ctx context.Context, agentID uuid.UUID, hash string) error
 	setCLILoginVerifiedAt                func(ctx context.Context, agentID uuid.UUID, t time.Time) error
-	findAgentByMCPAPIKeyHash             func(ctx context.Context, hash string) (*agentdom.Agent, error)
 	listMCPServers                       func(ctx context.Context, agentID uuid.UUID) ([]*agentdom.AgentMCPServer, error)
 	findMCPServerByID                    func(ctx context.Context, id uuid.UUID) (*agentdom.AgentMCPServer, error)
 	createMCPServer                      func(ctx context.Context, server *agentdom.AgentMCPServer) error
@@ -122,7 +121,6 @@ type mockAgentRepo struct {
 	softDeleteGlobalAgentCascade         func(ctx context.Context, agentID uuid.UUID) error
 	listInvitedProjectIDs                func(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error)
 	listGlobalChatSessions               func(ctx context.Context, agentID, actorUserID uuid.UUID) ([]*agentdom.AgentChatSession, error)
-	hasActiveGlobalChatSession           func(ctx context.Context, agentID, actorUserID uuid.UUID) (bool, error)
 	countRunningConversations            func(ctx context.Context, agentID uuid.UUID) (int, error)
 	countRunningConversationsInFolder    func(ctx context.Context, environmentID uuid.UUID, folderID *uuid.UUID) (int, error)
 	createPendingTrigger                 func(ctx context.Context, t *agentdom.PendingTrigger) error
@@ -264,7 +262,7 @@ func (m *mockAgentRepo) SetACPBridgeTokenHash(ctx context.Context, agentID uuid.
 	return nil
 }
 
-func (m *mockAgentRepo) SetMCPAPIKeyHash(ctx context.Context, agentID uuid.UUID, hash string) error {
+func (m *mockAgentRepo) ReplaceAPIKeyHash(ctx context.Context, agentID uuid.UUID, hash string) error {
 	if m.setMCPAPIKeyHash != nil {
 		return m.setMCPAPIKeyHash(ctx, agentID, hash)
 	}
@@ -276,13 +274,6 @@ func (m *mockAgentRepo) SetCLILoginVerifiedAt(ctx context.Context, agentID uuid.
 		return m.setCLILoginVerifiedAt(ctx, agentID, t)
 	}
 	return nil
-}
-
-func (m *mockAgentRepo) FindAgentByMCPAPIKeyHash(ctx context.Context, hash string) (*agentdom.Agent, error) {
-	if m.findAgentByMCPAPIKeyHash != nil {
-		return m.findAgentByMCPAPIKeyHash(ctx, hash)
-	}
-	return nil, agentdom.ErrAgentNotFound
 }
 
 func (m *mockAgentRepo) ListMCPServers(ctx context.Context, agentID uuid.UUID) ([]*agentdom.AgentMCPServer, error) {
@@ -544,13 +535,6 @@ func (m *mockAgentRepo) ListGlobalChatSessions(ctx context.Context, agentID, act
 		return m.listGlobalChatSessions(ctx, agentID, actorUserID)
 	}
 	return nil, nil
-}
-
-func (m *mockAgentRepo) HasActiveGlobalChatSession(ctx context.Context, agentID, actorUserID uuid.UUID) (bool, error) {
-	if m.hasActiveGlobalChatSession != nil {
-		return m.hasActiveGlobalChatSession(ctx, agentID, actorUserID)
-	}
-	return false, nil
 }
 
 func (m *mockAgentRepo) FindChatSessionByID(ctx context.Context, id uuid.UUID) (*agentdom.AgentChatSession, error) {
@@ -4071,9 +4055,8 @@ func TestGenerateACPBridgeToken_WrongProject(t *testing.T) {
 
 // -------------------------------------------------------------------------
 // GenerateAgentMCPKey / GenerateGlobalAgentMCPKey — same shape as
-// GenerateACPBridgeToken above, but persisted via SetMCPAPIKeyHash and
-// resolved later by FindAgentByMCPAPIKeyHash (see the authn middleware's
-// agentClaimsForKey).
+// GenerateACPBridgeToken above, but persisted via ReplaceAPIKeyHash as one of the
+// agent account's ordinary API keys.
 // -------------------------------------------------------------------------
 
 func TestGenerateAgentMCPKey_Success(t *testing.T) {

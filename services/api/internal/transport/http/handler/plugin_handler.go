@@ -615,12 +615,11 @@ func (h *PluginHandler) ProxyRequest(w http.ResponseWriter, r *http.Request) {
 	callerID := ""
 	userIDStr := ""
 	callerRole := ""
-	// An agent-API-key request names its agent; the runtime's permission_check
-	// judges it by that agent's own role rather than by userIDStr, which for an
-	// agent key is the shared bot user (see pluginrt.HTTPRequest.AgentID).
-	agentIDStr := ""
-	if agentID, ok := middleware.AgentIDFromRequest(r); ok {
-		agentIDStr = agentID.String()
+	// The kind of the authenticated account, so the runtime's permission_check
+	// judges the caller as the same principal the router's gates do.
+	accountKind := ""
+	if p, ok := middleware.PrincipalFrom(r); ok {
+		accountKind = string(p.Kind)
 	}
 	if claims != nil {
 		callerRole = claims.Role
@@ -649,8 +648,8 @@ func (h *PluginHandler) ProxyRequest(w http.ResponseWriter, r *http.Request) {
 				}
 				member, err := h.memberRepo.FindMemberByUserProject(r.Context(), userID, projectID)
 				if err != nil {
-					// API-key-authenticated callers (e.g. the agent bot user) may hold
-					// SUPER_ADMIN global permissions without being a project member.
+					// API-key-authenticated callers (a service account or an agent)
+					// may hold workspace-wide permissions without being a project member.
 					// The requireActions check above already passed, so proceed with
 					// an empty callerID rather than returning PROJECT_MEMBER_NOT_FOUND.
 					if !middleware.IsAPIKeyAuth(r) {
@@ -687,15 +686,15 @@ func (h *PluginHandler) ProxyRequest(w http.ResponseWriter, r *http.Request) {
 	// real headers/query/path instead of a guessed constant — those vary a
 	// lot in practice (large cookies, forwarded headers, long query strings).
 	envelopeProbe := &pluginrt.HTTPRequest{
-		Method:     r.Method,
-		Path:       subPath,
-		Query:      query,
-		ProjectID:  pathParams[projectParamName],
-		CallerID:   callerID,
-		UserID:     userIDStr,
-		CallerRole: callerRole,
-		AgentID:    agentIDStr,
-		Headers:    headers,
+		Method:      r.Method,
+		Path:        subPath,
+		Query:       query,
+		ProjectID:   pathParams[projectParamName],
+		CallerID:    callerID,
+		UserID:      userIDStr,
+		CallerRole:  callerRole,
+		AccountKind: accountKind,
+		Headers:     headers,
 	}
 	probeBytes, err := json.Marshal(envelopeProbe)
 	if err != nil {
@@ -731,16 +730,16 @@ func (h *PluginHandler) ProxyRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	req := &pluginrt.HTTPRequest{
-		Method:     r.Method,
-		Path:       subPath,
-		Query:      query,
-		ProjectID:  pathParams[projectParamName],
-		CallerID:   callerID,
-		UserID:     userIDStr,
-		CallerRole: callerRole,
-		AgentID:    agentIDStr,
-		Headers:    headers,
-		Body:       bodyBytes,
+		Method:      r.Method,
+		Path:        subPath,
+		Query:       query,
+		ProjectID:   pathParams[projectParamName],
+		CallerID:    callerID,
+		UserID:      userIDStr,
+		CallerRole:  callerRole,
+		AccountKind: accountKind,
+		Headers:     headers,
+		Body:        bodyBytes,
 	}
 
 	// Attach request to context for HTTP host functions.

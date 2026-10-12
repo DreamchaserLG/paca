@@ -28,16 +28,17 @@ import {
 	projectRoleIdByName,
 } from "../helpers/e2e-api";
 import {
-	agentContext,
 	allow,
 	asAgent,
 	asUser,
+	createAgentKey,
 	createDoc,
 	createMember,
 	createSprint,
 	createTask,
 	dataOf,
 	deny,
+	keyContext,
 	listDocTitles,
 	listTasks,
 	policyOf,
@@ -445,11 +446,12 @@ test.describe("An agent is judged by its own roles", () => {
 		return (await dataOf<{ actions: string[] }>(response)).actions.sort();
 	}
 
-	test("A global agent has the permissions of its own roles, not those of the bot behind the key", async ({
+	test("A global agent has the permissions of its own roles", async ({
 		request,
 		playwright,
 	}) => {
-		const agent = await createGlobalAgent(request, name("GLOBAL_BOT"));
+		const agent = await createGlobalAgent(request, name("GLOBAL_BOT"), "acp");
+		const key = await createAgentKey(request, agent.id);
 		const plugins = await createGlobalRole(
 			request,
 			name("PLUGINS_ONLY"),
@@ -457,34 +459,18 @@ test.describe("An agent is judged by its own roles", () => {
 		);
 
 		// A new global agent starts with the default role (users:read).
-		await asAgent(playwright, agent.id, async (api) => {
+		await asAgent(playwright, key, async (api) => {
 			expect(await agentGlobalActions(api)).toEqual(["users:read"]);
 			expect((await api.get(`${API_URL}/admin/users`)).status()).toBe(200);
 			expect((await api.get(`${API_URL}/admin/roles`)).status()).toBe(403);
 		});
 
 		await bindGlobalAgentRole(request, agent.id, plugins.name);
-		await asAgent(playwright, agent.id, async (api) => {
+		await asAgent(playwright, key, async (api) => {
 			expect(await agentGlobalActions(api)).toEqual(["plugins:read"]);
 			// The role it no longer holds is gone at once.
 			expect((await api.get(`${API_URL}/admin/users`)).status()).toBe(403);
 		});
-
-		// The same key without X-Agent-ID is the shared bot user, which holds
-		// far more: only the header makes the request the agent's own.
-		const bot = await playwright.request.newContext({
-			extraHTTPHeaders: {
-				"X-API-Key": process.env.E2E_AGENT_API_KEY ?? "e2e-agent-api-key",
-			},
-		});
-		try {
-			const response = await bot.get(`${API_URL}/users/me/global-permissions`);
-			expect(response.status()).toBe(200);
-			const actions = (await dataOf<{ actions: string[] }>(response)).actions;
-			expect(actions.length).toBeGreaterThan(1);
-		} finally {
-			await bot.dispose();
-		}
 	});
 
 	test("A project agent is judged by the roles it holds in the project", async ({
@@ -497,7 +483,9 @@ test.describe("An agent is judged by its own roles", () => {
 			request,
 			projectId,
 			name("PROJECT_BOT"),
+			"acp",
 		);
+		const key = await createAgentKey(request, agent.id, projectId);
 		const viewer = await projectRoleIdByName(request, projectId, "Viewer");
 		const adminRole = await projectRoleIdByName(request, projectId, "Admin");
 
@@ -519,13 +507,13 @@ test.describe("An agent is judged by its own roles", () => {
 			]);
 
 		// Created with the project's Admin role: it reads and writes.
-		await asAgent(playwright, agent.id, async (api) => {
+		await asAgent(playwright, key, async (api) => {
 			expect(await probe(api)).toEqual([200, 201]);
 		});
 
 		// As a Viewer it can read but no longer write.
 		await putMemberRoles(request, projectId, memberId, [viewer]);
-		await asAgent(playwright, agent.id, async (api) => {
+		await asAgent(playwright, key, async (api) => {
 			expect(await probe(api)).toEqual([200, 403]);
 		});
 
@@ -537,22 +525,21 @@ test.describe("An agent is judged by its own roles", () => {
 			deny(["tasks:*"], [`project/${projectId}/task/*`]),
 		);
 		await putMemberRoles(request, projectId, memberId, [adminRole, noTasks]);
-		await asAgent(playwright, agent.id, async (api) => {
+		await asAgent(playwright, key, async (api) => {
 			const page = await listTasks(api, projectId);
 			expect(page.status).toBe(200);
 			expect(page.ids).toEqual([]);
 			expect((await postTask(api, projectId, "Denied")).status()).toBe(403);
 		});
 
-		// A claim of an agent that does not exist is not trusted.
-		const stranger = await agentContext(
-			playwright,
-			"00000000-0000-4000-8000-000000000000",
-		);
+		// An agent is whoever its key proves: a key nobody issued is no agent.
+		const stranger = await keyContext(playwright, "paca_not_a_real_key");
 		try {
 			expect(
-				(await stranger.get(`${API_URL}/agents/me/global-permissions`)).ok(),
-			).toBe(false);
+				(
+					await stranger.get(`${API_URL}/agents/me/global-permissions`)
+				).status(),
+			).toBe(401);
 		} finally {
 			await stranger.dispose();
 		}

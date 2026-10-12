@@ -377,7 +377,7 @@ func currentConversationIDFromHeader(r *http.Request) uuid.UUID {
 }
 
 // GetConversationForAgent handles GET /agents/me/conversations/:conversationId
-// — an agent (X-Agent-ID authenticated, no human member/actor identity of
+// — an agent (authenticated with its own API key, no human member/actor identity of
 // its own) reading a conversation by ID, e.g. the read_conversation MCP
 // tool. See agentdom.Service.GetConversationForAgent's doc comment for the
 // full authorization rule; it's deliberately not projectId-scoped in the

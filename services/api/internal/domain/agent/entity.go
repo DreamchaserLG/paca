@@ -106,11 +106,6 @@ type Agent struct {
 	// HasMCPAPIKey reports whether an MCP API key has been generated; the
 	// key itself (and its hash) are never exposed here.
 	HasMCPAPIKey bool
-	// MCPAPIKeyHash is the SHA-256 hex digest of the current MCP API key,
-	// used only for verification — never serialized to API responses.
-	// Generating a new key overwrites this, so the previous key stops
-	// authenticating immediately (only ever one live key per agent).
-	MCPAPIKeyHash string
 	// SystemPrompt, GitCommitterName, and GitCommitterEmail are LLM-only —
 	// an ACP agent runs via the user's own local ACP client (see
 	// ACPProvider), which owns its own system prompt and git identity, so

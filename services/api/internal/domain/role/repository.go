@@ -6,12 +6,11 @@ import (
 	"github.com/google/uuid"
 )
 
-// ReplaceAttachmentsInput describes one replace-set of a principal's
+// ReplaceAttachmentsInput describes one replace-set of an account's
 // attachments in one scope.
 type ReplaceAttachmentsInput struct {
-	PrincipalType string // PrincipalUser | PrincipalAgent
-	PrincipalID   uuid.UUID
-	// ProjectID scopes the attachments: nil replaces the principal's
+	AccountID uuid.UUID
+	// ProjectID scopes the attachments: nil replaces the account's
 	// platform-wide set, otherwise the set within that project.
 	ProjectID *uuid.UUID
 	// RoleIDs is the complete desired set (already de-duplicated).
@@ -55,15 +54,17 @@ type Repository interface {
 	UserExists(ctx context.Context, id uuid.UUID) (bool, error)
 	// GlobalAgentExists reports whether a non-deleted global-scope agent exists.
 	GlobalAgentExists(ctx context.Context, id uuid.UUID) (bool, error)
+	// ServiceAccountExists reports whether a non-deleted service account exists.
+	ServiceAccountExists(ctx context.Context, id uuid.UUID) (bool, error)
 	// ProjectExists reports whether the project exists and is not deleted.
 	ProjectExists(ctx context.Context, id uuid.UUID) (bool, error)
 	// FindMember returns the live member (ErrMemberNotFound otherwise).
 	FindMember(ctx context.Context, projectID, memberID uuid.UUID) (*Member, error)
 
-	// ListAttached returns the roles attached to the principal in one scope
+	// ListAttached returns the roles attached to the account in one scope
 	// (projectID nil = platform-wide), sorted by name.
-	ListAttached(ctx context.Context, principalType string, principalID uuid.UUID, projectID *uuid.UUID) ([]*Role, error)
-	// ReplaceAttachments makes the principal's attachments in the scope equal
+	ListAttached(ctx context.Context, accountID uuid.UUID, projectID *uuid.UUID) ([]*Role, error)
+	// ReplaceAttachments makes the account's attachments in the scope equal
 	// to RoleIDs in one transaction (diff: stale rows deleted, missing ones
 	// inserted with CreatedBy, unchanged ones untouched) and returns the ids
 	// of the roles whose attachment set changed. ErrNotAttachable for an

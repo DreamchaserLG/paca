@@ -4,8 +4,6 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/google/uuid"
-
 	"github.com/Paca-AI/api/internal/apierr"
 	"github.com/Paca-AI/api/internal/platform/authz/iam"
 )
@@ -69,23 +67,15 @@ func RequireAnyActions(a *iam.Authorizer, groups ...[]ActionCheck) func(http.Han
 	}
 }
 
-// IAMPrincipalFrom turns the request's caller into an IAM principal: an
-// agent-API-key request naming an agent is that agent — never the shared bot
-// user behind the key (seeded SUPER_ADMIN), which would let any agent act
-// with full privilege — and anyone else is the user in the token's subject.
+// IAMPrincipalFrom turns the request's authenticated Principal into an IAM
+// principal: the caller is exactly the account it authenticated as (a user, an
+// agent or a service account), never anything inferred from another source.
 func IAMPrincipalFrom(r *http.Request) (iam.Principal, error) {
-	claims := ClaimsFrom(r)
-	if claims == nil {
+	p, ok := PrincipalFrom(r)
+	if !ok {
 		return iam.Principal{}, apierr.New(apierr.CodeUnauthenticated, "unauthenticated")
 	}
-	if agentID, ok := AgentIDFromRequest(r); ok {
-		return iam.Agent(agentID.String()), nil
-	}
-	userID, err := uuid.Parse(claims.Subject)
-	if err != nil {
-		return iam.Principal{}, apierr.New(apierr.CodeBadRequest, "invalid subject claim")
-	}
-	return iam.User(userID.String()), nil
+	return iam.Principal{Type: string(p.Kind), ID: p.AccountID.String()}, nil
 }
 
 // resourceError marks a resolver failure so RequirePublicProjectOrActions can

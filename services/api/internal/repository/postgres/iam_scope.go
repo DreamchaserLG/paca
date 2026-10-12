@@ -47,8 +47,8 @@ var (
 		"task.sprint_id": {scalar: "tasks.sprint_id"},
 		"task.status_id": {scalar: "tasks.status_id"},
 		"task.type_id":   {scalar: "tasks.task_type_id"},
-		// The member's principal id (user or agent), comparable with principal.id.
-		"task.assignee_id": {multi: `ARRAY(SELECT COALESCE(pm.user_id, pm.agent_id)::text
+		// The member's account id, comparable with principal.id.
+		"task.assignee_id": {multi: `ARRAY(SELECT pm.account_id::text
 			FROM task_assignees ta JOIN project_members pm ON pm.id = ta.member_id
 			WHERE ta.task_id = tasks.id AND pm.deleted_at IS NULL)`},
 	}

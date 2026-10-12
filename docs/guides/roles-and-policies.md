@@ -2,7 +2,7 @@
 
 Paca controls who can do what with **roles**. A role is a JSON *policy*: a list of statements that allow or deny *actions* on *resources*, optionally under *conditions*. The model is the same as AWS IAM. This guide covers the policy format, the web editor and worked examples. For a one-page overview of the whole model see [IAM authorization](iam-authorization.md). For how the API enforces it see [Authorization architecture](../architecture/authorization.md); for the endpoints see [Roles and policies API](../api/roles-and-policies.md).
 
-> Upgrading from an earlier release? Roles and project roles were converted automatically, but **restricted agents and environments were not**: they are open to everyone who can see the project until you recreate the restriction with a `Deny` role (see [Restrict an agent](#restrict-an-agent)). Read the [release notes](../releases/2026-10-iam-authorization.md) first, and **back up your database before upgrading**.
+> Upgrading from an earlier release? Roles and project roles were converted automatically, but **restricted agents and environments were not**: they are open to everyone who can see the project until you recreate the restriction with a `Deny` role (see [Restrict an agent](#restrict-an-agent)). Read [Upgrading](../deployment/README.md#upgrading-to-iam-authorization-migrations-000064-000068) first, and **back up your database before upgrading**.
 
 ## The basics
 

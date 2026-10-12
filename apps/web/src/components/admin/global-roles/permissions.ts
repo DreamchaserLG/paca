@@ -1,6 +1,7 @@
 import {
 	Bot,
 	FolderKanban,
+	KeyRound,
 	type LucideIcon,
 	Puzzle,
 	Settings,
@@ -49,6 +50,18 @@ export const KNOWN_PERMISSIONS = [
 		labelKey: "globalRoles.permissions.usersDelete.label",
 		descriptionKey: "globalRoles.permissions.usersDelete.description",
 		domain: "users",
+	},
+	{
+		key: "service_accounts:read",
+		labelKey: "globalRoles.permissions.serviceAccountsRead.label",
+		descriptionKey: "globalRoles.permissions.serviceAccountsRead.description",
+		domain: "service_accounts",
+	},
+	{
+		key: "service_accounts:write",
+		labelKey: "globalRoles.permissions.serviceAccountsWrite.label",
+		descriptionKey: "globalRoles.permissions.serviceAccountsWrite.description",
+		domain: "service_accounts",
 	},
 	{
 		key: "projects:read",
@@ -128,6 +141,11 @@ export const PERMISSION_GROUPS = [
 		domain: "users",
 		labelKey: "globalRoles.permissionGroups.users",
 		Icon: Users,
+	},
+	{
+		domain: "service_accounts",
+		labelKey: "globalRoles.permissionGroups.serviceAccounts",
+		Icon: KeyRound,
 	},
 	{
 		domain: "agents",

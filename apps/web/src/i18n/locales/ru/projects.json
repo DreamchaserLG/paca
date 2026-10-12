@@ -1277,7 +1277,14 @@
 			"modeUser": "Пользователь",
 			"modeAgent": "ИИ-агент",
 			"agentLabel": "Агент",
-			"noAgentsAvailable": "Нет доступных глобальных агентов для приглашения."
+			"noAgentsAvailable": "Нет доступных глобальных агентов для приглашения.",
+			"modeServiceAccount": "Сервисный аккаунт",
+			"serviceAccountLabel": "Сервисный аккаунт",
+			"noServiceAccountsAvailable": "Нет сервисных аккаунтов для добавления.",
+			"searchAgentsPlaceholder": "Поиск по имени или хендлу…",
+			"noAgentsMatch": "Нет агентов, соответствующих поиску.",
+			"searchServiceAccountsPlaceholder": "Поиск по названию или описанию…",
+			"noServiceAccountsMatch": "Нет сервисных аккаунтов, соответствующих поиску."
 		},
 		"roleChip": {
 			"changeRole": "Изменить роль",
@@ -1294,7 +1301,8 @@
 		"memberRow": {
 			"removeMember": "Удалить участника",
 			"agentBadge": "Агент",
-			"actions": "Действия с участником"
+			"actions": "Действия с участником",
+			"serviceAccountBadge": "Сервисный аккаунт"
 		},
 		"removeDialog": {
 			"title": "Удалить участника",

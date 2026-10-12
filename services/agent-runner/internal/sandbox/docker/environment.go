@@ -505,9 +505,8 @@ func (m *Manager) recreateEnvironmentIfMissingEnv(ctx context.Context, backendRe
 // pacaInfraEnvKeys are env vars the built-in "paca" MCP server subprocess
 // needs (see internal/executor/executor.go's buildMCPServers) that can
 // legitimately differ between one StartEnvironment call and the next.
-// PACA_API_KEY/PACA_API_URL/PACA_GATEWAY_URL are deployment-level — the
-// same for every agent on this deployment, changing only on a key
-// rotation or redeploy. PACA_WORKDIR/PACA_ACTOR_USER_ID/
+// PACA_API_URL/PACA_GATEWAY_URL are deployment-level; PACA_API_KEY is the
+// agent's own key, stable for that agent until it is revoked. PACA_WORKDIR/PACA_ACTOR_USER_ID/
 // PACA_REPO_PLUGIN_IDS are conversation-scoped instead — trigger.Workdir,
 // trigger.ActorUserID, and trigger.RepoPluginIDs, none of which describe
 // this environment's own identity, unlike PACA_AGENT_ID/PACA_PROJECT_ID
@@ -542,7 +541,7 @@ func (m *Manager) recreateEnvironmentIfMissingEnv(ctx context.Context, backendRe
 // instead of surfacing as the caller bug it actually is.
 var pacaInfraEnvKeys = []string{
 	"PACA_API_KEY", "PACA_API_URL", "PACA_GATEWAY_URL",
-	"PACA_WORKDIR", "PACA_ACTOR_USER_ID", "PACA_REPO_PLUGIN_IDS",
+	"PACA_WORKDIR", "PACA_REPO_PLUGIN_IDS",
 	// GOOSE_PATH_ROOT is deployment-level fixed, like the PACA_API_* trio
 	// above, not conversation-scoped — included here (rather than getting
 	// its own GOOSE_PROVIDER-style one-time backfill) purely so a container

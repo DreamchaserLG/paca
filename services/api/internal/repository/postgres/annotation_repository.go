@@ -63,8 +63,8 @@ type annotationCommentRecord struct {
 // otherwise-still-valid annotation/comment row — mirrors task.Activity's
 // own defensive-against-deleted-actor convention, even though
 // created_by's FK doesn't currently allow that deletion either way).
-const authorCols = `u.full_name AS created_by_name, u.username AS created_by_username,
-	u.avatar_key AS created_by_avatar_key, u.avatar_thumb_key AS created_by_avatar_thumb_key`
+const authorCols = `acc.name AS created_by_name, u.username AS created_by_username,
+	acc.avatar_key AS created_by_avatar_key, acc.avatar_thumb_key AS created_by_avatar_thumb_key`
 
 const pageAnnotationCols = `pa.id, pa.project_id, pa.environment_id, pa.port_forward_id, pa.page_path, pa.element_selector,
 	pa.element_selector_fallbacks, pa.bounding_box, pa.element_snapshot, pa.console_errors, pa.failed_requests,
@@ -101,7 +101,8 @@ func (r *AnnotationRepository) ListForPage(ctx context.Context, portForwardID uu
 	var recs []pageAnnotationRecord
 	err = r.db.SelectContext(ctx, &recs, `
 		SELECT `+pageAnnotationCols+` FROM page_annotations pa
-		LEFT JOIN users u ON u.id = pa.created_by
+		LEFT JOIN accounts acc ON acc.id = pa.created_by
+		LEFT JOIN users u ON u.id = acc.id
 		WHERE pa.port_forward_id = $1 AND pa.page_path = $2 AND pa.deleted_at IS NULL`+scopeAnd+`
 		ORDER BY pa.created_at ASC`, sink.args...)
 	if err != nil {
@@ -124,7 +125,8 @@ func (r *AnnotationRepository) ListForPortForward(ctx context.Context, portForwa
 	var recs []pageAnnotationRecord
 	err = r.db.SelectContext(ctx, &recs, `
 		SELECT `+pageAnnotationCols+` FROM page_annotations pa
-		LEFT JOIN users u ON u.id = pa.created_by
+		LEFT JOIN accounts acc ON acc.id = pa.created_by
+		LEFT JOIN users u ON u.id = acc.id
 		WHERE pa.port_forward_id = $1 AND pa.deleted_at IS NULL`+scopeAnd+`
 		ORDER BY pa.created_at DESC`, sink.args...)
 	if err != nil {
@@ -152,7 +154,8 @@ func (r *AnnotationRepository) FindVisibleInProject(ctx context.Context, project
 	var rec pageAnnotationRecord
 	err := r.db.GetContext(ctx, &rec, `
 		SELECT `+pageAnnotationCols+` FROM page_annotations pa
-		LEFT JOIN users u ON u.id = pa.created_by
+		LEFT JOIN accounts acc ON acc.id = pa.created_by
+		LEFT JOIN users u ON u.id = acc.id
 		WHERE pa.id = $1 AND pa.project_id = $2 AND pa.deleted_at IS NULL`, annotationID.String(), projectID.String())
 	if err != nil {
 		return nil, annotationdom.ErrAnnotationNotFound
@@ -177,7 +180,8 @@ func (r *AnnotationRepository) FindVisibleInProject(ctx context.Context, project
 // predicate uses < instead of >.
 func (r *AnnotationRepository) SearchInProject(ctx context.Context, projectID uuid.UUID, filter annotationdom.SearchFilter) ([]*annotationdom.PageAnnotation, bool, error) {
 	query := `SELECT ` + pageAnnotationCols + ` FROM page_annotations pa
-		LEFT JOIN users u ON u.id = pa.created_by
+		LEFT JOIN accounts acc ON acc.id = pa.created_by
+		LEFT JOIN users u ON u.id = acc.id
 		WHERE pa.project_id = $1 AND pa.deleted_at IS NULL`
 	sink := &argList{args: []any{projectID.String()}}
 	scopeAnd, none, err := annotationScopeAnd(ctx, sink)
@@ -405,7 +409,7 @@ func (r *AnnotationRepository) ResolvePortForward(ctx context.Context, userID uu
 		SELECT e.project_id AS project_id, epf.environment_id AS environment_id, epf.id AS port_forward_id, epf.label AS label
 		FROM environment_port_forwards epf
 		JOIN environments e ON e.id = epf.environment_id AND e.deleted_at IS NULL
-		JOIN project_members pm ON pm.project_id = e.project_id AND pm.user_id = $1 AND pm.deleted_at IS NULL
+		JOIN project_members pm ON pm.project_id = e.project_id AND pm.account_id = $1 AND pm.deleted_at IS NULL
 		WHERE epf.host_port = $2
 		LIMIT 1`, userID.String(), hostPort)
 	if err != nil {
@@ -484,7 +488,8 @@ func (r *AnnotationRepository) listCommentsForAnnotations(ctx context.Context, a
 
 	query, args, err := sqlx.In(`
 		SELECT `+annotationCommentCols+` FROM page_annotation_comments ac
-		LEFT JOIN users u ON u.id = ac.created_by
+		LEFT JOIN accounts acc ON acc.id = ac.created_by
+		LEFT JOIN users u ON u.id = acc.id
 		WHERE ac.annotation_id IN (?) AND ac.deleted_at IS NULL
 		ORDER BY ac.annotation_id, ac.created_at ASC`, annotationIDs)
 	if err != nil {

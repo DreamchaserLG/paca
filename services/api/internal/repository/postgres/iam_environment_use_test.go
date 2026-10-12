@@ -46,10 +46,10 @@ func TestChatEnvironmentGateHonoursDeny(t *testing.T) {
 	locked, open := newEnv("locked"), newEnv("open")
 
 	grantee, outsider := fx.user(false), fx.user(false)
-	fx.member(p, grantee, false, false)
-	fx.member(p, outsider, false, false)
+	fx.member(p, grantee, false)
+	fx.member(p, outsider, false)
 	agentID := fx.agent(&p, false)
-	fx.member(p, agentID, true, false)
+	fx.member(p, agentID, false)
 
 	memberRole := fx.role(`{"version":"1","statements":[{"effect":"Allow","actions":["conversations:write","environments:read"],"resources":["project/*"]}]}`)
 	denyPolicy, _ := json.Marshal(map[string]any{"version": "1", "statements": []any{map[string]any{
@@ -61,8 +61,8 @@ func TestChatEnvironmentGateHonoursDeny(t *testing.T) {
 	restrict := fx.role(string(denyPolicy))
 	pgExec(t, db, `UPDATE roles SET project_id = $2 WHERE id = $1`, restrict, p)
 	for _, u := range []uuid.UUID{grantee, outsider} {
-		fx.attach(memberRole, "user", u, &p)
-		fx.attach(restrict, "user", u, &p)
+		fx.attach(memberRole, u, &p)
+		fx.attach(restrict, u, &p)
 	}
 
 	authz := NewIAMAuthorizer(db)

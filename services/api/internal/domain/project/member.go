@@ -12,7 +12,10 @@ import (
 type ProjectMember struct {
 	ID        uuid.UUID
 	ProjectID uuid.UUID
-	UserID    uuid.UUID // zero-value for agent members
+	// AccountID is the member's account (a user, an agent or a service
+	// account): the canonical identity of the membership.
+	AccountID uuid.UUID
+	UserID    uuid.UUID // the account id for a human member, zero-value otherwise
 	// Roles are the roles attached to the member inside this project (their
 	// project-scoped role attachments), sorted by name. Populated by reads.
 	Roles []roledom.Summary
@@ -29,7 +32,7 @@ type ProjectMember struct {
 	// member a task in Auto mode.
 	Description string
 	// Agent-specific fields (populated for member_type = 'agent')
-	MemberType  string // "human" | "agent"
+	MemberType  string // "human" | "agent" | "service_account"
 	AgentID     *uuid.UUID
 	AgentName   string
 	AgentHandle string

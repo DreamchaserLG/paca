@@ -40,6 +40,7 @@ import (
 	pluginsvc "github.com/Paca-AI/api/internal/service/plugin"
 	projectsvc "github.com/Paca-AI/api/internal/service/project"
 	rolesvc "github.com/Paca-AI/api/internal/service/role"
+	serviceaccountsvc "github.com/Paca-AI/api/internal/service/serviceaccount"
 	settingssvc "github.com/Paca-AI/api/internal/service/settings"
 	sprintsvc "github.com/Paca-AI/api/internal/service/sprint"
 	ssosvc "github.com/Paca-AI/api/internal/service/sso"
@@ -54,10 +55,8 @@ import (
 )
 
 // agentBotUserID is the fixed UUID of the built-in agent bot user seeded on
-// startup.  The AI agent service authenticates as this user when it presents
-// the AGENT_API_KEY configured in the SecurityConfig. It is also reused as
-// the generic "system actor" for automated changes with no human actor (see
-// userdom.SystemActorUserID).
+// startup: the generic "system actor" for automated changes with no human
+// actor (see userdom.SystemActorUserID). It cannot log in.
 var agentBotUserID = userdom.SystemActorUserID
 
 // App holds the HTTP server and any resources that need graceful shutdown.
@@ -172,7 +171,9 @@ func New(cfg *config.Config) (*App, error) {
 	agentRepo := pgRepo.NewAgentRepository(db)
 	environmentRepo := pgRepo.NewEnvironmentRepository(db)
 	annotationRepo := pgRepo.NewAnnotationRepository(db)
-	projectServiceBase := projectsvc.New(projectRepo, taskRepo, agentRepo).WithActivityRecorder(activityRecorder)
+	projectServiceBase := projectsvc.New(projectRepo, taskRepo, agentRepo).
+		WithActivityRecorder(activityRecorder).
+		WithServiceAccounts(pgRepo.NewServiceAccountRepository(db))
 	projectServiceBase = projectServiceBase.WithRoleInvalidator(authorizer)
 	projectService := projectsvc.NewCachedService(projectServiceBase, cacheStore, cfg.Cache.ProjectTTL, log)
 	// Member lists show each member's roles, so changing them drops the cache.
@@ -313,16 +314,11 @@ func New(cfg *config.Config) (*App, error) {
 	// --- API Key management -------------------------------------------------
 	apiKeyRepo := pgRepo.NewAPIKeyRepository(db)
 	apiKeyService := apikeysvc.New(apiKeyRepo)
-	// Configure the static agent API key so the AI agent service can
-	// authenticate without a database-stored key entry.
-	if cfg.Security.AgentAPIKey != "" {
-		apiKeyService.WithAgentKey(cfg.Security.AgentAPIKey, agentBotUserID)
-	}
-	// Wires the DB-backed X-Agent-ID / X-Actor-User-ID verification the
-	// authn middleware needs (middleware.AgentIdentityVerifier) — without
-	// this, agentRepo stays nil on apiKeyService and every agent/actor claim
-	// fails closed (see apikeysvc.Service.FindAgentByID's nil-store branch).
-	apiKeyService.WithAgentIdentityStore(agentRepo)
+	serviceAccountService := serviceaccountsvc.New(pgRepo.NewServiceAccountRepository(db))
+	serviceAccountService.WithAvatarService(attachmentService)
+	// An agent authenticates with its own API key (an api_keys row of its
+	// account) and acts with its own permissions only; there is no shared
+	// agent key and no way to act on behalf of a user.
 
 	// --- Plugin infrastructure ----------------------------------------------
 	// sqlx.DB embeds *sql.DB; plugin infrastructure uses the raw driver interface.
@@ -555,6 +551,7 @@ func New(cfg *config.Config) (*App, error) {
 		DocFile:            handler.NewDocFileHandler(attachmentService),
 		Notification:       handler.NewNotificationHandler(notificationService, handler.WithNotificationAvatarService(attachmentService)),
 		APIKey:             handler.NewAPIKeyHandler(apiKeyService),
+		ServiceAccount:     handler.NewServiceAccountHandler(serviceAccountService, apiKeyService).WithAvatarService(attachmentService),
 		Skills:             handler.NewSkillsHandler(pluginService, cfg.Plugins.SkillsDir),
 		Plugin:             pluginHandler,
 		Agent:              agentHandler,

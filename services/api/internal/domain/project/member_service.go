@@ -7,11 +7,14 @@ import (
 )
 
 // AddMemberInput carries fields for adding a member to a project — a human
-// (UserID) or, exclusively, a global agent being invited (AgentID). Exactly
-// one of UserID/AgentID must be set.
+// (UserID) or, exclusively, a global agent (AgentID) or a service account
+// (ServiceAccountID) being invited. Exactly one of the three must be set.
 type AddMemberInput struct {
 	UserID  uuid.UUID
 	AgentID *uuid.UUID
+	// ServiceAccountID invites a service account: it only holds a project role
+	// (and so acts in the project) once it is a member.
+	ServiceAccountID *uuid.UUID
 	// RoleIDs are the roles the new member holds in the project (at least
 	// one): platform roles and the project's own roles. They become
 	// project-scoped attachments, written in the same transaction as the

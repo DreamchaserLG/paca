@@ -309,6 +309,14 @@
 			"pluginsWrite": {
 				"label": "Manage Plugins",
 				"description": "Install, update, enable and remove plugins"
+			},
+			"serviceAccountsRead": {
+				"label": "Read Service Accounts",
+				"description": "View service accounts and their API keys"
+			},
+			"serviceAccountsWrite": {
+				"label": "Manage Service Accounts",
+				"description": "Create, edit and delete service accounts and mint or revoke their API keys"
 			}
 		},
 		"permissionGroups": {
@@ -317,7 +325,8 @@
 			"agents": "AI Agents",
 			"projects": "Projects",
 			"plugins": "Plugins",
-			"settings": "Settings"
+			"settings": "Settings",
+			"serviceAccounts": "Service Accounts"
 		},
 		"defaultDialog": {
 			"title": "Set default role",
@@ -463,6 +472,158 @@
 				"saveFailed": "Failed to save the provider. Please try again.",
 				"loadFailed": "Failed to load SSO providers.",
 				"deleteFailed": "Failed to delete the provider. Please try again."
+			}
+		}
+	},
+	"serviceAccounts": {
+		"header": {
+			"title": "Service Accounts",
+			"description": "Non-human accounts with their own API keys and roles, for integrations, CI and automation.",
+			"newAccount": "New service account"
+		},
+		"empty": {
+			"title": "No service accounts yet",
+			"description": "Create one to give an integration its own identity and API key.",
+			"create": "Create service account"
+		},
+		"errors": {
+			"loadFailed": "Failed to load service accounts",
+			"tryAgain": "Please refresh the page and try again."
+		},
+		"noPermission": {
+			"title": "You don't have permission to view service accounts",
+			"description": "Ask a workspace administrator for access."
+		},
+		"table": {
+			"columnAccount": "Account",
+			"columnActions": "Actions",
+			"noDescription": "No description",
+			"changeRoleAction": "Change roles",
+			"editAction": "Edit service account",
+			"deleteAction": "Delete service account",
+			"columnRole": "Roles"
+		},
+		"formDialog": {
+			"createTitle": "New service account",
+			"editTitle": "Edit service account",
+			"createDescription": "It starts with no permissions. Create API keys for it, then grant it roles.",
+			"editDescription": "Change the name, description or avatar. API keys and roles are managed separately.",
+			"nameLabel": "Name",
+			"namePlaceholder": "e.g. CI deploy bot",
+			"descriptionLabel": "Description",
+			"descriptionPlaceholder": "What is this account used for?",
+			"cancel": "Cancel",
+			"create": "Create",
+			"creating": "Creating…",
+			"save": "Save",
+			"saving": "Saving…",
+			"avatar": {
+				"change": "Change avatar",
+				"remove": "Remove avatar",
+				"uploading": "Uploading…",
+				"errors": {
+					"invalidType": "Use a PNG, JPEG, WebP or GIF image.",
+					"tooLarge": "The image must be 5 MB or smaller.",
+					"uploadFailed": "Couldn't upload the avatar. Try again.",
+					"removeFailed": "Couldn't remove the avatar. Try again."
+				}
+			},
+			"errors": {
+				"nameInvalid": "The name must be 1–100 characters.",
+				"descriptionTooLong": "The description is too long (1000 characters at most).",
+				"notFound": "This service account no longer exists.",
+				"generic": "Something went wrong. Try again."
+			}
+		},
+		"deleteDialog": {
+			"title": "Delete service account",
+			"description": "Delete “{{name}}”? Its API keys stop working immediately and its roles and project memberships are removed. This can't be undone.",
+			"cancel": "Cancel",
+			"confirm": "Delete",
+			"deleting": "Deleting…",
+			"error": "Couldn't delete the service account. Try again."
+		},
+		"keys": {
+			"nameLabel": "Key name",
+			"namePlaceholder": "e.g. GitHub Actions",
+			"expiryLabel": "Expires",
+			"expiryOptional": "(optional)",
+			"create": "Create key",
+			"creating": "Creating…",
+			"empty": "No API keys yet.",
+			"revokeAria": "Revoke key {{name}}",
+			"reveal": {
+				"title": "Copy your new API key",
+				"description": "This is the only time the full key is shown. Store it somewhere safe; if you lose it, create a new one.",
+				"copyAria": "Copy key",
+				"copied": "Copied to clipboard",
+				"done": "Done"
+			},
+			"errors": {
+				"nameRequired": "Give the key a name.",
+				"nameTooLong": "The key name is too long (100 characters at most).",
+				"createFailed": "Couldn't create the key. Sign in with your account (not an API key) and try again.",
+				"revokeFailed": "Couldn't revoke the key. Try again.",
+				"copyFailed": "Couldn't copy to the clipboard. Select the key and copy it manually."
+			},
+			"revoke": {
+				"title": "Revoke API key",
+				"description": "Revoke “{{name}}”? Anything using it stops working immediately. This can't be undone.",
+				"cancel": "Cancel",
+				"confirm": "Revoke key",
+				"revoking": "Revoking…"
+			},
+			"count": "API keys: {{count}}",
+			"newKey": "New key",
+			"createFirst": "Create the first key",
+			"createDialog": {
+				"title": "Create API key",
+				"description": "The key authenticates as this account. It is shown only once, right after you create it.",
+				"cancel": "Cancel"
+			},
+			"row": {
+				"created": "Created {{date}}",
+				"expires": "Expires {{date}}",
+				"noExpiry": "No expiry",
+				"lastUsed": "Last used {{date}}",
+				"neverUsed": "Never used"
+			}
+		},
+		"roleDialog": {
+			"title": "Change roles",
+			"description": "Choose the workspace roles {{name}} holds. It can do exactly what these roles allow.",
+			"assign": "Save roles",
+			"assigning": "Saving…",
+			"fullAccessWarning": "This role grants every permission. Anything holding this account's API key would have full access."
+		},
+		"detail": {
+			"notFound": {
+				"title": "Service account not found",
+				"description": "It may have been deleted."
+			},
+			"roles": {
+				"description": "What this account can do in the workspace. A new account holds none.",
+				"none": "No roles: this account can't do anything yet.",
+				"change": "Change roles",
+				"noneHint": "Grant a role so it can do something.",
+				"readOnly": "You can view this account's roles but not change them."
+			},
+			"badge": "Service account",
+			"tabs": {
+				"overview": "Overview",
+				"apiKeys": "API keys",
+				"roles": "Roles"
+			},
+			"overview": {
+				"descriptionHint": "Shown in the account list and when inviting it to a project.",
+				"saveChanges": "Save changes",
+				"saved": "Saved",
+				"saveFailed": "Couldn't save the changes. Try again.",
+				"idLabel": "ID",
+				"createdLabel": "Created",
+				"updatedLabel": "Updated",
+				"deleteTitle": "Delete this service account",
+				"deleteHint": "Its API keys stop working and its roles and project memberships are removed."
 			}
 		}
 	}

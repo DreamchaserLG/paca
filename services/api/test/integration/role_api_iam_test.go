@@ -18,7 +18,9 @@ import (
 	"github.com/Paca-AI/api/internal/platform/database"
 	jwttoken "github.com/Paca-AI/api/internal/platform/token"
 	pgRepo "github.com/Paca-AI/api/internal/repository/postgres"
+	apikeysvc "github.com/Paca-AI/api/internal/service/apikey"
 	rolesvc "github.com/Paca-AI/api/internal/service/role"
+	serviceaccountsvc "github.com/Paca-AI/api/internal/service/serviceaccount"
 	"github.com/Paca-AI/api/internal/transport/http/handler"
 	httpmw "github.com/Paca-AI/api/internal/transport/http/middleware"
 	"github.com/Paca-AI/api/internal/transport/http/router"
@@ -48,12 +50,15 @@ func newRoleAPIEnv(t *testing.T) *roleAPIEnv {
 	roleRepo := pgRepo.NewRoleRepository(db)
 	svc := rolesvc.New(roleRepo, authz, authz, authz.Registry(), authz.Schema())
 	tokens := jwttoken.New("test-secret", 15*time.Minute, 24*time.Hour)
+	apiKeys := apikeysvc.New(pgRepo.NewAPIKeyRepository(db))
 	srv := router.New(router.Deps{
 		TokenManager:    tokens,
 		IAM:             authz,
 		Health:          handler.NewHealthHandler(),
+		APIKeyAuth:      apiKeys,
 		Role:            handler.NewRoleHandler(svc),
 		RoleAttachments: httpmw.NewRoleServiceAttachments(svc),
+		ServiceAccount:  handler.NewServiceAccountHandler(serviceaccountsvc.New(pgRepo.NewServiceAccountRepository(db)), apiKeys),
 		Log:             slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
 	env := &roleAPIEnv{t: t, db: db, authz: authz, server: srv, tokens: tokens}
@@ -75,6 +80,7 @@ func (e *roleAPIEnv) project() uuid.UUID {
 
 func (e *roleAPIEnv) user() uuid.UUID {
 	id := uuid.New()
+	e.exec(`INSERT INTO accounts (id, kind, name) VALUES ($1, 'user', $2)`, id, "u_"+id.String()[:8])
 	e.exec(`INSERT INTO users (id, username, password_hash) VALUES ($1, $2, 'x')`, id, "u_"+id.String()[:8])
 	return id
 }
@@ -82,7 +88,7 @@ func (e *roleAPIEnv) user() uuid.UUID {
 // member makes user a live member of project and returns the member row id.
 func (e *roleAPIEnv) member(project, user uuid.UUID) uuid.UUID {
 	id := uuid.New()
-	e.exec(`INSERT INTO project_members (id, project_id, user_id, member_type) VALUES ($1, $2, $3, 'human')`, id, project, user)
+	e.exec(`INSERT INTO project_members (id, project_id, account_id) VALUES ($1, $2, $3)`, id, project, user)
 	return id
 }
 
@@ -93,7 +99,7 @@ func (e *roleAPIEnv) role(name, policy string, owner *uuid.UUID) uuid.UUID {
 }
 
 func (e *roleAPIEnv) attach(role, user uuid.UUID, project *uuid.UUID) {
-	e.exec(`INSERT INTO role_attachments (role_id, principal_type, principal_id, project_id) VALUES ($1, 'user', $2, $3)`, role, user, project)
+	e.exec(`INSERT INTO role_attachments (role_id, account_id, project_id) VALUES ($1, $2, $3)`, role, user, project)
 }
 
 type apiResult struct {
@@ -139,6 +145,25 @@ func (e *roleAPIEnv) call(user uuid.UUID, method, path string, body any) apiResu
 		e.t.Fatal(err)
 	}
 	req.Header.Set("Authorization", "Bearer "+tok)
+	rec := httptest.NewRecorder()
+	e.server.ServeHTTP(rec, req)
+	return apiResult{code: rec.Code, body: rec.Body.Bytes()}
+}
+
+// callKey is call, authenticating with a raw API key instead of a session.
+func (e *roleAPIEnv) callKey(key, method, path string, body any) apiResult {
+	e.t.Helper()
+	var rd io.Reader = http.NoBody
+	if body != nil {
+		raw, err := json.Marshal(body)
+		if err != nil {
+			e.t.Fatal(err)
+		}
+		rd = bytes.NewReader(raw)
+	}
+	req := httptest.NewRequestWithContext(e.t.Context(), method, "/api/v1"+path, rd)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", key)
 	rec := httptest.NewRecorder()
 	e.server.ServeHTTP(rec, req)
 	return apiResult{code: rec.Code, body: rec.Body.Bytes()}
@@ -351,7 +376,7 @@ func TestRolesAPI_EndToEnd(t *testing.T) {
 			t.Fatalf("attached = %+v", attached)
 		}
 		var by *string
-		if err := e.db.Get(&by, `SELECT created_by::text FROM role_attachments WHERE principal_id = $1 AND role_id = $2`, bob, editor.ID); err != nil || by == nil || *by != admin.String() {
+		if err := e.db.Get(&by, `SELECT created_by::text FROM role_attachments WHERE account_id = $1 AND role_id = $2`, bob, editor.ID); err != nil || by == nil || *by != admin.String() {
 			t.Fatalf("created_by = %v err=%v, want the caller", by, err)
 		}
 

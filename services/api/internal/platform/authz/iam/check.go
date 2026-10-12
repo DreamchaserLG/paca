@@ -7,8 +7,9 @@ import (
 
 // Principal types.
 const (
-	PrincipalUser  = "user"
-	PrincipalAgent = "agent"
+	PrincipalUser           = "user"
+	PrincipalAgent          = "agent"
+	PrincipalServiceAccount = "service_account"
 )
 
 // User is the principal of the user with the given (UUID) id.

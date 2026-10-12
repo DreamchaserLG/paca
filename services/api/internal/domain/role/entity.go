@@ -1,5 +1,5 @@
 // Package roledom defines the IAM role domain: roles carrying an IAM policy
-// document, the attachments that bind them to users and agents, and the
+// document, the attachments that bind them to accounts (users, agents and service accounts), and the
 // contracts of the role service and repository.
 package roledom
 
@@ -9,12 +9,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-)
-
-// Principal types an attachment can name.
-const (
-	PrincipalUser  = "user"
-	PrincipalAgent = "agent"
 )
 
 // Role is a named IAM policy. ProjectID is nil for a platform role and the
@@ -46,12 +40,11 @@ type Summary struct {
 	Name string
 }
 
-// Member is the principal behind a project_members row.
+// Member is the account behind a project_members row.
 type Member struct {
-	ID            uuid.UUID
-	ProjectID     uuid.UUID
-	PrincipalType string // PrincipalUser | PrincipalAgent
-	PrincipalID   uuid.UUID
+	ID        uuid.UUID
+	ProjectID uuid.UUID
+	AccountID uuid.UUID
 }
 
 // Issue is one policy validation problem; Path locates it
@@ -70,7 +63,7 @@ type AttributeDef struct {
 	LabelKey     string
 }
 
-// PrincipalRef names a user or agent in a simulation.
+// PrincipalRef names an account (Type is its accountdom.Kind) in a simulation.
 type PrincipalRef struct {
 	Type string
 	ID   string

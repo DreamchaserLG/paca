@@ -968,7 +968,7 @@ func (s *Service) GenerateGlobalACPBridgeToken(ctx context.Context, agentID uuid
 // GenerateAgentMCPKey issues a new MCP API key for an ACP-type agent,
 // replacing any existing one, and returns the plaintext once — only its
 // SHA-256 hash is persisted. Overwriting the hash means the previous key
-// stops authenticating immediately (see AgentRepository.SetMCPAPIKeyHash).
+// stops authenticating immediately (see AgentRepository.ReplaceAPIKeyHash).
 func (s *Service) GenerateAgentMCPKey(ctx context.Context, projectID, agentID uuid.UUID) (string, error) {
 	a, err := s.GetAgent(ctx, projectID, agentID)
 	if err != nil {
@@ -981,7 +981,7 @@ func (s *Service) GenerateAgentMCPKey(ctx context.Context, projectID, agentID uu
 	if err != nil {
 		return "", fmt.Errorf("generate MCP API key: %w", err)
 	}
-	if err := s.repo.SetMCPAPIKeyHash(ctx, agentID, hash); err != nil {
+	if err := s.repo.ReplaceAPIKeyHash(ctx, agentID, hash); err != nil {
 		return "", fmt.Errorf("store MCP API key hash: %w", err)
 	}
 	return plaintext, nil
@@ -1001,7 +1001,7 @@ func (s *Service) GenerateGlobalAgentMCPKey(ctx context.Context, agentID uuid.UU
 	if err != nil {
 		return "", fmt.Errorf("generate MCP API key: %w", err)
 	}
-	if err := s.repo.SetMCPAPIKeyHash(ctx, agentID, hash); err != nil {
+	if err := s.repo.ReplaceAPIKeyHash(ctx, agentID, hash); err != nil {
 		return "", fmt.Errorf("store MCP API key hash: %w", err)
 	}
 	return plaintext, nil

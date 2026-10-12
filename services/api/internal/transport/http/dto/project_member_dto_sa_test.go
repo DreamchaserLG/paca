@@ -25,3 +25,14 @@ func TestProjectMemberFromEntity_ServiceAccount(t *testing.T) {
 		}
 	}
 }
+
+// provider_cli agents expose their CLI provider so the web app can pick a logo.
+func TestProjectMemberFromEntity_AgentCLIProvider(t *testing.T) {
+	cli := "codex"
+	m := dto.ProjectMemberFromEntity(&projectdom.ProjectMember{
+		MemberType: "agent", AccountID: uuid.New(), AgentType: "provider_cli", AgentCLIProvider: &cli,
+	})
+	if m.AgentCLIProvider == nil || *m.AgentCLIProvider != "codex" {
+		t.Fatalf("agent_cli_provider = %v", m.AgentCLIProvider)
+	}
+}

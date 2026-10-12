@@ -1,6 +1,6 @@
 import { Check, User } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { EntityAvatarContent } from "@/components/shared/entity-avatar";
+import { EntityAvatar } from "@/components/shared/entity-avatar";
 import {
 	Popover,
 	PopoverContent,
@@ -34,11 +34,7 @@ export function UserEditor({
 		}
 		return (
 			<div className="flex items-center gap-2.5">
-				<div className="flex size-6 items-center justify-center rounded-full bg-linear-to-br from-primary/20 to-primary/10 text-primary text-xs font-bold ring-1 ring-primary/20">
-					<EntityAvatarContent avatarUrl={userValue.avatarUrl}>
-						{userValue.initials}
-					</EntityAvatarContent>
-				</div>
+				<EntityAvatar {...userValue.avatar} size="sm" />
 				<span className="text-sm font-medium text-foreground">
 					{userValue.label}
 				</span>
@@ -58,11 +54,7 @@ export function UserEditor({
 			>
 				{userValue ? (
 					<>
-						<div className="flex size-6 items-center justify-center rounded-full bg-linear-to-br from-primary/20 to-primary/10 text-primary text-xs font-bold ring-1 ring-primary/20">
-							<EntityAvatarContent avatarUrl={userValue.avatarUrl}>
-								{userValue.initials}
-							</EntityAvatarContent>
-						</div>
+						<EntityAvatar {...userValue.avatar} size="sm" />
 						<span className="text-sm font-medium text-foreground">
 							{userValue.label}
 						</span>
@@ -101,11 +93,7 @@ export function UserEditor({
 						onSelect: () => onChange?.(u.value),
 						content: (
 							<>
-								<div className="flex size-5 items-center justify-center rounded-full bg-linear-to-br from-primary/20 to-primary/10 text-primary text-xs font-bold">
-									<EntityAvatarContent avatarUrl={u.avatarUrl}>
-										{u.initials}
-									</EntityAvatarContent>
-								</div>
+								<EntityAvatar {...u.avatar} size="xs" />
 								<span className="flex-1 text-left truncate">{u.label}</span>
 							</>
 						),

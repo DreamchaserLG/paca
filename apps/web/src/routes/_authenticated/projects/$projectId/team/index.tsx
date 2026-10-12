@@ -24,12 +24,12 @@ import { useTranslation } from "react-i18next";
 import { RoleOptionList } from "@/components/admin/global-roles/role-option-list";
 import { projectPermissionBadgeClass } from "@/components/projects/roles/utils";
 import { MembersFilters } from "@/components/projects/team/MembersFilters";
+import { EntityAvatar } from "@/components/shared/entity-avatar";
 import { HighlightMatch } from "@/components/shared/highlight-match";
 import { NoPermissionState } from "@/components/shared/no-permission-state";
 import { enrichRoles, RoleBadgeList } from "@/components/shared/role-badge";
 import { RoleChangeDialog } from "@/components/shared/role-change-dialog";
 import { RoleChangeTrigger } from "@/components/shared/role-change-trigger";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -65,7 +65,6 @@ import {
 	isForbiddenError,
 } from "@/lib/api-error";
 import { filterProjectMembers } from "@/lib/filter-project-members";
-import { getInitials } from "@/lib/initials";
 import {
 	addProjectMember,
 	type ProjectMember,
@@ -75,8 +74,10 @@ import {
 	updateProjectMemberRole,
 } from "@/lib/project-api";
 import {
-	resolveAgentAvatarUrl,
-	resolveMemberAvatarUrl,
+	agentAvatar,
+	memberAvatar,
+	serviceAccountAvatar,
+	userAvatar,
 } from "@/lib/provider-logos";
 import {
 	projectRolesQueryOptions,
@@ -131,14 +132,7 @@ function UserPickerItem({
 			className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-accent ${selected ? "bg-accent" : ""}`}
 			onClick={() => onSelect(user)}
 		>
-			<Avatar className="size-7 shrink-0">
-				{user.avatar_thumb_url ? (
-					<AvatarImage src={user.avatar_thumb_url} />
-				) : null}
-				<AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
-					{getInitials(display)}
-				</AvatarFallback>
-			</Avatar>
+			<EntityAvatar {...userAvatar(user)} size="md" />
 			<div className="min-w-0 flex-1">
 				<span className="font-medium truncate block">{display}</span>
 				{user.full_name && (
@@ -225,9 +219,6 @@ function AddMemberDialog({
 	const canReadUsers = can("users:read");
 	// Inviting a service account needs to list them (service_accounts:read).
 	const canInviteServiceAccounts = can("service_accounts:read");
-	const selectedAgentAvatarUrl = selectedAgent
-		? resolveAgentAvatarUrl(selectedAgent)
-		: undefined;
 
 	const { data: allAgents = [], isLoading: isLoadingAgents } = useQuery({
 		...chattableAgentsQueryOptions,
@@ -458,16 +449,10 @@ function AddMemberDialog({
 							</p>
 							{selectedServiceAccount ? (
 								<div className="flex items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2">
-									<Avatar className="size-7 shrink-0">
-										{selectedServiceAccount.avatar_thumb_url ? (
-											<AvatarImage
-												src={selectedServiceAccount.avatar_thumb_url}
-											/>
-										) : null}
-										<AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
-											<KeyRound className="size-3.5" />
-										</AvatarFallback>
-									</Avatar>
+									<EntityAvatar
+										{...serviceAccountAvatar(selectedServiceAccount)}
+										size="md"
+									/>
 									<div className="min-w-0 flex-1">
 										<span className="text-sm font-medium">
 											{selectedServiceAccount.name}
@@ -511,14 +496,10 @@ function AddMemberDialog({
 													className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
 													onClick={() => setSelectedServiceAccount(account)}
 												>
-													<Avatar className="size-7 shrink-0">
-														{account.avatar_thumb_url ? (
-															<AvatarImage src={account.avatar_thumb_url} />
-														) : null}
-														<AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
-															<KeyRound className="size-3.5" />
-														</AvatarFallback>
-													</Avatar>
+													<EntityAvatar
+														{...serviceAccountAvatar(account)}
+														size="md"
+													/>
 													<div className="min-w-0 flex-1">
 														<span className="font-medium truncate block">
 															{account.name}
@@ -543,14 +524,7 @@ function AddMemberDialog({
 							</p>
 							{selectedAgent ? (
 								<div className="flex items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2">
-									<Avatar className="size-7 shrink-0">
-										{selectedAgentAvatarUrl ? (
-											<AvatarImage src={selectedAgentAvatarUrl} />
-										) : null}
-										<AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
-											<Bot className="size-3.5" />
-										</AvatarFallback>
-									</Avatar>
+									<EntityAvatar {...agentAvatar(selectedAgent)} size="md" />
 									<div className="min-w-0 flex-1">
 										<span className="text-sm font-medium">
 											{selectedAgent.name}
@@ -589,7 +563,6 @@ function AddMemberDialog({
 											</p>
 										) : (
 											availableAgents.map((agent) => {
-												const avatarUrl = resolveAgentAvatarUrl(agent);
 												return (
 													<button
 														key={agent.id}
@@ -597,14 +570,7 @@ function AddMemberDialog({
 														className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
 														onClick={() => setSelectedAgent(agent)}
 													>
-														<Avatar className="size-7 shrink-0">
-															{avatarUrl ? (
-																<AvatarImage src={avatarUrl} />
-															) : null}
-															<AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
-																<Bot className="size-3.5" />
-															</AvatarFallback>
-														</Avatar>
+														<EntityAvatar {...agentAvatar(agent)} size="md" />
 														<div className="min-w-0 flex-1">
 															<span className="font-medium truncate block">
 																{agent.name}
@@ -628,16 +594,7 @@ function AddMemberDialog({
 							</p>
 							{selectedUser ? (
 								<div className="flex items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2">
-									<Avatar className="size-7 shrink-0">
-										{selectedUser.avatar_thumb_url ? (
-											<AvatarImage src={selectedUser.avatar_thumb_url} />
-										) : null}
-										<AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
-											{getInitials(
-												selectedUser.full_name || selectedUser.username,
-											)}
-										</AvatarFallback>
-									</Avatar>
+									<EntityAvatar {...userAvatar(selectedUser)} size="md" />
 									<div className="min-w-0 flex-1">
 										<span className="text-sm font-medium">
 											{selectedUser.full_name || selectedUser.username}
@@ -877,11 +834,7 @@ function MemberRoleDialog({
 			description={t("team.roleChip.dialogDescription", {
 				name: member.full_name || member.username,
 			})}
-			person={{
-				name: member.full_name || member.username,
-				handle: member.username,
-				avatarUrl: resolveMemberAvatarUrl(member),
-			}}
+			person={{ avatar: memberAvatar(member), handle: member.username }}
 			roles={roles}
 			currentIds={currentIds}
 			// A member keeps at least one role: with none they could do nothing,
@@ -1019,24 +972,12 @@ function MemberRow({
 		member.username.startsWith("bot-") ||
 		memberRoleNames(member).toLowerCase().includes("agent");
 	const isServiceAccount = member.member_type === "service_account";
-	const memberAvatarUrl = resolveMemberAvatarUrl(member);
 
 	const memberRoles = enrichRoles(member.roles, roles);
 
 	return (
 		<div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-border/50 bg-card px-4 py-3 transition-colors hover:bg-muted/30">
-			<Avatar className="size-9 shrink-0">
-				{memberAvatarUrl ? <AvatarImage src={memberAvatarUrl} alt="" /> : null}
-				<AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
-					{isBot ? (
-						<Bot className="size-4" />
-					) : isServiceAccount ? (
-						<KeyRound className="size-4" />
-					) : (
-						getInitials(display)
-					)}
-				</AvatarFallback>
-			</Avatar>
+			<EntityAvatar {...memberAvatar(member)} size="lg" className="size-9" />
 			<div className="min-w-0 flex-1 basis-40">
 				<p className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
 					<span className="truncate">

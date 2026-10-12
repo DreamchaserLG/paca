@@ -5,9 +5,9 @@ import {
 	type RoleOption,
 	RoleSelectPanel,
 } from "@/components/admin/global-roles/role-select";
+import { EntityAvatar } from "@/components/shared/entity-avatar";
 import { InlineNotice } from "@/components/shared/inline-notice";
 import { RoleBadge, toRoleBadgeData } from "@/components/shared/role-badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -18,14 +18,14 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import { getInitials } from "@/lib/initials";
+import type { AvatarIdentity } from "@/lib/provider-logos";
 
 interface RoleChangeDialogProps<T extends RoleOption> {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	title: string;
 	description: string;
-	person: { name: string; handle?: string; avatarUrl?: string | null };
+	person: { avatar: AvatarIdentity; handle?: string };
 	roles: T[];
 	/** Shown in place of the list and summary while the roles are not
 	 * available (loading, failed, none). */
@@ -110,17 +110,12 @@ export function RoleChangeDialog<T extends RoleOption>({
 			<DialogContent className="gap-0 p-0 sm:max-w-md">
 				<DialogHeader className="gap-3 border-b p-5 pr-12">
 					<div className="flex items-center gap-3">
-						<Avatar className="size-10 shrink-0">
-							{person.avatarUrl ? (
-								<AvatarImage src={person.avatarUrl} alt="" />
-							) : null}
-							<AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
-								{getInitials(person.name)}
-							</AvatarFallback>
-						</Avatar>
+						<EntityAvatar {...person.avatar} size="lg" />
 						<div className="min-w-0">
 							<DialogTitle className="truncate text-base">{title}</DialogTitle>
-							<p className="truncate text-sm font-medium">{person.name}</p>
+							<p className="truncate text-sm font-medium">
+								{person.avatar.name}
+							</p>
 							{person.handle ? (
 								<p className="truncate text-xs text-muted-foreground">
 									@{person.handle}
@@ -138,7 +133,7 @@ export function RoleChangeDialog<T extends RoleOption>({
 								roles={roles}
 								values={ids}
 								currentRoleIds={currentIds}
-								label={`${title}: ${person.name}`}
+								label={`${title}: ${person.avatar.name}`}
 								badgeClass={badgeClass}
 								minSelected={minSelected}
 								disabled={isPending}

@@ -43,6 +43,8 @@ type ProjectMember struct {
 	AgentType        string // "llm" | "acp"
 	AgentLLMProvider string
 	AgentACPProvider *string
+	// AgentCLIProvider mirrors agentdom.Agent.CLIProvider (provider_cli agents).
+	AgentCLIProvider *string
 	// AgentDescription mirrors agentdom.Agent.Description — see
 	// ComposeJevDescription, which appends AgentLLMProvider/AgentACPProvider
 	// to it at call time (never stored merged), the same composition

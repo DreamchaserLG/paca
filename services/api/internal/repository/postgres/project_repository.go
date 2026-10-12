@@ -52,6 +52,7 @@ type projectMemberReadRow struct {
 	AgentType           string     `db:"agent_type"`
 	AgentLLMProvider    string     `db:"agent_llm_provider"`
 	AgentACPProvider    *string    `db:"agent_acp_provider"`
+	AgentCLIProvider    *string    `db:"agent_cli_provider"`
 	AgentDescription    string     `db:"agent_description"`
 	Description         string     `db:"description"`
 	CreatedAt           time.Time  `db:"created_at"`
@@ -306,6 +307,7 @@ const projectMemberCols = `
 	CASE WHEN ac.kind = 'agent' THEN ac.avatar_thumb_key END AS agent_avatar_thumb_key,
 	COALESCE(a.agent_type, '') AS agent_type, COALESCE(a.llm_provider, '') AS agent_llm_provider,
 	a.acp_provider AS agent_acp_provider,
+	a.cli_provider AS agent_cli_provider,
 	CASE WHEN ac.kind = 'agent' THEN ac.description ELSE '' END AS agent_description,
 	COALESCE(pm.description, '') AS description`
 
@@ -703,6 +705,7 @@ func toMemberEntity(row *projectMemberReadRow) *projectdom.ProjectMember {
 		AgentType:           row.AgentType,
 		AgentLLMProvider:    row.AgentLLMProvider,
 		AgentACPProvider:    row.AgentACPProvider,
+		AgentCLIProvider:    row.AgentCLIProvider,
 		AgentDescription:    row.AgentDescription,
 		Description:         row.Description,
 	}

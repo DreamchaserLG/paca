@@ -1,12 +1,12 @@
 import { Edit2, KeyRound, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { EntityAvatar } from "@/components/shared/entity-avatar";
 import {
 	enrichRoles,
 	RoleBadgeList,
 	type RoleLike,
 } from "@/components/shared/role-badge";
 import { RoleChangeTrigger } from "@/components/shared/role-change-trigger";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
 	Table,
@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/table";
 import type { User } from "@/lib/admin-api";
 import { formatDate as formatDateLocale } from "@/lib/format-date";
-import { getInitials } from "@/lib/initials";
+import { userAvatar } from "@/lib/provider-logos";
 
 function formatDate(iso: string): string {
 	return formatDateLocale(iso, {
@@ -105,14 +105,7 @@ export function UsersTable({
 							<TableRow key={user.id} className="group">
 								<TableCell className="px-4 sm:px-5">
 									<div className="flex min-w-0 items-center gap-3">
-										<Avatar className="size-8 shrink-0">
-											{user.avatar_thumb_url ? (
-												<AvatarImage src={user.avatar_thumb_url} alt="" />
-											) : null}
-											<AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
-												{getInitials(display)}
-											</AvatarFallback>
-										</Avatar>
+										<EntityAvatar {...userAvatar(user)} />
 										<div className="min-w-0">
 											<div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
 												<span className="truncate text-sm font-medium">

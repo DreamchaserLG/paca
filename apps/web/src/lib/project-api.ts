@@ -31,18 +31,6 @@ export interface ProjectJevConfig {
 	model: string;
 }
 
-/** Text-avatar fallback for a project — one letter per word, up to two
- * words (e.g. "Test Project" -> "TP"). Shared so every surface (sidebar,
- * project cards, settings) renders the same initials for the same name. */
-export function getProjectInitials(name: string): string {
-	return name
-		.split(/\s+/)
-		.filter(Boolean)
-		.slice(0, 2)
-		.map((w) => w[0].toUpperCase())
-		.join("");
-}
-
 export interface ProjectListResult {
 	items: Project[];
 	total: number;
@@ -77,6 +65,7 @@ export interface ProjectMember {
 	agent_type?: string; // "llm" | "acp"
 	agent_llm_provider?: string;
 	agent_acp_provider?: string | null;
+	agent_cli_provider?: string | null;
 	// Only meaningful for a human member — shown to Jev (the AI decision
 	// API) when deciding whether to assign this member a task in Auto mode.
 	// An agent member's Jev-facing description comes from the Agent itself

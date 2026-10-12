@@ -190,6 +190,36 @@ func uuidPtrEqual(a, b *uuid.UUID) bool {
 	return *a == *b
 }
 
+// rejectLLMOnlyFields returns ErrFieldNotSupportedForAgentType, naming each
+// offending field, when a non-empty system_prompt or git committer identity
+// is supplied for an ACP/provider_cli agent — these are LLM-only (see the
+// doc comment on Agent.SystemPrompt), so accepting them would report success
+// while never storing or using the value. Empty values are tolerated so a
+// generic client payload that echoes defaults still works.
+func rejectLLMOnlyFields(systemPrompt, committerName, committerEmail string) error {
+	var fields []string
+	if systemPrompt != "" {
+		fields = append(fields, "system_prompt")
+	}
+	if committerName != "" {
+		fields = append(fields, "git_committer_name")
+	}
+	if committerEmail != "" {
+		fields = append(fields, "git_committer_email")
+	}
+	if len(fields) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%w: %s", agentdom.ErrFieldNotSupportedForAgentType, strings.Join(fields, ", "))
+}
+
+func derefStr(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}
+
 // encryptKey encrypts plaintext if an encryptor is configured; otherwise returns plaintext unchanged.
 func (s *Service) encryptKey(plaintext string) (string, error) {
 	if s.encryptor == nil || plaintext == "" {
@@ -257,6 +287,11 @@ func (s *Service) CreateAgent(ctx context.Context, projectID uuid.UUID, in agent
 		UpdatedAt:        now,
 	}
 
+	if agentType != agentdom.AgentTypeLLM {
+		if err := rejectLLMOnlyFields(in.SystemPrompt, in.GitCommitterName, in.GitCommitterEmail); err != nil {
+			return nil, err
+		}
+	}
 	switch agentType {
 	case agentdom.AgentTypeACP:
 		if !agentdom.ValidACPProviders[in.ACPProvider] {
@@ -307,8 +342,8 @@ func (s *Service) CreateAgent(ctx context.Context, projectID uuid.UUID, in agent
 		a.LLMBaseURL = in.LLMBaseURL
 		// System prompt and git committer identity are LLM-only (see the
 		// doc comment on Agent.SystemPrompt) — an ACP agent's local CLI
-		// owns both of these itself, so they're left unset for ACP agents
-		// rather than accepting values that would never take effect.
+		// owns both of these itself, so non-LLM creates reject them up front
+		// (see rejectLLMOnlyFields) rather than storing nothing silently.
 		a.SystemPrompt = in.SystemPrompt
 		a.GitCommitterName = in.GitCommitterName
 		a.GitCommitterEmail = in.GitCommitterEmail
@@ -422,10 +457,15 @@ func (s *Service) UpdateAgent(ctx context.Context, projectID, agentID uuid.UUID,
 	// types is treated as LLM (its default, as in CreateAgent) so an agent
 	// loaded with an unset AgentType isn't silently locked out of updating
 	// its LLM fields. SystemPrompt and the git committer identity fields
-	// ride along in the LLM block — like the LLM fields, they're
-	// meaningless on an ACP or provider_cli agent (see the doc comment on
-	// Agent.SystemPrompt), so a request that sets them on one is silently
-	// ignored too.
+	// are LLM-only too (see the doc comment on Agent.SystemPrompt), but
+	// unlike the fields above a non-empty value on an ACP or provider_cli
+	// agent is rejected (rejectLLMOnlyFields) — dropping a role prompt
+	// silently left callers believing it was configured.
+	if a.AgentType != agentdom.AgentTypeLLM && a.AgentType != "" {
+		if err := rejectLLMOnlyFields(derefStr(in.SystemPrompt), derefStr(in.GitCommitterName), derefStr(in.GitCommitterEmail)); err != nil {
+			return nil, err
+		}
+	}
 	if a.AgentType == agentdom.AgentTypeLLM || a.AgentType == "" {
 		if in.LLMProvider != nil {
 			a.LLMProvider = *in.LLMProvider
@@ -701,6 +741,9 @@ func (s *Service) CreateGlobalAgent(ctx context.Context, in agentdom.CreateGloba
 	}
 
 	if agentType == agentdom.AgentTypeACP {
+		if err := rejectLLMOnlyFields(in.SystemPrompt, in.GitCommitterName, in.GitCommitterEmail); err != nil {
+			return nil, err
+		}
 		if !agentdom.ValidACPProviders[in.ACPProvider] {
 			return nil, agentdom.ErrACPProviderInvalid
 		}
@@ -785,6 +828,11 @@ func (s *Service) UpdateGlobalAgent(ctx context.Context, agentID uuid.UUID, in a
 	}
 	// See the equivalent block in UpdateAgent for why LLM/ACP fields are
 	// guarded by the agent's existing (immutable) type.
+	if a.AgentType == agentdom.AgentTypeACP {
+		if err := rejectLLMOnlyFields(derefStr(in.SystemPrompt), derefStr(in.GitCommitterName), derefStr(in.GitCommitterEmail)); err != nil {
+			return nil, err
+		}
+	}
 	if a.AgentType != agentdom.AgentTypeACP {
 		if in.LLMProvider != nil {
 			a.LLMProvider = *in.LLMProvider

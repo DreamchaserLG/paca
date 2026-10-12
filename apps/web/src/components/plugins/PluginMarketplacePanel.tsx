@@ -16,7 +16,7 @@ import {
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { EntityAvatar } from "@/components/shared/entity-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,16 +76,6 @@ function resolveMutationErrorMessage(
 		getApiErrorMessage(err) ??
 		t("marketplace.card.errors.generic")
 	);
-}
-
-function initials(name: string): string {
-	const words = name
-		.trim()
-		.split(/\s+/)
-		.filter(Boolean)
-		.slice(0, 2)
-		.map((v) => v[0]?.toUpperCase() ?? "");
-	return words.join("") || "PL";
 }
 
 function matchesQuery(plugin: MarketplacePlugin, query: string): boolean {
@@ -204,10 +194,11 @@ function PluginCard({
 	return (
 		<div className="rounded-lg border border-border/60 bg-card p-4 space-y-3 hover:border-border/80 transition-colors">
 			<div className="flex items-start gap-3">
-				<Avatar size="lg">
-					<AvatarImage src={plugin.avatar_url} alt={plugin.display_name} />
-					<AvatarFallback>{initials(plugin.display_name)}</AvatarFallback>
-				</Avatar>
+				<EntityAvatar
+					name={plugin.display_name}
+					avatarUrl={plugin.avatar_url}
+					size="lg"
+				/>
 				<div className="min-w-0 flex-1">
 					<div className="flex items-center gap-2 flex-wrap">
 						<p className="font-medium text-sm truncate">

@@ -63,6 +63,7 @@ type ProjectMemberResponse struct {
 	AgentType        string  `json:"agent_type,omitempty"`
 	AgentLLMProvider string  `json:"agent_llm_provider,omitempty"`
 	AgentACPProvider *string `json:"agent_acp_provider,omitempty"`
+	AgentCLIProvider *string `json:"agent_cli_provider,omitempty"`
 	// Description is only meaningful for a human member — see
 	// projectdom.ProjectMember.Description.
 	Description string `json:"description"`
@@ -83,6 +84,7 @@ func ProjectMemberFromEntity(m *projectdom.ProjectMember) ProjectMemberResponse 
 		AgentType:        m.AgentType,
 		AgentLLMProvider: m.AgentLLMProvider,
 		AgentACPProvider: m.AgentACPProvider,
+		AgentCLIProvider: m.AgentCLIProvider,
 		Description:      m.Description,
 	}
 	if m.MemberType == "service_account" {

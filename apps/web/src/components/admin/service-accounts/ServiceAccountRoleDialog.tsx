@@ -8,6 +8,7 @@ import { roleErrorKey } from "@/components/roles/role-errors";
 import { InlineNotice } from "@/components/shared/inline-notice";
 import { RoleChangeDialog } from "@/components/shared/role-change-dialog";
 import { isProjectTemplate } from "@/lib/policy";
+import { serviceAccountAvatar } from "@/lib/provider-logos";
 import { platformRolesQueryOptions } from "@/lib/role-api";
 import {
 	replaceServiceAccountRoles,
@@ -73,10 +74,7 @@ export function ServiceAccountRoleDialog({
 			description={t("serviceAccounts.roleDialog.description", {
 				name: account.name,
 			})}
-			person={{
-				name: account.name,
-				avatarUrl: account.avatar_thumb_url,
-			}}
+			person={{ avatar: serviceAccountAvatar(account) }}
 			roles={roles}
 			status={
 				roles.length === 0 ? (

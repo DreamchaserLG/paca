@@ -1,5 +1,4 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Bot } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -18,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiErrorCode, getApiErrorCode } from "@/lib/api-error";
-import { getInitials } from "@/lib/initials";
+import { serviceAccountAvatar } from "@/lib/provider-logos";
 import {
 	createServiceAccount,
 	type ServiceAccount,
@@ -119,11 +118,12 @@ export function ServiceAccountFormDialog({
 					{isEdit ? (
 						<AvatarUpload
 							basePath={`/admin/service-accounts/${account.id}`}
-							avatarUrl={account.avatar_url}
-							canRemove={!!account.avatar_url}
-							fallback={getInitials(account.name) || <Bot className="size-5" />}
-							className="size-14 rounded-xl bg-primary/10"
-							fallbackClassName="bg-primary/10 text-primary font-bold"
+							avatar={{
+								...serviceAccountAvatar(account),
+								avatarUrl: account.avatar_url,
+								size: "xl",
+							}}
+							className="size-14 rounded-xl"
 							labels={{
 								change: t("serviceAccounts.formDialog.avatar.change"),
 								remove: t("serviceAccounts.formDialog.avatar.remove"),

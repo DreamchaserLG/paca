@@ -27,7 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ApiErrorCode, getApiErrorCode } from "@/lib/api-error";
 import { formatDate } from "@/lib/format-date";
-import { getInitials } from "@/lib/initials";
+import { serviceAccountAvatar } from "@/lib/provider-logos";
 import {
 	type ServiceAccount,
 	serviceAccountQueryOptions,
@@ -312,12 +312,13 @@ export function ServiceAccountDetailView({ accountId }: { accountId: string }) {
 				<div className="flex items-center gap-4">
 					<AvatarUpload
 						basePath={`/admin/service-accounts/${account.id}`}
-						avatarUrl={account.avatar_url}
-						canRemove={!!account.avatar_url}
-						fallback={getInitials(account.name) || <Bot className="size-5" />}
+						avatar={{
+							...serviceAccountAvatar(account),
+							avatarUrl: account.avatar_url,
+							size: "lg",
+						}}
 						disabled={!canWrite}
-						className="size-12 rounded-xl bg-primary/10"
-						fallbackClassName="bg-primary/10 text-primary font-bold text-base"
+						className="size-12 rounded-xl"
 						labels={{
 							change: t("serviceAccounts.formDialog.avatar.change"),
 							remove: t("serviceAccounts.formDialog.avatar.remove"),

@@ -1,14 +1,13 @@
 import { Link } from "@tanstack/react-router";
-import { Bot, Edit2, Trash2 } from "lucide-react";
+import { Edit2, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-
+import { EntityAvatar } from "@/components/shared/entity-avatar";
 import {
 	enrichRoles,
 	RoleBadgeList,
 	type RoleLike,
 } from "@/components/shared/role-badge";
 import { RoleChangeTrigger } from "@/components/shared/role-change-trigger";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
 	Table,
@@ -18,7 +17,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { getInitials } from "@/lib/initials";
+import { serviceAccountAvatar } from "@/lib/provider-logos";
 import type { ServiceAccount } from "@/lib/service-account-api";
 
 interface ServiceAccountsTableProps {
@@ -81,16 +80,7 @@ export function ServiceAccountsTable({
 										params={{ serviceAccountId: account.id }}
 										className="flex min-w-0 items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 									>
-										<Avatar className="size-8 shrink-0">
-											{account.avatar_thumb_url ? (
-												<AvatarImage src={account.avatar_thumb_url} alt="" />
-											) : null}
-											<AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
-												{getInitials(account.name) || (
-													<Bot className="size-4" />
-												)}
-											</AvatarFallback>
-										</Avatar>
+										<EntityAvatar {...serviceAccountAvatar(account)} />
 										<div className="min-w-0">
 											<span className="block truncate text-sm font-medium hover:underline">
 												{account.name}

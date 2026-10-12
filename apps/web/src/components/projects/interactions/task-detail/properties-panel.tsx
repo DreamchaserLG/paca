@@ -27,7 +27,7 @@ import {
 	type TaskStatus,
 	type TaskType,
 } from "@/lib/project-api";
-import { resolveMemberAvatarUrl } from "@/lib/provider-logos";
+import { memberAvatar } from "@/lib/provider-logos";
 import { getTaskTypeIconComponent } from "../../task-types/task-type-icons";
 import { AssigneePicker } from "../assignee-picker";
 import type { PriorityMeta } from "../priority";
@@ -98,8 +98,7 @@ function toUserOption(m: ProjectMember): UserOption {
 	return {
 		value: m.id,
 		label: m.full_name || m.username,
-		initials: (m.full_name || m.username).slice(0, 1).toUpperCase(),
-		avatarUrl: resolveMemberAvatarUrl(m),
+		avatar: memberAvatar(m),
 	};
 }
 

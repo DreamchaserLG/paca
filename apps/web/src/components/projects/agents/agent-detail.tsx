@@ -88,7 +88,7 @@ import {
 } from "@/lib/agent-api";
 import { ApiErrorCode, getApiErrorCode } from "@/lib/api-error";
 import { environmentsQueryOptions } from "@/lib/environment-api";
-import { resolveAgentAvatarUrl } from "@/lib/provider-logos";
+import { agentAvatar } from "@/lib/provider-logos";
 import { splitShellCommand } from "@/lib/shell-command";
 import { AcpBridgeSetup } from "./acp-bridge-setup";
 import { AgentActivityTab } from "./agent-activity-tab";
@@ -2015,13 +2015,6 @@ export function AgentDetailView({
 		);
 	}
 
-	const initials = agent.name
-		.split(" ")
-		.map((w) => w[0])
-		.join("")
-		.toUpperCase()
-		.slice(0, 2);
-
 	return (
 		<div className="flex flex-col flex-1 min-h-0">
 			{/* Agent header */}
@@ -2033,12 +2026,9 @@ export function AgentDetailView({
 								? `/projects/${projectId}/agents/${agent.id}`
 								: `/admin/agents/${agent.id}`
 						}
-						avatarUrl={resolveAgentAvatarUrl(agent, "full")}
-						canRemove={!!agent.avatar_url}
-						fallback={initials}
+						avatar={{ ...agentAvatar(agent, "full"), size: "lg" }}
 						disabled={!canWrite}
-						className="size-12 rounded-xl bg-primary/10"
-						fallbackClassName="bg-primary/10 text-primary font-bold text-base"
+						className="size-12 rounded-xl"
 						labels={{
 							change: t("agents.detail.avatar.change"),
 							remove: t("agents.detail.avatar.remove"),

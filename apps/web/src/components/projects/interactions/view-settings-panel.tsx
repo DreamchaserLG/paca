@@ -9,7 +9,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getTaskTypeIconComponent } from "@/components/projects/task-types/task-type-icons";
-import { EntityAvatarContent } from "@/components/shared/entity-avatar";
+import { EntityAvatar } from "@/components/shared/entity-avatar";
 import {
 	Popover,
 	PopoverContent,
@@ -38,7 +38,7 @@ import {
 	taskStatusesQueryOptions,
 	taskTypesQueryOptions,
 } from "@/lib/project-api";
-import { resolveMemberAvatarUrl } from "@/lib/provider-logos";
+import { memberAvatar } from "@/lib/provider-logos";
 import { cn } from "@/lib/utils";
 import { PRIORITY_LEVELS } from "./priority";
 import { ChipField } from "./task-detail/property-field/chip-field";
@@ -551,13 +551,7 @@ function AssigneeFilterSection({
 							label={display}
 							checked={isAll || selectedIds.includes(m.id)}
 							onChange={() => toggle(m.id)}
-							icon={
-								<div className="flex size-5 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary/20 to-primary/10 text-primary text-xs font-bold ring-1 ring-primary/20">
-									<EntityAvatarContent avatarUrl={resolveMemberAvatarUrl(m)}>
-										{display.slice(0, 1).toUpperCase()}
-									</EntityAvatarContent>
-								</div>
-							}
+							icon={<EntityAvatar {...memberAvatar(m)} size="xs" />}
 						/>
 					);
 				})

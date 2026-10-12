@@ -1,6 +1,6 @@
 import { Check, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { EntityAvatarContent } from "@/components/shared/entity-avatar";
+import { EntityAvatar } from "@/components/shared/entity-avatar";
 import { FieldValue } from "../primitives";
 import { ChipField } from "./chip-field";
 import { SearchableList } from "./searchable-list";
@@ -9,22 +9,6 @@ import type { UserOption } from "./types";
 // Sentinel chip key for the "Auto" row — namespaced with underscores so it
 // can never collide with a real user id (a UUID).
 const AUTO_CHIP_KEY = "__auto__";
-
-function UserAvatar({
-	initials,
-	avatarUrl,
-}: {
-	initials: string;
-	avatarUrl?: string | null;
-}) {
-	return (
-		<div className="flex size-5 items-center justify-center rounded-full bg-linear-to-br from-primary/20 to-primary/10 text-primary text-xs font-bold shrink-0">
-			<EntityAvatarContent avatarUrl={avatarUrl}>
-				{initials}
-			</EntityAvatarContent>
-		</div>
-	);
-}
 
 function AutoListButton({
 	label,
@@ -109,7 +93,7 @@ export function MultiUserEditor({
 						key={u.value}
 						className="inline-flex items-center gap-1.5 rounded-full border border-border/30 bg-muted/30 px-2.5 py-0.5 text-xs font-semibold text-muted-foreground"
 					>
-						<UserAvatar initials={u.initials} avatarUrl={u.avatarUrl} />
+						<EntityAvatar {...u.avatar} size="xs" />
 						{u.label}
 					</span>
 				))}
@@ -137,7 +121,7 @@ export function MultiUserEditor({
 					key: u.value,
 					label: (
 						<span className="inline-flex items-center gap-1.5">
-							<UserAvatar initials={u.initials} avatarUrl={u.avatarUrl} />
+							<EntityAvatar {...u.avatar} size="xs" />
 							{u.label}
 						</span>
 					),
@@ -164,7 +148,7 @@ export function MultiUserEditor({
 					onSelect: () => toggle(u.value),
 					content: (
 						<>
-							<UserAvatar initials={u.initials} avatarUrl={u.avatarUrl} />
+							<EntityAvatar {...u.avatar} size="xs" />
 							<span className="flex-1 text-left truncate">{u.label}</span>
 						</>
 					),

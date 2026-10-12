@@ -9,11 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiErrorCode, getApiErrorCode } from "@/lib/api-error";
-import {
-	getProjectInitials,
-	projectQueryOptions,
-	updateProject,
-} from "@/lib/project-api";
+import { projectQueryOptions, updateProject } from "@/lib/project-api";
 
 export function GeneralSettings({
 	projectId,
@@ -79,8 +75,6 @@ export function GeneralSettings({
 		description.trim() !== (project?.description ?? "") ||
 		prefix.trim() !== (project?.task_id_prefix ?? "");
 
-	const initials = getProjectInitials(project?.name ?? "");
-
 	return (
 		<div className="rounded-xl border border-border/60 bg-card p-6">
 			<h3 className="font-[Syne] text-base font-semibold mb-4">
@@ -92,11 +86,13 @@ export function GeneralSettings({
 			<div className="flex items-center gap-4 mb-6">
 				<AvatarUpload
 					basePath={`/projects/${projectId}`}
-					avatarUrl={project?.avatar_url}
-					fallback={initials}
+					avatar={{
+						name: project?.name ?? "",
+						avatarUrl: project?.avatar_url,
+						size: "xl",
+					}}
 					disabled={!canEdit}
 					className="size-14 rounded-xl"
-					fallbackClassName="bg-primary text-primary-foreground text-lg font-bold"
 					labels={{
 						change: t("settings.general.avatar.change"),
 						remove: t("settings.general.avatar.remove"),

@@ -11,7 +11,7 @@ import {
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { EntityAvatarContent } from "@/components/shared/entity-avatar";
+import { EntityAvatar } from "@/components/shared/entity-avatar";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -37,7 +37,7 @@ import {
 	type TaskStatus,
 	type TaskType,
 } from "@/lib/project-api";
-import { resolveMemberAvatarUrl } from "@/lib/provider-logos";
+import { memberAvatar } from "@/lib/provider-logos";
 import { useHoveredTaskStore } from "@/lib/shortcuts/hovered-task-store";
 import { cn } from "@/lib/utils";
 import { AssigneePicker } from "./assignee-picker";
@@ -455,21 +455,11 @@ export function TaskRow({
 							"items-center justify-center",
 						)}
 					>
-						<div className="flex size-6 items-center justify-center rounded-full bg-linear-to-br from-muted/80 to-muted/40 text-muted-foreground text-xs font-bold ring-1 ring-border/25">
-							<EntityAvatarContent
-								avatarUrl={
-									reporter ? resolveMemberAvatarUrl(reporter) : undefined
-								}
-							>
-								{reporter ? (
-									(reporter.full_name || reporter.username)
-										.slice(0, 1)
-										.toUpperCase()
-								) : (
-									<User className="size-3" />
-								)}
-							</EntityAvatarContent>
-						</div>
+						<EntityAvatar
+							{...(reporter ? memberAvatar(reporter) : { name: "" })}
+							fallback={<User className="size-3" />}
+							size="sm"
+						/>
 					</div>
 				);
 			}

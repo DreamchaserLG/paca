@@ -37,6 +37,7 @@ type notificationReadRow struct {
 	ActorAgentType        string  `db:"actor_agent_type"`
 	ActorAgentLLMProvider string  `db:"actor_agent_llm_provider"`
 	ActorAgentACPProvider *string `db:"actor_agent_acp_provider"`
+	ActorAgentCLIProvider *string `db:"actor_agent_cli_provider"`
 	TaskTitle             *string `db:"task_title"`
 	TaskNumber            *int    `db:"task_number"`
 	ProjectName           string  `db:"project_name"`
@@ -67,6 +68,7 @@ const notificationReadCols = `
 	COALESCE(ag.agent_type, '') AS actor_agent_type,
 	COALESCE(ag.llm_provider, '') AS actor_agent_llm_provider,
 	ag.acp_provider AS actor_agent_acp_provider,
+	ag.cli_provider AS actor_agent_cli_provider,
 	t.title AS task_title, t.task_number,
 	p.name AS project_name`
 
@@ -96,6 +98,7 @@ func notificationFromRow(r notificationReadRow) *notificationdom.Notification {
 	n.ActorAgentType = r.ActorAgentType
 	n.ActorAgentLLMProvider = r.ActorAgentLLMProvider
 	n.ActorAgentACPProvider = r.ActorAgentACPProvider
+	n.ActorAgentCLIProvider = r.ActorAgentCLIProvider
 	if r.TaskID != nil {
 		id := uuid.MustParse(*r.TaskID)
 		n.TaskID = &id

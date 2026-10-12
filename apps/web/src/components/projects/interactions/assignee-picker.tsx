@@ -1,13 +1,13 @@
 import { Check, Sparkles, User } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { EntityAvatarContent } from "@/components/shared/entity-avatar";
+import { EntityAvatar } from "@/components/shared/entity-avatar";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
 import type { ProjectMember } from "@/lib/project-api";
-import { resolveMemberAvatarUrl } from "@/lib/provider-logos";
+import { memberAvatar } from "@/lib/provider-logos";
 import { cn } from "@/lib/utils";
 import { SearchableList } from "./task-detail/property-field/searchable-list";
 
@@ -17,8 +17,8 @@ export interface AssigneePatch {
 }
 
 const AVATAR_SIZE = {
-	sm: { box: "size-5", icon: "size-2.5", sparkle: "size-2.5" },
-	md: { box: "size-6", icon: "size-3", sparkle: "size-3" },
+	sm: { box: "size-5", avatar: "xs", icon: "size-2.5", sparkle: "size-2.5" },
+	md: { box: "size-6", avatar: "sm", icon: "size-3", sparkle: "size-3" },
 } as const;
 
 const memberName = (m: ProjectMember) => m.full_name || m.username;
@@ -74,23 +74,13 @@ export function AssigneePicker({
 				visible.map((id) => {
 					const m = members.find((mm) => mm.id === id);
 					return (
-						<div
+						<EntityAvatar
 							key={id}
-							className={cn(
-								s.box,
-								"flex items-center justify-center rounded-full bg-linear-to-br from-primary/20 to-primary/10 text-primary text-xs font-bold ring-2 ring-card",
-							)}
-						>
-							<EntityAvatarContent
-								avatarUrl={m ? resolveMemberAvatarUrl(m) : undefined}
-							>
-								{m ? (
-									memberName(m).slice(0, 1).toUpperCase()
-								) : (
-									<User className={s.icon} />
-								)}
-							</EntityAvatarContent>
-						</div>
+							{...(m ? memberAvatar(m) : { name: "" })}
+							fallback={<User className={s.icon} />}
+							size={s.avatar}
+							className="ring-2 ring-card"
+						/>
 					);
 				})
 			) : (
@@ -223,13 +213,7 @@ export function AssigneePicker({
 									}),
 								content: (
 									<>
-										<div className="flex size-5 items-center justify-center rounded-full bg-linear-to-br from-primary/20 to-primary/10 text-primary text-xs font-bold shrink-0">
-											<EntityAvatarContent
-												avatarUrl={resolveMemberAvatarUrl(m)}
-											>
-												{memberName(m).slice(0, 1).toUpperCase()}
-											</EntityAvatarContent>
-										</div>
+										<EntityAvatar {...memberAvatar(m)} size="xs" />
 										<span className="flex-1 text-left truncate">
 											{memberName(m)}
 										</span>

@@ -7,6 +7,7 @@ import { InlineNotice } from "@/components/shared/inline-notice";
 import { RoleChangeDialog } from "@/components/shared/role-change-dialog";
 import type { User } from "@/lib/admin-api";
 import { isProjectTemplate } from "@/lib/policy";
+import { userAvatar } from "@/lib/provider-logos";
 import { platformRolesQueryOptions } from "@/lib/role-api";
 
 interface UserRoleDialogProps {
@@ -56,7 +57,7 @@ export function UserRoleDialog({
 			description={t("users.roleDialog.description", {
 				username: user.username,
 			})}
-			person={{ name: user.full_name || user.username, handle: user.username }}
+			person={{ avatar: userAvatar(user), handle: user.username }}
 			roles={roles}
 			status={
 				roles.length === 0 ? (

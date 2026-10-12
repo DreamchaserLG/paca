@@ -27,7 +27,6 @@ import {
 	GanttChart,
 	Home,
 	KanbanSquare,
-	KeyRound,
 	Loader2,
 	MessageSquare,
 	Monitor,
@@ -37,6 +36,7 @@ import {
 	Plus,
 	Puzzle,
 	Server,
+	ServerCog,
 	Settings,
 	Shield,
 	Sparkles,
@@ -1855,7 +1855,7 @@ export function AppSidebar() {
 											{canAccessServiceAccounts ? (
 												<NavItem
 													to="/admin/service-accounts"
-													icon={KeyRound}
+													icon={ServerCog}
 													label={t("nav.serviceAccounts")}
 												/>
 											) : null}

@@ -1,11 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
-	Bot,
 	Check,
 	KeyRound,
 	Loader2,
 	Save,
+	ServerCog,
 	ShieldCheck,
 	Trash2,
 } from "lucide-react";
@@ -45,7 +45,7 @@ const TABS = [
 	{
 		id: "overview",
 		labelKey: "serviceAccounts.detail.tabs.overview",
-		icon: Bot,
+		icon: ServerCog,
 	},
 	{
 		id: "api-keys",
@@ -266,7 +266,7 @@ export function ServiceAccountDetailView({ accountId }: { accountId: string }) {
 		return (
 			<div className="p-6">
 				<NoPermissionState
-					icon={Bot}
+					icon={ServerCog}
 					title={t("serviceAccounts.noPermission.title")}
 					description={t("serviceAccounts.noPermission.description")}
 				/>
@@ -289,7 +289,7 @@ export function ServiceAccountDetailView({ accountId }: { accountId: string }) {
 		return (
 			<div className="p-6">
 				<NoPermissionState
-					icon={Bot}
+					icon={ServerCog}
 					title={
 						notFound
 							? t("serviceAccounts.detail.notFound.title")

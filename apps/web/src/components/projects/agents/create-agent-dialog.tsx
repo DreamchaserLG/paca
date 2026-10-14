@@ -71,12 +71,13 @@ import {
 	generateAgentMCPKey,
 	generateGlobalAcpBridgeToken,
 	generateGlobalAgentMCPKey,
-	globalAgentsQueryOptions,
+	globalAgentsKey,
 	llmModelsQueryOptions,
 	verifyEnvironmentCLILogin,
 } from "@/lib/agent-api";
+import { invalidateAgentDirectory } from "@/lib/agent-directory";
 import { ApiErrorCode, getApiErrorCode } from "@/lib/api-error";
-import { environmentsQueryOptions } from "@/lib/environment-api";
+import { environmentQueryOptions } from "@/lib/environment-api";
 import type { Role } from "@/lib/role-api";
 import { splitShellCommand } from "@/lib/shell-command";
 import { cn } from "@/lib/utils";
@@ -170,10 +171,6 @@ export function CreateAgentDialog({
 	// Environments are project-scoped only — a global agent has no project to
 	// default one from, so this query no-ops (via `enabled`) at global scope,
 	// same convention as agent-picker.tsx's useEnvironmentPicker.
-	const { data: environments = [] } = useQuery({
-		...environmentsQueryOptions(projectId ?? ""),
-		enabled: !!projectId,
-	});
 
 	const canAssignRole = useCanAssignGlobalRole();
 	// The agent held by a global wizard that has reached its role step, which
@@ -234,9 +231,10 @@ export function CreateAgentDialog({
 		}
 		setDefaultEnvironmentIdState(id);
 	};
-	const selectedEnvironment = environments.find(
-		(env) => env.id === defaultEnvironmentId,
-	);
+	const { data: selectedEnvironment } = useQuery({
+		...environmentQueryOptions(projectId ?? "", defaultEnvironmentId),
+		enabled: !!projectId && !!defaultEnvironmentId,
+	});
 
 	// Derived final values sent to the API
 	const llmProvider =
@@ -274,12 +272,13 @@ export function CreateAgentDialog({
 	};
 
 	const invalidateAgentLists = () => {
+		invalidateAgentDirectory(projectId ?? null);
 		if (projectId) {
 			qc.invalidateQueries({
 				queryKey: ["projects", projectId, "agents"],
 			});
 		} else {
-			qc.invalidateQueries({ queryKey: globalAgentsQueryOptions.queryKey });
+			qc.invalidateQueries({ queryKey: globalAgentsKey });
 			qc.invalidateQueries({ queryKey: ["global-agents", "chattable"] });
 		}
 	};
@@ -955,7 +954,6 @@ export function CreateAgentDialog({
 										</Label>
 										<DefaultEnvironmentSelect
 											projectId={projectId}
-											environments={environments}
 											value={defaultEnvironmentId}
 											onChange={(id) => {
 												setDefaultEnvironmentId(id);
@@ -1239,7 +1237,6 @@ export function CreateAgentDialog({
 											</Label>
 											<DefaultEnvironmentSelect
 												projectId={projectId}
-												environments={environments}
 												value={defaultEnvironmentId}
 												onChange={setDefaultEnvironmentId}
 												className="w-full"
@@ -1517,7 +1514,7 @@ export function AcpSetupDialog({
 								});
 							} else {
 								qc.invalidateQueries({
-									queryKey: globalAgentsQueryOptions.queryKey,
+									queryKey: globalAgentsKey,
 								});
 							}
 							onTokenGenerated();

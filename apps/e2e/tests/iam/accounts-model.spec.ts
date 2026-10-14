@@ -310,10 +310,10 @@ test.describe("Unified accounts", () => {
 
 		// One listing, three kinds of member.
 		const listed = await request.get(
-			`${API_URL}/projects/${projectId}/members`,
+			`${API_URL}/projects/${projectId}/members?page_size=100`,
 		);
 		const data = (await listed.json()).data;
-		const members = (data.items ?? data) as Array<{
+		const members = data.items as Array<{
 			member_type: string;
 			user_id?: string;
 			agent_id?: string;

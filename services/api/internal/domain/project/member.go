@@ -1,6 +1,9 @@
 package projectdom
 
 import (
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -80,4 +83,74 @@ func (m *ProjectMember) RoleNames() []string {
 		out = append(out, r.Name)
 	}
 	return out
+}
+
+// MemberFilter narrows a cursor-paginated member list. Zero values match
+// everything.
+type MemberFilter struct {
+	// Search is split on whitespace; every word must appear
+	// (case-insensitively) in the member's username, display name or agent
+	// handle.
+	Search string
+	// RoleID, when set, keeps only members holding that project role.
+	RoleID *uuid.UUID
+	// MemberType, when non-empty, is "human", "agent" or "service_account".
+	MemberType string
+	// AccountIDs, when non-empty, keeps only members whose account id or
+	// membership id is listed — the batch lookup used to resolve known ids to
+	// names/avatars (feeds carry either kind of id).
+	AccountIDs []uuid.UUID
+	// SkipRoles leaves ProjectMember.Roles empty, saving the roles lookup for
+	// callers that only need who a member is (names, avatars).
+	SkipRoles bool
+}
+
+type memberCursor struct {
+	Key *string `json:"k"`
+	ID  string  `json:"id"`
+}
+
+// SortKey is the name the member list orders by (before lowercasing): the
+// username, else the agent handle, else the display name. Mirrors the SQL
+// COALESCE(u.username, a.handle, ac.name) the repository sorts on.
+func (m *ProjectMember) SortKey() string {
+	switch {
+	case m.Username != "":
+		return m.Username
+	case m.AgentHandle != "":
+		return m.AgentHandle
+	case m.AgentName != "":
+		return m.AgentName
+	}
+	return m.FullName
+}
+
+// EncodeMemberCursor builds an opaque cursor from the last member on a page.
+// It carries the sort key and membership id, so it stays valid even if that
+// member's row disappears between page loads.
+func EncodeMemberCursor(m *ProjectMember) string {
+	k := m.SortKey()
+	b, _ := json.Marshal(memberCursor{Key: &k, ID: m.ID.String()})
+	return base64.URLEncoding.EncodeToString(b)
+}
+
+// DecodeMemberCursor returns the (sort key, membership id) position in a token
+// produced by EncodeMemberCursor. Any failure wraps ErrInvalidMemberCursor.
+func DecodeMemberCursor(s string) (string, uuid.UUID, error) {
+	b, err := base64.URLEncoding.DecodeString(s)
+	if err != nil {
+		return "", uuid.Nil, fmt.Errorf("%w: base64: %v", ErrInvalidMemberCursor, err)
+	}
+	var c memberCursor
+	if err := json.Unmarshal(b, &c); err != nil {
+		return "", uuid.Nil, fmt.Errorf("%w: json: %v", ErrInvalidMemberCursor, err)
+	}
+	if c.Key == nil {
+		return "", uuid.Nil, fmt.Errorf("%w: missing key", ErrInvalidMemberCursor)
+	}
+	id, err := uuid.Parse(c.ID)
+	if err != nil {
+		return "", uuid.Nil, fmt.Errorf("%w: id: %v", ErrInvalidMemberCursor, err)
+	}
+	return *c.Key, id, nil
 }

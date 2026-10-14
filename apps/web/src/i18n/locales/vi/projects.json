@@ -114,6 +114,7 @@
 			}
 		},
 		"page": {
+			"searchPlaceholder": "Tìm agent theo tên hoặc handle…",
 			"title": "AI Agent",
 			"subtitle": "Agent tự động xử lý nhiệm vụ và trò chuyện với đội nhóm của bạn",
 			"newAgent": "Agent mới",
@@ -1432,6 +1433,7 @@
 			"title": "Mô tả",
 			"writeWithAI": "Viết bằng AI",
 			"writeWithAIDialog": {
+				"searchAgents": "Tìm agent…",
 				"title": "Viết bằng AI",
 				"description": "Chọn một agent để viết mô tả nhiệm vụ.",
 				"noAgents": "Chưa có agent nào được cấu hình cho dự án này.",
@@ -1813,6 +1815,7 @@
 			"error": "Không thể xóa cuộc trò chuyện. Vui lòng thử lại."
 		},
 		"filters": {
+			"searchAgents": "Tìm agent…",
 			"title": "Bộ lọc",
 			"agent": "Tác nhân",
 			"status": "Trạng thái",

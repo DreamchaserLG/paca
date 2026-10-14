@@ -62,8 +62,6 @@ describe("PacaAPIConversationClient", () => {
 		expect(fetchMock.mock.calls[0][1].headers["X-Agent-ID"]).toBeUndefined();
 	});
 
-
-
 	it("sends X-Conversation-ID header only alongside agentId", async () => {
 		const client = new PacaAPIConversationClient({
 			...CONFIG,

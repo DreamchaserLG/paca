@@ -256,7 +256,7 @@ test.describe("Service accounts: API keys", () => {
 			`${API_URL}/admin/service-accounts/${account.id}/api-keys`,
 		);
 		expect(
-			((await used.json()).data as Array<{ last_used_at: string | null }>)[0]
+			((await used.json()).data.items as Array<{ last_used_at: string | null }>)[0]
 				.last_used_at,
 		).not.toBeNull();
 	});
@@ -290,7 +290,7 @@ test.describe("Service accounts: API keys", () => {
 				`${API_URL}/admin/service-accounts/${account.id}/api-keys`,
 			);
 			expect(
-				((await listed.json()).data as Array<{ id: string }>).map((k) => k.id),
+				((await listed.json()).data.items as Array<{ id: string }>).map((k) => k.id),
 			).toEqual([second.id]);
 		} finally {
 			await firstApi.dispose();
@@ -517,11 +517,11 @@ test.describe("Service accounts: roles and access", () => {
 
 			// Deleting the account removes its membership.
 			await request.delete(`${API_URL}/admin/service-accounts/${account.id}`);
+			// Look the membership up by id rather than scanning a page of the team.
 			const members = await request.get(
-				`${API_URL}/projects/${projectId}/members`,
+				`${API_URL}/projects/${projectId}/members?ids=${member.id}`,
 			);
-			const items = ((await members.json()).data.items ??
-				(await members.json()).data) as Array<{ id: string }>;
+			const items = (await members.json()).data.items as Array<{ id: string }>;
 			expect(items.map((m) => m.id)).not.toContain(member.id);
 		} finally {
 			await api.dispose();

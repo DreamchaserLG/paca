@@ -52,7 +52,15 @@ func (m *memberServiceRepoMock) Delete(context.Context, uuid.UUID) error {
 	return nil
 }
 
-func (m *memberServiceRepoMock) ListMembers(context.Context, uuid.UUID) ([]*projectdom.ProjectMember, error) {
+func (m *memberServiceRepoMock) CountMembers(context.Context, uuid.UUID, projectdom.MemberFilter) (int64, error) {
+	return 0, nil
+}
+
+func (m *memberServiceRepoMock) ListMembers(context.Context, uuid.UUID, int, *string, projectdom.MemberFilter) ([]*projectdom.ProjectMember, bool, error) {
+	return nil, false, nil
+}
+
+func (m *memberServiceRepoMock) ListAllMembers(context.Context, uuid.UUID) ([]*projectdom.ProjectMember, error) {
 	return nil, nil
 }
 

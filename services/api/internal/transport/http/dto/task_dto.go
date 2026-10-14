@@ -395,6 +395,12 @@ type TaskResponse struct {
 	// AssignmentMode is "manual" or "auto" — see taskdom.Task.AssignmentMode's
 	// doc comment.
 	AssignmentMode string `json:"assignment_mode"`
+	// Assignees and Reporter are the people behind AssigneeIDs / ReporterID,
+	// present only when the list request asked for them with
+	// include=assignees,reporter. They carry identity (names, avatar, kind)
+	// but not roles or the member's description.
+	Assignees []ProjectMemberResponse `json:"assignees,omitempty"`
+	Reporter  *ProjectMemberResponse  `json:"reporter,omitempty"`
 }
 
 // TaskFromEntity maps a domain Task to a TaskResponse DTO.

@@ -20,7 +20,7 @@ import (
 // # What is cached
 //
 //   - GetByID        – project detail; keyed by project ID.
-//   - ListMembers    – project member list; keyed by project ID.
+//   - ListAllMembers    – project member list; keyed by project ID.
 //
 // List/ListAccessible are NOT cached because they are paginated, potentially
 // user-scoped, and have high result-set cardinality.
@@ -200,28 +200,39 @@ func (c *CachedService) UpdateJevConfig(ctx context.Context, projectID uuid.UUID
 
 // --- Members -----------------------------------------------------------------
 
-// ListMembers returns all members of a project, reading from cache when
+// ListAllMembers returns all members of a project, reading from cache when
 // available and populating it on a miss.
-func (c *CachedService) ListMembers(ctx context.Context, projectID uuid.UUID) ([]*projectdom.ProjectMember, error) {
+func (c *CachedService) ListAllMembers(ctx context.Context, projectID uuid.UUID) ([]*projectdom.ProjectMember, error) {
 	if c.projectTTL == 0 {
-		return c.svc.ListMembers(ctx, projectID)
+		return c.svc.ListAllMembers(ctx, projectID)
 	}
 	key := membersKey(projectID)
 	var result []*projectdom.ProjectMember
 	if ok, err := c.st.Get(ctx, key, &result); ok {
 		return result, nil
 	} else if err != nil {
-		c.log.WarnContext(ctx, "cache: ListMembers get", "err", err)
+		c.log.WarnContext(ctx, "cache: ListAllMembers get", "err", err)
 	}
 
-	result, err := c.svc.ListMembers(ctx, projectID)
+	result, err := c.svc.ListAllMembers(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
 	if err := c.st.Set(ctx, key, result, c.projectTTL); err != nil {
-		c.log.WarnContext(ctx, "cache: ListMembers set", "err", err)
+		c.log.WarnContext(ctx, "cache: ListAllMembers set", "err", err)
 	}
 	return result, nil
+}
+
+// CountMembers delegates to the underlying service without caching.
+func (c *CachedService) CountMembers(ctx context.Context, projectID uuid.UUID, filter projectdom.MemberFilter) (int64, error) {
+	return c.svc.CountMembers(ctx, projectID, filter)
+}
+
+// ListMembers delegates to the underlying service without caching —
+// pages are keyed by filter and cursor, which doesn't fit the per-project key.
+func (c *CachedService) ListMembers(ctx context.Context, projectID uuid.UUID, limit int, cursorAfter *string, filter projectdom.MemberFilter) ([]*projectdom.ProjectMember, bool, error) {
+	return c.svc.ListMembers(ctx, projectID, limit, cursorAfter, filter)
 }
 
 // CountDistinctAgentsByProjects delegates to the underlying service without

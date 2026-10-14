@@ -1,8 +1,12 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { Copy, KeyRound, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-
+import { LoadMoreSentinel } from "@/components/shared/load-more-sentinel";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -23,7 +27,7 @@ import {
 	createServiceAccountKey,
 	revokeServiceAccountKey,
 	type ServiceAccount,
-	serviceAccountKeysQueryOptions,
+	serviceAccountKeysInfiniteQueryOptions,
 } from "@/lib/service-account-api";
 
 function formatDate(iso: string): string {
@@ -68,7 +72,7 @@ function CreateKeyDialog({
 			}),
 		onSuccess: (result) => {
 			void queryClient.invalidateQueries({
-				queryKey: serviceAccountKeysQueryOptions(account.id).queryKey,
+				queryKey: serviceAccountKeysInfiniteQueryOptions(account.id).queryKey,
 			});
 			reset();
 			onOpenChange(false);
@@ -184,10 +188,13 @@ export function ServiceAccountKeysTab({
 }) {
 	const { t } = useTranslation("admin");
 	const queryClient = useQueryClient();
-	const queryKey = serviceAccountKeysQueryOptions(account.id).queryKey;
-	const { data: keys = [], isLoading } = useQuery(
-		serviceAccountKeysQueryOptions(account.id),
+	const queryKey = serviceAccountKeysInfiniteQueryOptions(account.id).queryKey;
+	const keysQuery = useInfiniteQuery(
+		serviceAccountKeysInfiniteQueryOptions(account.id),
 	);
+	const { isLoading } = keysQuery;
+	const keys = keysQuery.data?.pages.flatMap((p) => p.items) ?? [];
+	const keyCount = keysQuery.data?.pages[0]?.total_count ?? keys.length;
 
 	const [createOpen, setCreateOpen] = useState(false);
 	const [revealed, setRevealed] = useState<CreateAPIKeyResponse | null>(null);
@@ -226,7 +233,7 @@ export function ServiceAccountKeysTab({
 		<div className="max-w-3xl space-y-4">
 			<div className="flex items-center justify-between gap-3">
 				<p className="text-sm text-muted-foreground">
-					{t("serviceAccounts.keys.count", { count: keys.length })}
+					{t("serviceAccounts.keys.count", { count: keyCount })}
 				</p>
 				{canWrite ? (
 					<Button size="sm" onClick={() => setCreateOpen(true)}>
@@ -310,6 +317,12 @@ export function ServiceAccountKeysTab({
 							) : null}
 						</div>
 					))}
+					<LoadMoreSentinel
+						hasMore={keysQuery.hasNextPage}
+						isLoadingMore={keysQuery.isFetchingNextPage}
+						isError={keysQuery.isFetchNextPageError}
+						onLoadMore={() => void keysQuery.fetchNextPage()}
+					/>
 				</div>
 			)}
 

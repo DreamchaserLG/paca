@@ -40,10 +40,8 @@ import {
 } from "@/lib/activity-api";
 import { isForbiddenError } from "@/lib/api-error";
 import { sprintsQueryOptions } from "@/lib/interaction-api";
-import {
-	projectMembersQueryOptions,
-	projectQueryOptions,
-} from "@/lib/project-api";
+import { useMemberDirectory } from "@/lib/member-directory";
+import { projectQueryOptions } from "@/lib/project-api";
 import { timeAgo } from "@/lib/time-ago";
 
 export const Route = createFileRoute(
@@ -74,10 +72,6 @@ function ProjectActivityPage() {
 	const [filters, setFilters] = useState<Filters>({});
 
 	const { data: project } = useQuery(projectQueryOptions(projectId));
-	const { data: members = [] } = useQuery({
-		...projectMembersQueryOptions(projectId),
-		enabled: canRead,
-	});
 	const { data: sprints = [] } = useQuery({
 		...sprintsQueryOptions(projectId),
 		enabled: canRead,
@@ -95,14 +89,18 @@ function ProjectActivityPage() {
 		enabled: canRead,
 	});
 
-	// Resolves member/sprint IDs inside task change entries to names.
+	// Resolves member/sprint IDs inside task change entries to names. Members
+	// are looked up by id on demand rather than from the full team list.
+	const getMember = useMemberDirectory(projectId);
 	const names = useMemo<ActivityNameMaps>(() => {
-		const m: Record<string, string> = {};
-		for (const member of members) m[member.id] = memberDisplayName(member);
+		const members = (id: string) => {
+			const m = getMember(id);
+			return m ? memberDisplayName(m) : undefined;
+		};
 		const s: Record<string, string> = {};
 		for (const sprint of sprints) s[sprint.id] = sprint.name;
-		return { members: m, sprints: s };
-	}, [members, sprints]);
+		return { members, sprints: s };
+	}, [getMember, sprints]);
 
 	const items = data?.pages.flatMap((p) => p.items) ?? [];
 	const groups = useGroupedByDay(items);
@@ -167,7 +165,7 @@ function ProjectActivityPage() {
 						<ProjectActivityFilters
 							filters={filters}
 							onFiltersChange={setFilters}
-							members={members}
+							projectId={projectId}
 						/>
 						<div className="mt-5">
 							{isLoading ? (

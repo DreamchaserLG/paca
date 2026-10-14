@@ -7,10 +7,12 @@ import { cn } from "@/lib/utils";
 
 interface MembersFiltersProps {
 	search: string;
-	/** Project role names to offer as chips, with how many members hold each
-	 *  (over the whole team, so chips don't shift as the search narrows). */
-	roles: { name: string; count: number }[];
-	totalCount: number;
+	/** Project role names to offer as chips. `count`, when known, is how many
+	 *  members hold the role (over the whole team, so chips don't shift as the
+	 *  search narrows); chips without a count simply don't show one. */
+	roles: { name: string; count?: number }[];
+	/** Size of the whole team, shown on the "All" chip when given. */
+	totalCount?: number;
 	selectedRole: string;
 	/** Members matching the active filters. */
 	shownCount: number;
@@ -32,11 +34,13 @@ export function MembersFilters({
 	const { t } = useTranslation("projects");
 	const isFiltering = search.trim() !== "" || selectedRole !== "";
 
-	const chips = [
+	const chips: { name: string; label: string; count?: number }[] = [
 		{ name: "", label: t("team.filters.allRoles"), count: totalCount },
 		// Roles nobody holds would only ever produce an empty result.
 		...roles
-			.filter((r) => r.count > 0 || r.name === selectedRole)
+			.filter(
+				(r) => r.count === undefined || r.count > 0 || r.name === selectedRole,
+			)
 			.map((r) => ({ name: r.name, label: r.name, count: r.count })),
 	];
 
@@ -85,16 +89,18 @@ export function MembersFilters({
 								onClick={() => onRoleChange(chip.name)}
 							>
 								{chip.label}
-								<span
-									className={cn(
-										"tabular-nums",
-										active
-											? "text-primary-foreground/70"
-											: "text-muted-foreground",
-									)}
-								>
-									{chip.count}
-								</span>
+								{chip.count !== undefined ? (
+									<span
+										className={cn(
+											"tabular-nums",
+											active
+												? "text-primary-foreground/70"
+												: "text-muted-foreground",
+										)}
+									>
+										{chip.count}
+									</span>
+								) : null}
 							</Button>
 						);
 					})}
@@ -103,10 +109,12 @@ export function MembersFilters({
 			{isFiltering ? (
 				<div className="flex items-center gap-2 text-xs text-muted-foreground">
 					<span aria-live="polite">
-						{t("team.filters.showingOf", {
-							shown: shownCount,
-							total: totalCount,
-						})}
+						{totalCount === undefined
+							? t("team.memberCount", { count: shownCount })
+							: t("team.filters.showingOf", {
+									shown: shownCount,
+									total: totalCount,
+								})}
 					</span>
 					<Button type="button" variant="ghost" size="xs" onClick={onClear}>
 						{t("team.noMatch.clear")}

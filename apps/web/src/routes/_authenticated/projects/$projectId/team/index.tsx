@@ -26,6 +26,7 @@ import { projectPermissionBadgeClass } from "@/components/projects/roles/utils";
 import { MembersFilters } from "@/components/projects/team/MembersFilters";
 import { EntityAvatar } from "@/components/shared/entity-avatar";
 import { HighlightMatch } from "@/components/shared/highlight-match";
+import { LoadMoreSentinel } from "@/components/shared/load-more-sentinel";
 import { NoPermissionState } from "@/components/shared/no-permission-state";
 import { enrichRoles, RoleBadgeList } from "@/components/shared/role-badge";
 import { RoleChangeDialog } from "@/components/shared/role-change-dialog";
@@ -55,20 +56,26 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useCanAssignProjectRole } from "@/hooks/use-can-assign-project-role";
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
+import { useExistingMemberIds } from "@/hooks/use-existing-member-ids";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
 import { type User, usersInfiniteQueryOptions } from "@/lib/admin-api";
-import { type Agent, chattableAgentsQueryOptions } from "@/lib/agent-api";
+import {
+	type Agent,
+	chattableAgentsInfiniteQueryOptions,
+} from "@/lib/agent-api";
 import {
 	ApiErrorCode,
 	getApiErrorCode,
 	isForbiddenError,
 } from "@/lib/api-error";
-import { filterProjectMembers } from "@/lib/filter-project-members";
+import { invalidateMemberDirectory } from "@/lib/member-directory";
 import {
 	addProjectMember,
 	type ProjectMember,
-	projectMembersQueryOptions,
+	projectMembersInfiniteQueryOptions,
+	projectMembersKey,
+	projectMemberTotalQueryOptions,
 	projectQueryOptions,
 	removeProjectMember,
 	updateProjectMemberRole,
@@ -87,7 +94,7 @@ import {
 import { createLoadMoreScrollHandler } from "@/lib/scroll-pagination";
 import {
 	type ServiceAccount,
-	serviceAccountsQueryOptions,
+	serviceAccountsInfiniteQueryOptions,
 } from "@/lib/service-account-api";
 
 export const Route = createFileRoute(
@@ -146,14 +153,6 @@ function UserPickerItem({
 	);
 }
 
-/** True when every word of `query` appears in one of the `fields`. */
-function matchesSearch(query: string, ...fields: (string | undefined)[]) {
-	const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-	if (words.length === 0) return true;
-	const haystack = fields.join(" ").toLowerCase();
-	return words.every((w) => haystack.includes(w));
-}
-
 function PickerSearch({
 	value,
 	onChange,
@@ -184,17 +183,11 @@ function AddMemberDialog({
 	onOpenChange,
 	projectId,
 	roles,
-	existingMemberIds,
-	existingAgentIds,
-	existingServiceAccountIds,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	projectId: string;
 	roles: Role[];
-	existingMemberIds: Set<string>;
-	existingAgentIds: Set<string>;
-	existingServiceAccountIds: Set<string>;
 }) {
 	const { t } = useTranslation("projects");
 	const queryClient = useQueryClient();
@@ -210,9 +203,17 @@ function AddMemberDialog({
 	const [userSearch, setUserSearch] = useState("");
 	const [debouncedUserSearch, setDebouncedUserSearch] = useState("");
 	const applyUserSearch = useDebouncedCallback(setDebouncedUserSearch, 300);
-	// Agents and service accounts are loaded whole, so their search is local.
+	// Agents and service accounts are searched and paged on the server.
 	const [agentSearch, setAgentSearch] = useState("");
+	const [debouncedAgentSearch, setDebouncedAgentSearch] = useState("");
+	const applyAgentSearch = useDebouncedCallback(setDebouncedAgentSearch, 300);
 	const [serviceAccountSearch, setServiceAccountSearch] = useState("");
+	const [debouncedServiceAccountSearch, setDebouncedServiceAccountSearch] =
+		useState("");
+	const applyServiceAccountSearch = useDebouncedCallback(
+		setDebouncedServiceAccountSearch,
+		300,
+	);
 	const [description, setDescription] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const searchRef = useRef<HTMLInputElement>(null);
@@ -220,25 +221,63 @@ function AddMemberDialog({
 	// Inviting a service account needs to list them (service_accounts:read).
 	const canInviteServiceAccounts = can("service_accounts:read");
 
-	const { data: allAgents = [], isLoading: isLoadingAgents } = useQuery({
-		...chattableAgentsQueryOptions,
+	const {
+		data: agentPages,
+		isLoading: isLoadingAgents,
+		fetchNextPage: fetchMoreAgents,
+		hasNextPage: hasMoreAgents,
+		isFetchingNextPage: isFetchingMoreAgents,
+		isFetchNextPageError: isMoreAgentsError,
+	} = useInfiniteQuery({
+		...chattableAgentsInfiniteQueryOptions(debouncedAgentSearch),
 		enabled: open && mode === "agent",
+		placeholderData: keepPreviousData,
 	});
+	const allAgents = useMemo(
+		() => agentPages?.pages.flatMap((p) => p.items) ?? [],
+		[agentPages],
+	);
+	// Which candidates are already members is asked of the server for just
+	// those ids, rather than loading the whole team to compare against.
+	const agentIds = useMemo(() => allAgents.map((a) => a.id), [allAgents]);
+	const { existingIds: existingAgentIds, resolvedIds: resolvedAgentIds } =
+		useExistingMemberIds(projectId, agentIds, open && mode === "agent");
 	const availableAgents = allAgents.filter(
-		(a) =>
-			!existingAgentIds.has(a.id) &&
-			matchesSearch(agentSearch, a.name, a.handle, a.description),
+		(a) => resolvedAgentIds.has(a.id) && !existingAgentIds.has(a.id),
 	);
 
-	const { data: allServiceAccounts = [], isLoading: isLoadingServiceAccounts } =
-		useQuery({
-			...serviceAccountsQueryOptions,
-			enabled: open && mode === "service_account" && canInviteServiceAccounts,
-		});
+	const {
+		data: serviceAccountPages,
+		isLoading: isLoadingServiceAccounts,
+		fetchNextPage: fetchMoreServiceAccounts,
+		hasNextPage: hasMoreServiceAccounts,
+		isFetchingNextPage: isFetchingMoreServiceAccounts,
+		isFetchNextPageError: isMoreServiceAccountsError,
+	} = useInfiniteQuery({
+		...serviceAccountsInfiniteQueryOptions(debouncedServiceAccountSearch),
+		enabled: open && mode === "service_account" && canInviteServiceAccounts,
+		placeholderData: keepPreviousData,
+	});
+	const allServiceAccounts = useMemo(
+		() => serviceAccountPages?.pages.flatMap((p) => p.items) ?? [],
+		[serviceAccountPages],
+	);
+	const serviceAccountIds = useMemo(
+		() => allServiceAccounts.map((a) => a.id),
+		[allServiceAccounts],
+	);
+	const {
+		existingIds: existingServiceAccountIds,
+		resolvedIds: resolvedServiceAccountIds,
+	} = useExistingMemberIds(
+		projectId,
+		serviceAccountIds,
+		open && mode === "service_account",
+	);
 	const availableServiceAccounts = allServiceAccounts.filter(
 		(a) =>
-			!existingServiceAccountIds.has(a.id) &&
-			matchesSearch(serviceAccountSearch, a.name, a.description),
+			resolvedServiceAccountIds.has(a.id) &&
+			!existingServiceAccountIds.has(a.id),
 	);
 
 	const {
@@ -266,10 +305,18 @@ function AddMemberDialog({
 		onLoadMore: () => void fetchNextPage(),
 	});
 
-	// Search is done server-side; existing members are only hidden here.
+	const userIds = useMemo(() => usersData.map((u) => u.id), [usersData]);
+	const { existingIds: existingMemberIds, resolvedIds: resolvedUserIds } =
+		useExistingMemberIds(projectId, userIds, open && mode === "user");
+
+	// Search is done server-side; existing members are only hidden here, and
+	// only once the server has said whether each candidate is a member.
 	const filteredUsers = useMemo<User[]>(
-		() => usersData.filter((u) => !existingMemberIds.has(u.id)),
-		[usersData, existingMemberIds],
+		() =>
+			usersData.filter(
+				(u) => resolvedUserIds.has(u.id) && !existingMemberIds.has(u.id),
+			),
+		[usersData, existingMemberIds, resolvedUserIds],
 	);
 
 	// Hiding existing members can leave a page with few or no rows (and then
@@ -329,8 +376,9 @@ function AddMemberDialog({
 		},
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({
-				queryKey: projectMembersQueryOptions(projectId).queryKey,
+				queryKey: projectMembersKey(projectId),
 			});
+			invalidateMemberDirectory(projectId);
 			handleClose();
 		},
 		onError: (err: unknown) => {
@@ -470,7 +518,10 @@ function AddMemberDialog({
 								<div className="rounded-lg border border-border overflow-hidden">
 									<PickerSearch
 										value={serviceAccountSearch}
-										onChange={setServiceAccountSearch}
+										onChange={(value) => {
+											setServiceAccountSearch(value);
+											applyServiceAccountSearch(value);
+										}}
 										placeholder={t(
 											"team.addMemberDialog.searchServiceAccountsPlaceholder",
 										)}
@@ -513,6 +564,13 @@ function AddMemberDialog({
 												</button>
 											))
 										)}
+										<LoadMoreSentinel
+											compact
+											hasMore={!!hasMoreServiceAccounts}
+											isLoadingMore={isFetchingMoreServiceAccounts}
+											isError={isMoreServiceAccountsError}
+											onLoadMore={() => void fetchMoreServiceAccounts()}
+										/>
 									</div>
 								</div>
 							)}
@@ -545,7 +603,10 @@ function AddMemberDialog({
 								<div className="rounded-lg border border-border overflow-hidden">
 									<PickerSearch
 										value={agentSearch}
-										onChange={setAgentSearch}
+										onChange={(value) => {
+											setAgentSearch(value);
+											applyAgentSearch(value);
+										}}
 										placeholder={t(
 											"team.addMemberDialog.searchAgentsPlaceholder",
 										)}
@@ -583,6 +644,13 @@ function AddMemberDialog({
 												);
 											})
 										)}
+										<LoadMoreSentinel
+											compact
+											hasMore={!!hasMoreAgents}
+											isLoadingMore={isFetchingMoreAgents}
+											isError={isMoreAgentsError}
+											onLoadMore={() => void fetchMoreAgents()}
+										/>
 									</div>
 								</div>
 							)}
@@ -803,8 +871,9 @@ function MemberRoleDialog({
 		onError: (err: unknown) => {
 			const code = getApiErrorCode(err);
 			void queryClient.invalidateQueries({
-				queryKey: projectMembersQueryOptions(projectId).queryKey,
+				queryKey: projectMembersKey(projectId),
 			});
+			invalidateMemberDirectory(projectId);
 			setError(
 				code === ApiErrorCode.ProjectMemberNotFound
 					? t("team.roleChip.errors.memberNotFound")
@@ -820,8 +889,9 @@ function MemberRoleDialog({
 		// old ones behind a closing dialog.
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({
-				queryKey: projectMembersQueryOptions(projectId).queryKey,
+				queryKey: projectMembersKey(projectId),
 			});
+			invalidateMemberDirectory(projectId);
 			handleOpenChange(false);
 		},
 	});
@@ -884,8 +954,9 @@ function DescriptionChip({
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({
-				queryKey: projectMembersQueryOptions(projectId).queryKey,
+				queryKey: projectMembersKey(projectId),
 			});
+			invalidateMemberDirectory(projectId);
 		},
 	});
 
@@ -1061,15 +1132,38 @@ function TeamPage() {
 	const canReadMembers =
 		hasPermission("project.members:read") ||
 		hasProjectPermission("project.members:read");
+	// Search is sent to the server (debounced) and the list pages in by
+	// cursor, so a large team is never loaded whole.
+	const [debouncedSearch, setDebouncedSearch] = useState("");
+	const applySearch = useDebouncedCallback(setDebouncedSearch, 300);
+	const { data: roles = [] } = useQuery(projectRolesQueryOptions(projectId));
+	const roleFilterId = roles.find((r) => r.name === roleFilter)?.id;
 	const {
-		data: members,
+		data: membersPages,
 		isLoading: isDataLoading,
 		isError,
 		error,
-	} = useQuery({
-		...projectMembersQueryOptions(projectId),
+		fetchNextPage,
+		hasNextPage,
+		isFetchingNextPage,
+		isFetchNextPageError,
+	} = useInfiniteQuery({
+		...projectMembersInfiniteQueryOptions(projectId, {
+			search: debouncedSearch,
+			roleId: roleFilterId,
+		}),
+		enabled: canReadMembers,
+		placeholderData: keepPreviousData,
+	});
+	const { data: teamTotal } = useQuery({
+		...projectMemberTotalQueryOptions(projectId),
 		enabled: canReadMembers,
 	});
+	const members = useMemo(
+		() => membersPages?.pages.flatMap((p) => p.items),
+		[membersPages],
+	);
+	const matchingCount = membersPages?.pages[0]?.total_count ?? 0;
 	// While permissions are still loading, canReadMembers defaults to false
 	// same as a confirmed denial — guard on isPermissionsLoading (and fold
 	// it into isLoading) so the page shows the skeleton instead of flashing
@@ -1078,7 +1172,6 @@ function TeamPage() {
 	const noPermission =
 		!isPermissionsLoading &&
 		(!canReadMembers || (isError && isForbiddenError(error)));
-	const { data: roles = [] } = useQuery(projectRolesQueryOptions(projectId));
 
 	const canManageMembers =
 		hasPermission("project.members:write") ||
@@ -1093,47 +1186,13 @@ function TeamPage() {
 	// member needs at least one role, also needs roles:assign.
 	const canAddMembers = canManageMembers && canAssignRoles;
 
-	const existingMemberIds = useMemo(
-		() => new Set((members ?? []).map((m) => m.user_id)),
-		[members],
-	);
-	const existingServiceAccountIds = useMemo(
-		() =>
-			new Set(
-				(members ?? [])
-					.filter(
-						(m) => m.member_type === "service_account" && m.service_account_id,
-					)
-					.map((m) => m.service_account_id as string),
-			),
-		[members],
-	);
-	const existingAgentIds = useMemo(
-		() =>
-			new Set(
-				(members ?? [])
-					.filter((m) => m.member_type === "agent" && m.agent_id)
-					.map((m) => m.agent_id as string),
-			),
-		[members],
-	);
-
-	const visibleMembers = useMemo(
-		() => filterProjectMembers(members ?? [], search, roleFilter),
-		[members, search, roleFilter],
-	);
-
 	const roleChips = useMemo(
-		() =>
-			roles.map((r) => ({
-				name: r.name,
-				count: (members ?? []).filter((m) => m.roles.some((x) => x.id === r.id))
-					.length,
-			})),
-		[roles, members],
+		() => roles.map((r) => ({ name: r.name })),
+		[roles],
 	);
 	const clearFilters = () => {
 		setSearch("");
+		setDebouncedSearch("");
 		setRoleFilter("");
 	};
 
@@ -1144,8 +1203,9 @@ function TeamPage() {
 		},
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({
-				queryKey: projectMembersQueryOptions(projectId).queryKey,
+				queryKey: projectMembersKey(projectId),
 			});
+			invalidateMemberDirectory(projectId);
 			setRemovingMember(null);
 		},
 	});
@@ -1216,7 +1276,7 @@ function TeamPage() {
 							</div>
 						))}
 					</div>
-				) : !members?.length ? (
+				) : !members?.length && !debouncedSearch.trim() && !roleFilter ? (
 					<div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border/60 bg-muted/10 py-14">
 						<div className="flex size-12 items-center justify-center rounded-xl bg-primary/10">
 							<Users className="size-6 text-primary" />
@@ -1243,19 +1303,22 @@ function TeamPage() {
 						<MembersFilters
 							search={search}
 							roles={roleChips}
-							totalCount={members.length}
+							totalCount={teamTotal}
 							selectedRole={roleFilter}
-							shownCount={visibleMembers.length}
-							onSearchChange={setSearch}
+							shownCount={matchingCount}
+							onSearchChange={(value) => {
+								setSearch(value);
+								applySearch(value);
+							}}
 							onRoleChange={setRoleFilter}
 							onClear={clearFilters}
 						/>
 						<div className="mb-3 flex items-center justify-between">
 							<p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-								{t("team.memberCount", { count: visibleMembers.length })}
+								{t("team.memberCount", { count: matchingCount })}
 							</p>
 						</div>
-						{visibleMembers.length === 0 ? (
+						{(members ?? []).length === 0 ? (
 							<div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border/60 bg-muted/10 py-14">
 								<div className="flex size-12 items-center justify-center rounded-xl bg-muted">
 									<Search className="size-6 text-muted-foreground/60" />
@@ -1274,7 +1337,7 @@ function TeamPage() {
 							</div>
 						) : (
 							<div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
-								{visibleMembers.map((member) => (
+								{(members ?? []).map((member) => (
 									<MemberRow
 										key={member.id}
 										member={member}
@@ -1288,6 +1351,12 @@ function TeamPage() {
 								))}
 							</div>
 						)}
+						<LoadMoreSentinel
+							hasMore={!!hasNextPage}
+							isLoadingMore={isFetchingNextPage}
+							isError={isFetchNextPageError}
+							onLoadMore={() => void fetchNextPage()}
+						/>
 					</div>
 				)}
 			</div>
@@ -1298,9 +1367,6 @@ function TeamPage() {
 				onOpenChange={setAddMemberOpen}
 				projectId={projectId}
 				roles={roles}
-				existingMemberIds={existingMemberIds}
-				existingAgentIds={existingAgentIds}
-				existingServiceAccountIds={existingServiceAccountIds}
 			/>
 
 			{/* Remove confirmation dialog */}

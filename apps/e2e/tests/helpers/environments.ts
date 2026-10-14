@@ -33,16 +33,25 @@ export async function listEnvironments(
 	request: APIRequestContext,
 	projectId: string,
 ): Promise<SeededEnvironment[]> {
-	const response = await request.get(
-		`${API_URL}/projects/${projectId}/environments`,
-	);
-	if (!response.ok()) return [];
+	// The list is paginated, so follow its cursor to collect every environment.
 	const environments: Array<{
 		id: string;
 		name: string;
 		slug: string;
 		status: string;
-	}> = (await response.json()).data?.environments ?? [];
+	}> = [];
+	let cursor: string | null = null;
+	do {
+		const params = new URLSearchParams({ page_size: "100" });
+		if (cursor) params.set("cursor", cursor);
+		const response = await request.get(
+			`${API_URL}/projects/${projectId}/environments?${params.toString()}`,
+		);
+		if (!response.ok()) return [];
+		const data = (await response.json()).data;
+		environments.push(...(data?.items ?? []));
+		cursor = data?.next_cursor ?? null;
+	} while (cursor);
 	return environments.map((e) => ({
 		id: e.id,
 		name: e.name,

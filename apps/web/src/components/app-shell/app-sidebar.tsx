@@ -54,8 +54,8 @@ import {
 	useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-
 import { EntityAvatar } from "@/components/shared/entity-avatar";
+import { LoadMoreSentinel } from "@/components/shared/load-more-sentinel";
 import { Badge } from "@/components/ui/badge";
 import {
 	DropdownMenu,
@@ -96,9 +96,9 @@ import {
 	type Document,
 	deleteDocument,
 	deleteFolder,
-	docFoldersQueryOptions,
-	docListQueryOptions,
+	docFoldersInfiniteQueryOptions,
 	docQueryKeys,
+	docsInfiniteQueryOptions,
 	updateDocument,
 	updateFolder,
 } from "@/lib/doc-api";
@@ -338,7 +338,6 @@ function DocsDocRow({
 function DocsFolderNode({
 	folder,
 	projectId,
-	allFolders,
 	canWrite,
 	expandedFolders,
 	onToggle,
@@ -346,7 +345,6 @@ function DocsFolderNode({
 }: {
 	folder: DocFolder;
 	projectId: string;
-	allFolders: DocFolder[];
 	canWrite: boolean;
 	expandedFolders: Set<string>;
 	onToggle: (id: string) => void;
@@ -368,12 +366,24 @@ function DocsFolderNode({
 
 	const isExpanded = expandedFolders.has(folder.id);
 
-	const { data: folderDocs = [] } = useQuery({
-		...docListQueryOptions(projectId, folder.id),
+	// A folder's subfolders and documents are fetched only once it is
+	// expanded, a page at a time.
+	const childFoldersQuery = useInfiniteQuery({
+		...docFoldersInfiniteQueryOptions(projectId, folder.id),
 		enabled: isExpanded,
 	});
-
-	const childFolders = allFolders.filter((f) => f.parent_id === folder.id);
+	const docsQuery = useInfiniteQuery({
+		...docsInfiniteQueryOptions(projectId, folder.id),
+		enabled: isExpanded,
+	});
+	const childFolders = useMemo(
+		() => childFoldersQuery.data?.pages.flatMap((p) => p.items) ?? [],
+		[childFoldersQuery.data],
+	);
+	const folderDocs = useMemo(
+		() => docsQuery.data?.pages.flatMap((p) => p.items) ?? [],
+		[docsQuery.data],
+	);
 	const renameMutation = useMutation({
 		mutationFn: (name: string) => updateFolder(projectId, folder.id, { name }),
 		onSuccess: () => {
@@ -525,13 +535,21 @@ function DocsFolderNode({
 							key={cf.id}
 							folder={cf}
 							projectId={projectId}
-							allFolders={allFolders}
 							canWrite={canWrite}
 							expandedFolders={expandedFolders}
 							onToggle={onToggle}
 							depth={depth + 1}
 						/>
 					))}
+					<div style={{ paddingLeft: `${8 + (depth + 1) * 16}px` }}>
+						<LoadMoreSentinel
+							compact
+							hasMore={!!childFoldersQuery.hasNextPage}
+							isLoadingMore={childFoldersQuery.isFetchingNextPage}
+							isError={childFoldersQuery.isFetchNextPageError}
+							onLoadMore={() => void childFoldersQuery.fetchNextPage()}
+						/>
+					</div>
 					{folderDocs.map((doc) => (
 						<DocsDocRow
 							key={doc.id}
@@ -541,6 +559,15 @@ function DocsFolderNode({
 							depth={depth + 1}
 						/>
 					))}
+					<div style={{ paddingLeft: `${8 + (depth + 1) * 16}px` }}>
+						<LoadMoreSentinel
+							compact
+							hasMore={!!docsQuery.hasNextPage}
+							isLoadingMore={docsQuery.isFetchingNextPage}
+							isError={docsQuery.isFetchNextPageError}
+							onLoadMore={() => void docsQuery.fetchNextPage()}
+						/>
+					</div>
 					{folderDocs.length === 0 &&
 						childFolders.length === 0 &&
 						!addingDoc && (
@@ -661,12 +688,22 @@ function DocsSidebarSection({ projectId }: { projectId: string }) {
 		[projectId],
 	);
 
-	const { data: allFolders = [] } = useQuery(docFoldersQueryOptions(projectId));
-	const { data: rootDocs = [] } = useQuery(docListQueryOptions(projectId));
-
-	// Use loose null check — backend omits parent_id for root folders (omitempty)
-	const rootFolders = allFolders.filter((f) => !f.parent_id);
-	const rootOnlyDocs = rootDocs.filter((d) => !d.folder_id);
+	// The top level of the tree, a page of folders and a page of documents at
+	// a time; deeper levels load when their folder is expanded.
+	const rootFoldersQuery = useInfiniteQuery(
+		docFoldersInfiniteQueryOptions(projectId, null),
+	);
+	const rootDocsQuery = useInfiniteQuery(
+		docsInfiniteQueryOptions(projectId, null),
+	);
+	const rootFolders = useMemo(
+		() => rootFoldersQuery.data?.pages.flatMap((p) => p.items) ?? [],
+		[rootFoldersQuery.data],
+	);
+	const rootOnlyDocs = useMemo(
+		() => rootDocsQuery.data?.pages.flatMap((p) => p.items) ?? [],
+		[rootDocsQuery.data],
+	);
 
 	const newDocMutation = useMutation({
 		mutationFn: () => createDocument(projectId, { title: t("docs.untitled") }),
@@ -754,13 +791,21 @@ function DocsSidebarSection({ projectId }: { projectId: string }) {
 										key={folder.id}
 										folder={folder}
 										projectId={projectId}
-										allFolders={allFolders}
 										canWrite={canWrite}
 										expandedFolders={expandedFolders}
 										onToggle={toggleFolder}
 										depth={0}
 									/>
 								))}
+								<div className="px-2">
+									<LoadMoreSentinel
+										compact
+										hasMore={!!rootFoldersQuery.hasNextPage}
+										isLoadingMore={rootFoldersQuery.isFetchingNextPage}
+										isError={rootFoldersQuery.isFetchNextPageError}
+										onLoadMore={() => void rootFoldersQuery.fetchNextPage()}
+									/>
+								</div>
 								{rootOnlyDocs.map((doc) => (
 									<DocsDocRow
 										key={doc.id}
@@ -770,6 +815,15 @@ function DocsSidebarSection({ projectId }: { projectId: string }) {
 										depth={0}
 									/>
 								))}
+								<div className="px-2">
+									<LoadMoreSentinel
+										compact
+										hasMore={!!rootDocsQuery.hasNextPage}
+										isLoadingMore={rootDocsQuery.isFetchingNextPage}
+										isError={rootDocsQuery.isFetchNextPageError}
+										onLoadMore={() => void rootDocsQuery.fetchNextPage()}
+									/>
+								</div>
 							</>
 						)}
 						{canWrite && (

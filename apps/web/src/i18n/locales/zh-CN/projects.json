@@ -114,6 +114,7 @@
 			}
 		},
 		"page": {
+			"searchPlaceholder": "按名称或标识搜索智能体…",
 			"title": "AI 智能体",
 			"subtitle": "处理任务并与团队沟通的自主智能体",
 			"newAgent": "新建智能体",
@@ -1432,6 +1433,7 @@
 			"title": "描述",
 			"writeWithAI": "用 AI 撰写",
 			"writeWithAIDialog": {
+				"searchAgents": "搜索智能体…",
 				"title": "用 AI 撰写",
 				"description": "选择一个智能体来撰写任务描述。",
 				"noAgents": "此项目尚未配置智能体。",
@@ -1813,6 +1815,7 @@
 			"error": "无法删除对话，请重试。"
 		},
 		"filters": {
+			"searchAgents": "搜索智能体…",
 			"title": "筛选",
 			"agent": "代理",
 			"status": "状态",

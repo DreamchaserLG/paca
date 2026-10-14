@@ -1,24 +1,31 @@
-import { useQuery } from "@tanstack/react-query";
+import {
+	keepPreviousData,
+	useInfiniteQuery,
+	useQuery,
+} from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Plus, ServerCog } from "lucide-react";
-import { useState } from "react";
+import { Plus, Search, ServerCog } from "lucide-react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { DeleteServiceAccountDialog } from "@/components/admin/service-accounts/DeleteServiceAccountDialog";
 import { ServiceAccountFormDialog } from "@/components/admin/service-accounts/ServiceAccountFormDialog";
 import { ServiceAccountRoleDialog } from "@/components/admin/service-accounts/ServiceAccountRoleDialog";
 import { ServiceAccountsTable } from "@/components/admin/service-accounts/ServiceAccountsTable";
+import { LoadMoreSentinel } from "@/components/shared/load-more-sentinel";
 import { NoPermissionState } from "@/components/shared/no-permission-state";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCanAssignGlobalRole } from "@/hooks/use-can-assign-global-role";
+import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
 import { usePermissions } from "@/hooks/use-permissions";
 import { myPermissionsQueryOptions } from "@/lib/admin-api";
 import { hasPermission } from "@/lib/permissions";
 import { platformRolesQueryOptions } from "@/lib/role-api";
 import {
 	type ServiceAccount,
-	serviceAccountsQueryOptions,
+	serviceAccountsInfiniteQueryOptions,
 } from "@/lib/service-account-api";
 
 export const Route = createFileRoute("/_authenticated/admin/service-accounts/")(
@@ -48,11 +55,27 @@ function ServiceAccountsPage() {
 	// The roles route needs service_accounts:write on top of roles:assign.
 	const canAssignRole = useCanAssignGlobalRole() && canWrite;
 
+	// Search runs on the server (debounced); accounts page in by cursor.
+	const [search, setSearch] = useState("");
+	const [debouncedSearch, setDebouncedSearch] = useState("");
+	const applySearch = useDebouncedCallback(setDebouncedSearch, 300);
 	const {
-		data: accounts = [],
+		data: accountPages,
 		isLoading: isDataLoading,
 		isError,
-	} = useQuery({ ...serviceAccountsQueryOptions, enabled: canRead });
+		fetchNextPage,
+		hasNextPage,
+		isFetchingNextPage,
+		isFetchNextPageError,
+	} = useInfiniteQuery({
+		...serviceAccountsInfiniteQueryOptions(debouncedSearch),
+		enabled: canRead,
+		placeholderData: keepPreviousData,
+	});
+	const accounts = useMemo(
+		() => accountPages?.pages.flatMap((p) => p.items) ?? [],
+		[accountPages],
+	);
 	const isLoading = isPermissionsLoading || isDataLoading;
 	// Role badges show descriptions when the viewer can read the roles list.
 	const { data: roleDirectory } = useQuery({
@@ -119,7 +142,7 @@ function ServiceAccountsPage() {
 					title={t("serviceAccounts.errors.loadFailed")}
 					description={t("serviceAccounts.errors.tryAgain")}
 				/>
-			) : accounts.length === 0 ? (
+			) : accounts.length === 0 && !debouncedSearch.trim() ? (
 				<div className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-14 text-center">
 					<ServerCog className="size-9 text-muted-foreground/50" />
 					<div>
@@ -136,15 +159,37 @@ function ServiceAccountsPage() {
 					) : null}
 				</div>
 			) : (
-				<ServiceAccountsTable
-					accounts={accounts}
-					canWrite={canWrite}
-					canAssignRole={canAssignRole}
-					roleDirectory={roleDirectory}
-					onEdit={setEditAccount}
-					onDelete={setDeleteAccount}
-					onChangeRole={setRolesAccount}
-				/>
+				<>
+					<div className="relative max-w-sm">
+						<Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+						<Input
+							type="search"
+							value={search}
+							onChange={(e) => {
+								setSearch(e.target.value);
+								applySearch(e.target.value);
+							}}
+							placeholder={t("serviceAccounts.searchPlaceholder")}
+							aria-label={t("serviceAccounts.searchPlaceholder")}
+							className="pl-8"
+						/>
+					</div>
+					<ServiceAccountsTable
+						accounts={accounts}
+						canWrite={canWrite}
+						canAssignRole={canAssignRole}
+						roleDirectory={roleDirectory}
+						onEdit={setEditAccount}
+						onDelete={setDeleteAccount}
+						onChangeRole={setRolesAccount}
+					/>
+					<LoadMoreSentinel
+						hasMore={!!hasNextPage}
+						isLoadingMore={isFetchingNextPage}
+						isError={isFetchNextPageError}
+						onLoadMore={() => void fetchNextPage()}
+					/>
+				</>
 			)}
 
 			{editAccount ? (

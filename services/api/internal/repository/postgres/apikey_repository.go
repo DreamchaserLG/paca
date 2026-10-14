@@ -101,21 +101,47 @@ func (r *APIKeyRepository) FindByHash(ctx context.Context, keyHash string) (*api
 	return apiKeyToEntity(&rec)
 }
 
-// ListByAccountID returns all non-revoked API keys of the given account.
-func (r *APIKeyRepository) ListByAccountID(ctx context.Context, accountID uuid.UUID) ([]*apikeydom.APIKey, error) {
+// ListByAccountID returns one page of the account's non-revoked API keys,
+// newest first (created_at DESC, id DESC). The total is returned on the
+// first page (no cursor) only.
+func (r *APIKeyRepository) ListByAccountID(ctx context.Context, accountID uuid.UUID, cursorAfter *string, limit int) ([]*apikeydom.APIKey, bool, int, error) {
+	if limit <= 0 {
+		limit = 30
+	}
+	// The total is a first-page field: later pages skip the COUNT.
+	var total int
+	if cursorAfter == nil {
+		if err := r.db.GetContext(ctx, &total, `SELECT COUNT(*) FROM `+apiKeyFrom+` WHERE k.account_id = $1 AND k.revoked_at IS NULL`, accountID.String()); err != nil {
+			return nil, false, 0, fmt.Errorf("api key repo: count: %w", err)
+		}
+	}
+	q := `SELECT ` + apiKeyCols + ` FROM ` + apiKeyFrom + ` WHERE k.account_id = $1 AND k.revoked_at IS NULL`
+	sink := &argList{args: []any{accountID.String()}}
+	if cursorAfter != nil {
+		at, id, err := apikeydom.DecodeCursor(*cursorAfter)
+		if err != nil {
+			return nil, false, 0, err
+		}
+		q += ` AND (k.created_at, k.id) < (` + sink.addArg(at) + `, ` + sink.addArg(id.String()) + `::uuid)`
+	}
+	q += ` ORDER BY k.created_at DESC, k.id DESC LIMIT ` + sink.addArg(limit+1)
 	var recs []apiKeyRecord
-	if err := r.db.SelectContext(ctx, &recs, `SELECT `+apiKeyCols+` FROM `+apiKeyFrom+` WHERE k.account_id = $1 AND k.revoked_at IS NULL ORDER BY k.created_at DESC`, accountID.String()); err != nil {
-		return nil, fmt.Errorf("api key repo: list: %w", err)
+	if err := r.db.SelectContext(ctx, &recs, q, sink.args...); err != nil {
+		return nil, false, 0, fmt.Errorf("api key repo: list: %w", err)
+	}
+	hasMore := len(recs) > limit
+	if hasMore {
+		recs = recs[:limit]
 	}
 	keys := make([]*apikeydom.APIKey, 0, len(recs))
 	for i := range recs {
 		entity, err := apiKeyToEntity(&recs[i])
 		if err != nil {
-			return nil, err
+			return nil, false, 0, err
 		}
 		keys = append(keys, entity)
 	}
-	return keys, nil
+	return keys, hasMore, total, nil
 }
 
 // Create persists a new API key. The keyHash is stored; the raw key is never

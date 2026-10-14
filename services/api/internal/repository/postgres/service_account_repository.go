@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -86,20 +87,45 @@ func (r *ServiceAccountRepository) FindByID(ctx context.Context, id uuid.UUID) (
 	return a, nil
 }
 
-// List implements accountdom.ServiceAccountRepository.
-func (r *ServiceAccountRepository) List(ctx context.Context) ([]*accountdom.Account, error) {
+// List implements accountdom.ServiceAccountRepository: one keyset page
+// ordered by (LOWER(name), id), optionally narrowed by a search over name and
+// description.
+func (r *ServiceAccountRepository) List(ctx context.Context, filter accountdom.ServiceAccountFilter, cursorAfter *string, limit int) ([]*accountdom.Account, bool, error) {
+	if limit <= 0 {
+		limit = 30
+	}
+	where := `kind = 'service_account' AND deleted_at IS NULL`
+	var args []any
+	for _, word := range strings.Fields(filter.Search) {
+		args = append(args, "%"+escapeLike(word)+"%")
+		where += fmt.Sprintf(` AND (LOWER(name) LIKE LOWER($%[1]d) ESCAPE '\' OR LOWER(COALESCE(description, '')) LIKE LOWER($%[1]d) ESCAPE '\')`, len(args))
+	}
+	if cursorAfter != nil {
+		name, id, err := accountdom.DecodeServiceAccountCursor(*cursorAfter)
+		if err != nil {
+			return nil, false, err
+		}
+		args = append(args, name, id.String())
+		where += fmt.Sprintf(` AND (LOWER(name), id) > ($%d, $%d::uuid)`, len(args)-1, len(args))
+	}
+	args = append(args, limit+1)
 	var recs []accountRecord
-	if err := r.db.SelectContext(ctx, &recs, `SELECT `+serviceAccountCols+` FROM accounts WHERE kind = 'service_account' AND deleted_at IS NULL ORDER BY LOWER(name), id`); err != nil {
-		return nil, fmt.Errorf("service account repo: list: %w", err)
+	if err := r.db.SelectContext(ctx, &recs, `SELECT `+serviceAccountCols+` FROM accounts WHERE `+where+
+		fmt.Sprintf(` ORDER BY LOWER(name), id LIMIT $%d`, len(args)), args...); err != nil {
+		return nil, false, fmt.Errorf("service account repo: list: %w", err)
+	}
+	hasMore := len(recs) > limit
+	if hasMore {
+		recs = recs[:limit]
 	}
 	out := make([]*accountdom.Account, len(recs))
 	for i := range recs {
 		out[i] = recs[i].entity()
 	}
 	if err := r.loadRoles(ctx, out); err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return out, nil
+	return out, hasMore, nil
 }
 
 // loadRoles fills Roles on the accounts: the platform-wide roles attached to

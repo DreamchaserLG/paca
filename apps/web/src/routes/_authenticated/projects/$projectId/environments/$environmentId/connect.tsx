@@ -4,7 +4,7 @@ import { useProjectPermissions } from "@/hooks/use-project-permissions";
 import {
 	environmentConfigQueryOptions,
 	environmentQueryOptions,
-	environmentSSHKeysQueryOptions,
+	environmentSSHKeysInfiniteQueryOptions,
 } from "@/lib/environment-api";
 
 export const Route = createFileRoute(
@@ -23,7 +23,9 @@ export const Route = createFileRoute(
 		// Best effort: a caller who may see the environment but not this part
 		// of it gets that part's own message on the page, not a failed route.
 		await queryClient
-			.ensureQueryData(environmentSSHKeysQueryOptions(projectId, environmentId))
+			.prefetchInfiniteQuery(
+				environmentSSHKeysInfiniteQueryOptions(projectId, environmentId),
+			)
 			.catch(() => undefined);
 	},
 	component: ProjectEnvironmentConnectPage,

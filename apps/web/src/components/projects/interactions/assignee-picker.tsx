@@ -1,4 +1,5 @@
 import { Check, Sparkles, User } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { EntityAvatar } from "@/components/shared/entity-avatar";
 import {
@@ -6,6 +7,8 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
+import { useMemberSearch } from "@/hooks/use-member-search";
+import { useMemberDirectory } from "@/lib/member-directory";
 import type { ProjectMember } from "@/lib/project-api";
 import { memberAvatar } from "@/lib/provider-logos";
 import { cn } from "@/lib/utils";
@@ -26,9 +29,13 @@ const memberName = (m: ProjectMember) => m.full_name || m.username;
 /** Assignee picker shared by the board card, list row, subtask row and task
  * detail panel: an avatar-stack trigger opening a searchable popover with the
  * optional "Auto" row, an "Unassigned" row and one row per member. Picking
- * while in auto mode switches the task back to manual assignment. */
+ * while in auto mode switches the task back to manual assignment.
+ *
+ * The trigger resolves the current assignees by id, and the popover searches
+ * and pages the project's members on the server (only once opened), so no
+ * caller needs the whole team in memory. */
 export function AssigneePicker({
-	members,
+	projectId,
 	assigneeIds,
 	isAutoAssign = false,
 	autoEnabled = false,
@@ -38,7 +45,7 @@ export function AssigneePicker({
 	align = "start",
 	onChange,
 }: {
-	members: ProjectMember[];
+	projectId: string;
 	assigneeIds: string[];
 	isAutoAssign?: boolean;
 	/** Show the "Auto" row (Jev enabled for the project). */
@@ -51,6 +58,9 @@ export function AssigneePicker({
 	onChange: (patch: AssigneePatch) => void;
 }) {
 	const { t } = useTranslation("projects");
+	const getMember = useMemberDirectory(projectId);
+	const [open, setOpen] = useState(false);
+	const search = useMemberSearch(projectId, open && canEdit);
 	const s = AVATAR_SIZE[size];
 	const visible = assigneeIds.slice(0, 3);
 	const overflow = assigneeIds.length - visible.length;
@@ -72,7 +82,7 @@ export function AssigneePicker({
 		<div className="flex items-center -space-x-1.5">
 			{visible.length > 0 ? (
 				visible.map((id) => {
-					const m = members.find((mm) => mm.id === id);
+					const m = getMember(id);
 					return (
 						<EntityAvatar
 							key={id}
@@ -109,7 +119,7 @@ export function AssigneePicker({
 	const names = isAutoAssign
 		? t("taskDetail.properties.autoAssign")
 		: assigneeIds
-				.map((id) => members.find((m) => m.id === id))
+				.map((id) => getMember(id))
 				.filter((m): m is ProjectMember => !!m)
 				.map(memberName)
 				.join(", ");
@@ -131,13 +141,13 @@ export function AssigneePicker({
 		avatarStack
 	);
 
-	if (!canEdit || members.length === 0) return trigger;
+	if (!canEdit) return trigger;
 
 	const rowClass =
 		"flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm hover:bg-muted/60 transition-colors duration-100";
 
 	return (
-		<Popover>
+		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger
 				type="button"
 				onClick={(e) => e.stopPropagation()}
@@ -158,6 +168,7 @@ export function AssigneePicker({
 					onKeyDown={(e) => e.stopPropagation()}
 				>
 					<SearchableList
+						remote={search}
 						pinned={
 							<>
 								{autoEnabled && (
@@ -198,7 +209,7 @@ export function AssigneePicker({
 								</button>
 							</>
 						}
-						items={members.map((m) => {
+						items={search.members.map((m) => {
 							const isSelected = current.includes(m.id);
 							return {
 								key: m.id,

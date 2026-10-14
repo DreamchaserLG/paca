@@ -189,7 +189,15 @@ func (r *fakeProjectRepo) Delete(_ context.Context, id uuid.UUID) error {
 	return nil
 }
 
-func (r *fakeProjectRepo) ListMembers(_ context.Context, projectID uuid.UUID) ([]*projectdom.ProjectMember, error) {
+func (r *fakeProjectRepo) CountMembers(context.Context, uuid.UUID, projectdom.MemberFilter) (int64, error) {
+	return 0, nil
+}
+
+func (r *fakeProjectRepo) ListMembers(context.Context, uuid.UUID, int, *string, projectdom.MemberFilter) ([]*projectdom.ProjectMember, bool, error) {
+	return nil, false, nil
+}
+
+func (r *fakeProjectRepo) ListAllMembers(_ context.Context, projectID uuid.UUID) ([]*projectdom.ProjectMember, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 

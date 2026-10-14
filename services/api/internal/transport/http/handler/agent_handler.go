@@ -197,7 +197,24 @@ func (h *AgentHandler) resolveMemberID(r *http.Request, projectID uuid.UUID) (uu
 
 // --- Agents -----------------------------------------------------------------
 
-// ListAgents handles GET /projects/:projectId/agents. An optional ?scope=
+// parseAgentListParams reads the query params shared by the agent list
+// endpoints: search (every word must match the name, handle or description),
+// ids (up to 100 agent ids — a batch lookup), page_size (1-100, default 30)
+// and cursor.
+func parseAgentListParams(r *http.Request) (filter agentdom.AgentFilter, cursor *string, pageSize int, err error) {
+	q := r.URL.Query()
+	filter.Search = strings.TrimSpace(q.Get("search"))
+	if filter.IDs, err = parseIDsParam(r); err != nil {
+		return filter, nil, 0, err
+	}
+	cursor = parseCursorParam(r)
+	pageSize, err = parsePageSize(r, 30, 100)
+	return filter, cursor, pageSize, err
+}
+
+// ListAgents handles GET /projects/:projectId/agents — one cursor-paginated
+// page of the agents visible in the project, ordered by name (see
+// parseAgentListParams for search/ids/page_size/cursor). An optional ?scope=
 // query param ("project" or "global") narrows the result to just that
 // AgentScope — e.g. the project Agents management page passes
 // scope=project to hide invited global agents it can't manage from there;
@@ -219,7 +236,13 @@ func (h *AgentHandler) ListAgents(w http.ResponseWriter, r *http.Request) {
 		presenter.Error(w, r, err)
 		return
 	}
-	agents, err := h.svc.ListAgents(ctx, projectID, scope)
+	filter, cursor, pageSize, err := parseAgentListParams(r)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+	filter.Scope = scope
+	agents, hasMore, err := h.svc.ListAgents(ctx, projectID, filter, cursor, pageSize)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
@@ -228,7 +251,12 @@ func (h *AgentHandler) ListAgents(w http.ResponseWriter, r *http.Request) {
 	for _, a := range agents {
 		resp = append(resp, h.toAgentResponse(r.Context(), a))
 	}
-	presenter.OK(w, r, map[string]any{"items": resp})
+	var nextCursor *string
+	if hasMore && len(agents) > 0 {
+		c := agentdom.EncodeAgentCursor(agents[len(agents)-1])
+		nextCursor = &c
+	}
+	presenter.OK(w, r, map[string]any{"items": resp, "page_size": pageSize, "next_cursor": nextCursor})
 }
 
 // GetAgent handles GET /projects/:projectId/agents/:agentId.
@@ -420,9 +448,16 @@ func (h *AgentHandler) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 
 // --- Global Agents (admin) ---------------------------------------------------
 
-// ListGlobalAgents handles GET /admin/agents.
+// ListGlobalAgents handles GET /admin/agents and GET /agents — one
+// cursor-paginated page of the global agents, ordered by name (see
+// parseAgentListParams for search/ids/page_size/cursor).
 func (h *AgentHandler) ListGlobalAgents(w http.ResponseWriter, r *http.Request) {
-	agents, err := h.svc.ListGlobalAgents(r.Context())
+	filter, cursor, pageSize, err := parseAgentListParams(r)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+	agents, hasMore, err := h.svc.ListGlobalAgents(r.Context(), filter, cursor, pageSize)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
@@ -431,7 +466,12 @@ func (h *AgentHandler) ListGlobalAgents(w http.ResponseWriter, r *http.Request) 
 	for _, a := range agents {
 		resp = append(resp, h.toAgentResponse(r.Context(), a))
 	}
-	presenter.OK(w, r, map[string]any{"items": resp})
+	var nextCursor *string
+	if hasMore && len(agents) > 0 {
+		c := agentdom.EncodeAgentCursor(agents[len(agents)-1])
+		nextCursor = &c
+	}
+	presenter.OK(w, r, map[string]any{"items": resp, "page_size": pageSize, "next_cursor": nextCursor})
 }
 
 // GetGlobalAgent handles GET /admin/agents/:agentId.
@@ -1373,7 +1413,7 @@ func (h *AgentHandler) ResolveAutoAgent(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	agents, err := h.svc.ListAgents(r.Context(), projectID, "")
+	agents, err := h.svc.ListAllAgents(r.Context(), projectID, "")
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
@@ -1546,7 +1586,7 @@ func (h *AgentHandler) ResolveGlobalAutoAgent(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	agents, err := h.svc.ListGlobalAgents(r.Context())
+	agents, err := h.svc.ListAllGlobalAgents(r.Context())
 	if err != nil {
 		presenter.Error(w, r, err)
 		return

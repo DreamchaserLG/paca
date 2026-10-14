@@ -17,6 +17,8 @@ var (
 	ErrNameInvalid = errors.New("service account: name must be 1-100 characters")
 	// ErrDescriptionTooLong means the description exceeds MaxDescriptionLen.
 	ErrDescriptionTooLong = errors.New("service account: description is too long")
+	// ErrInvalidCursor means a list cursor could not be decoded.
+	ErrInvalidCursor = errors.New("service account: invalid pagination cursor")
 )
 
 // Field limits.
@@ -32,14 +34,23 @@ type ServiceAccountRepository interface {
 	Create(ctx context.Context, a *Account) error
 	// FindByID returns the live service account, or ErrServiceAccountNotFound.
 	FindByID(ctx context.Context, id uuid.UUID) (*Account, error)
-	// List returns every live service account, ordered by name.
-	List(ctx context.Context) ([]*Account, error)
+	// List returns up to limit live service accounts matching filter, ordered
+	// by name, after the account cursorAfter names (nil = the first page), plus
+	// whether more follow.
+	List(ctx context.Context, filter ServiceAccountFilter, cursorAfter *string, limit int) ([]*Account, bool, error)
 	// Update saves name, description and avatar keys.
 	Update(ctx context.Context, a *Account) error
 	// Delete soft-deletes the account and, in the same transaction, removes
 	// its role attachments and project memberships. Its API keys stop
 	// authenticating because their account is deleted.
 	Delete(ctx context.Context, id uuid.UUID) error
+}
+
+// ServiceAccountFilter narrows a service account listing.
+type ServiceAccountFilter struct {
+	// Search is split on whitespace; every word must appear (case-insensitive)
+	// in the account's name or description.
+	Search string
 }
 
 // CreateServiceAccountInput carries the data to create a service account.
@@ -60,7 +71,9 @@ type UpdateServiceAccountInput struct {
 type ServiceAccountService interface {
 	Create(ctx context.Context, in CreateServiceAccountInput) (*Account, error)
 	Get(ctx context.Context, id uuid.UUID) (*Account, error)
-	List(ctx context.Context) ([]*Account, error)
+	// List is the cursor-paginated, searchable listing — see
+	// ServiceAccountRepository.List.
+	List(ctx context.Context, filter ServiceAccountFilter, cursorAfter *string, limit int) ([]*Account, bool, error)
 	Update(ctx context.Context, id uuid.UUID, in UpdateServiceAccountInput) (*Account, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 

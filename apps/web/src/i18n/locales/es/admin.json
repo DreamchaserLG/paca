@@ -358,6 +358,7 @@
 		"empty": "Aún no hay notas de versión disponibles."
 	},
 	"agents": {
+		"searchPlaceholder": "Buscar agentes por nombre o identificador…",
 		"header": {
 			"title": "Agentes globales",
 			"description": "Administra agentes de IA que chatean en la página de inicio y en las páginas de administración, y que pueden ser invitados a cualquier proyecto.",
@@ -476,6 +477,7 @@
 		}
 	},
 	"serviceAccounts": {
+		"searchPlaceholder": "Buscar por nombre o descripción…",
 		"header": {
 			"title": "Cuentas de servicio",
 			"description": "Cuentas no humanas con sus propias claves de API y roles, para integraciones, CI y automatización.",

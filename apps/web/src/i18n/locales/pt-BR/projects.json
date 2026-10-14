@@ -114,6 +114,7 @@
 			}
 		},
 		"page": {
+			"searchPlaceholder": "Pesquisar agentes por nome ou identificador…",
 			"title": "Agentes de IA",
 			"subtitle": "Agentes autônomos que trabalham em tarefas e conversam com sua equipe",
 			"newAgent": "Novo agente",
@@ -1432,6 +1433,7 @@
 			"title": "Descrição",
 			"writeWithAI": "Escrever com IA",
 			"writeWithAIDialog": {
+				"searchAgents": "Pesquisar agentes…",
 				"title": "Escrever com IA",
 				"description": "Selecione um agente para escrever a descrição da tarefa.",
 				"noAgents": "Nenhum agente configurado para este projeto.",
@@ -1813,6 +1815,7 @@
 			"error": "Não foi possível excluir a conversa. Tente novamente."
 		},
 		"filters": {
+			"searchAgents": "Pesquisar agentes…",
 			"title": "Filtros",
 			"agent": "Agente",
 			"status": "Status",

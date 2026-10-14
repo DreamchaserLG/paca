@@ -100,7 +100,7 @@ func (h *TaskHandler) toActivityResponse(ctx context.Context, a *taskdom.Activit
 	return resp
 }
 
-// assignedToMeMemberLookupConcurrency caps how many per-project ListMembers
+// assignedToMeMemberLookupConcurrency caps how many per-project ListAllMembers
 // lookups ListAssignedToMe issues concurrently while resolving the caller's
 // member IDs.
 const assignedToMeMemberLookupConcurrency = 20
@@ -112,7 +112,10 @@ const assignedToMeMemberLookupConcurrency = 20
 // can be queried.
 type projectServiceForAssigned interface {
 	ListAccessible(ctx context.Context, userID uuid.UUID, page, pageSize int) ([]*projectdom.Project, int64, error)
-	ListMembers(ctx context.Context, projectID uuid.UUID) ([]*projectdom.ProjectMember, error)
+	ListAllMembers(ctx context.Context, projectID uuid.UUID) ([]*projectdom.ProjectMember, error)
+	// ListMembers is used to resolve the people behind a page of tasks
+	// when a list request asks for include=assignees,reporter.
+	ListMembers(ctx context.Context, projectID uuid.UUID, limit int, cursorAfter *string, filter projectdom.MemberFilter) ([]*projectdom.ProjectMember, bool, error)
 }
 
 // WithTaskAssignedProjectService wires the project service used by
@@ -527,6 +530,148 @@ func parseImportanceRanges(raw string) ([]taskdom.IntRange, error) {
 	return ranges, nil
 }
 
+// parseTaskFilter builds a TaskFilter from the filter query params shared by
+// ListTasks and CountTasks (everything except the pagination cursor).
+func (h *TaskHandler) parseTaskFilter(r *http.Request, projectID uuid.UUID) (taskdom.TaskFilter, error) {
+	filter := taskdom.TaskFilter{}
+
+	if raw := r.URL.Query().Get("sprint_id"); raw != "" {
+		if strings.EqualFold(strings.TrimSpace(raw), "null") {
+			filter.BacklogOnly = true
+		} else {
+			id, err := uuid.Parse(raw)
+			if err != nil {
+				return filter, apierr.New(apierr.CodeBadRequest, "invalid sprint_id")
+			}
+			filter.SprintID = &id
+		}
+	}
+	if ids, err := parseQueryUUIDs(r.URL.Query().Get("sprint_ids")); err != nil {
+		return filter, apierr.New(apierr.CodeBadRequest, "invalid sprint_ids")
+	} else if len(ids) > 0 {
+		filter.SprintIDs = ids
+		filter.BacklogOnly = false
+		filter.SprintID = nil
+	}
+	if raw := r.URL.Query().Get("status_id"); raw != "" {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			return filter, apierr.New(apierr.CodeBadRequest, "invalid status_id")
+		}
+		filter.StatusID = &id
+	}
+	if ids, err := parseQueryUUIDs(r.URL.Query().Get("status_ids")); err != nil {
+		return filter, apierr.New(apierr.CodeBadRequest, "invalid status_ids")
+	} else if len(ids) > 0 {
+		filter.StatusIDs = ids
+	}
+	if raw := r.URL.Query().Get("assignee_id"); raw != "" {
+		if strings.EqualFold(strings.TrimSpace(raw), "null") {
+			filter.AssigneeNull = true
+		} else {
+			id, err := uuid.Parse(raw)
+			if err != nil {
+				return filter, apierr.New(apierr.CodeBadRequest, "invalid assignee_id")
+			}
+			filter.AssigneeID = &id
+		}
+	}
+	if ids, err := parseQueryUUIDs(r.URL.Query().Get("assignee_ids")); err != nil {
+		return filter, apierr.New(apierr.CodeBadRequest, "invalid assignee_ids")
+	} else if len(ids) > 0 {
+		filter.AssigneeIDs = ids
+	}
+	if ids, err := parseQueryUUIDs(r.URL.Query().Get("task_type_ids")); err != nil {
+		return filter, apierr.New(apierr.CodeBadRequest, "invalid task_type_ids")
+	} else if len(ids) > 0 {
+		filter.TaskTypeIDs = ids
+	}
+	if raw := r.URL.Query().Get("task_type_id"); raw != "" {
+		if strings.EqualFold(strings.TrimSpace(raw), "null") {
+			filter.TaskTypeNull = true
+		} else {
+			id, err := uuid.Parse(raw)
+			if err != nil {
+				return filter, apierr.New(apierr.CodeBadRequest, "invalid task_type_id")
+			}
+			filter.TaskTypeIDs = []uuid.UUID{id}
+		}
+	}
+	if raw := r.URL.Query().Get("parent_task_id"); raw != "" {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			return filter, apierr.New(apierr.CodeBadRequest, "invalid parent_task_id")
+		}
+		filter.ParentTaskID = &id
+	}
+	if raw := strings.TrimSpace(r.URL.Query().Get("search")); raw != "" {
+		filter.Search = &raw
+		filter.SearchContent = r.URL.Query().Get("search_content") == "true"
+	}
+	if raw := strings.TrimSpace(r.URL.Query().Get("custom_field_filters")); raw != "" {
+		cfFilters, err := parseCustomFieldFilters(r.Context(), h.svc, projectID, raw)
+		if err != nil {
+			return filter, err
+		}
+		filter.CustomFieldFilters = cfFilters
+	}
+	if raw := strings.TrimSpace(r.URL.Query().Get("start_date_after")); raw != "" {
+		if !isValidDateString(raw) {
+			return filter, apierr.New(apierr.CodeBadRequest, "invalid start_date_after")
+		}
+		filter.StartDateAfter = &raw
+	}
+	if raw := strings.TrimSpace(r.URL.Query().Get("start_date_before")); raw != "" {
+		if !isValidDateString(raw) {
+			return filter, apierr.New(apierr.CodeBadRequest, "invalid start_date_before")
+		}
+		filter.StartDateBefore = &raw
+	}
+	if raw := strings.TrimSpace(r.URL.Query().Get("due_date_after")); raw != "" {
+		if !isValidDateString(raw) {
+			return filter, apierr.New(apierr.CodeBadRequest, "invalid due_date_after")
+		}
+		filter.DueDateAfter = &raw
+	}
+	if raw := strings.TrimSpace(r.URL.Query().Get("due_date_before")); raw != "" {
+		if !isValidDateString(raw) {
+			return filter, apierr.New(apierr.CodeBadRequest, "invalid due_date_before")
+		}
+		filter.DueDateBefore = &raw
+	}
+	if raw := strings.TrimSpace(r.URL.Query().Get("story_points_min")); raw != "" {
+		v, err := strconv.Atoi(raw)
+		if err != nil {
+			return filter, apierr.New(apierr.CodeBadRequest, "invalid story_points_min")
+		}
+		filter.StoryPointsMin = &v
+	}
+	if raw := strings.TrimSpace(r.URL.Query().Get("story_points_max")); raw != "" {
+		v, err := strconv.Atoi(raw)
+		if err != nil {
+			return filter, apierr.New(apierr.CodeBadRequest, "invalid story_points_max")
+		}
+		filter.StoryPointsMax = &v
+	}
+	if raw := strings.TrimSpace(r.URL.Query().Get("importance_ranges")); raw != "" {
+		ranges, err := parseImportanceRanges(raw)
+		if err != nil {
+			return filter, err
+		}
+		filter.ImportanceRanges = ranges
+	}
+	if raw := strings.TrimSpace(r.URL.Query().Get("tags")); raw != "" {
+		var tags []string
+		for _, tag := range strings.Split(raw, ",") {
+			if tag = strings.TrimSpace(tag); tag != "" {
+				tags = append(tags, tag)
+			}
+		}
+		filter.Tags = tags
+	}
+	return filter, nil
+}
+
 // ListTasks handles GET /projects/:projectId/tasks.
 // Supported filter query params:
 //   - sprint_id=<uuid>|null or sprint_ids=<uuid,uuid>
@@ -543,6 +688,8 @@ func parseImportanceRanges(raw string) ([]taskdom.IntRange, error) {
 //   - story_points_min=<int>, story_points_max=<int>
 //   - importance_ranges=<json> (array of {"min":int,"max":int}, OR'd together)
 //   - tags=<tag,tag,...> (matches tasks with ANY of these tags)
+//   - include=assignees,reporter (embed the people behind assignee_ids /
+//     reporter_id in each task as "assignees" / "reporter")
 func (h *TaskHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 	projectID, err := parseProjectID(r)
 	if err != nil {
@@ -555,158 +702,15 @@ func (h *TaskHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 		presenter.Error(w, r, err)
 		return
 	}
-	filter := taskdom.TaskFilter{}
-
-	if raw := r.URL.Query().Get("sprint_id"); raw != "" {
-		if strings.EqualFold(strings.TrimSpace(raw), "null") {
-			filter.BacklogOnly = true
-		} else {
-			id, err := uuid.Parse(raw)
-			if err != nil {
-				presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid sprint_id"))
-				return
-			}
-			filter.SprintID = &id
-		}
-	}
-	if ids, err := parseQueryUUIDs(r.URL.Query().Get("sprint_ids")); err != nil {
-		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid sprint_ids"))
+	include, err := parseTaskInclude(r)
+	if err != nil {
+		presenter.Error(w, r, err)
 		return
-	} else if len(ids) > 0 {
-		filter.SprintIDs = ids
-		filter.BacklogOnly = false
-		filter.SprintID = nil
 	}
-	if raw := r.URL.Query().Get("status_id"); raw != "" {
-		id, err := uuid.Parse(raw)
-		if err != nil {
-			presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid status_id"))
-			return
-		}
-		filter.StatusID = &id
-	}
-	if ids, err := parseQueryUUIDs(r.URL.Query().Get("status_ids")); err != nil {
-		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid status_ids"))
+	filter, err := h.parseTaskFilter(r, projectID)
+	if err != nil {
+		presenter.Error(w, r, err)
 		return
-	} else if len(ids) > 0 {
-		filter.StatusIDs = ids
-	}
-	if raw := r.URL.Query().Get("assignee_id"); raw != "" {
-		if strings.EqualFold(strings.TrimSpace(raw), "null") {
-			filter.AssigneeNull = true
-		} else {
-			id, err := uuid.Parse(raw)
-			if err != nil {
-				presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid assignee_id"))
-				return
-			}
-			filter.AssigneeID = &id
-		}
-	}
-	if ids, err := parseQueryUUIDs(r.URL.Query().Get("assignee_ids")); err != nil {
-		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid assignee_ids"))
-		return
-	} else if len(ids) > 0 {
-		filter.AssigneeIDs = ids
-	}
-	if ids, err := parseQueryUUIDs(r.URL.Query().Get("task_type_ids")); err != nil {
-		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid task_type_ids"))
-		return
-	} else if len(ids) > 0 {
-		filter.TaskTypeIDs = ids
-	}
-	if raw := r.URL.Query().Get("task_type_id"); raw != "" {
-		if strings.EqualFold(strings.TrimSpace(raw), "null") {
-			filter.TaskTypeNull = true
-		} else {
-			id, err := uuid.Parse(raw)
-			if err != nil {
-				presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid task_type_id"))
-				return
-			}
-			filter.TaskTypeIDs = []uuid.UUID{id}
-		}
-	}
-	if raw := r.URL.Query().Get("parent_task_id"); raw != "" {
-		id, err := uuid.Parse(raw)
-		if err != nil {
-			presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid parent_task_id"))
-			return
-		}
-		filter.ParentTaskID = &id
-	}
-	if raw := strings.TrimSpace(r.URL.Query().Get("search")); raw != "" {
-		filter.Search = &raw
-		filter.SearchContent = r.URL.Query().Get("search_content") == "true"
-	}
-	if raw := strings.TrimSpace(r.URL.Query().Get("custom_field_filters")); raw != "" {
-		cfFilters, err := parseCustomFieldFilters(r.Context(), h.svc, projectID, raw)
-		if err != nil {
-			presenter.Error(w, r, err)
-			return
-		}
-		filter.CustomFieldFilters = cfFilters
-	}
-	if raw := strings.TrimSpace(r.URL.Query().Get("start_date_after")); raw != "" {
-		if !isValidDateString(raw) {
-			presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid start_date_after"))
-			return
-		}
-		filter.StartDateAfter = &raw
-	}
-	if raw := strings.TrimSpace(r.URL.Query().Get("start_date_before")); raw != "" {
-		if !isValidDateString(raw) {
-			presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid start_date_before"))
-			return
-		}
-		filter.StartDateBefore = &raw
-	}
-	if raw := strings.TrimSpace(r.URL.Query().Get("due_date_after")); raw != "" {
-		if !isValidDateString(raw) {
-			presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid due_date_after"))
-			return
-		}
-		filter.DueDateAfter = &raw
-	}
-	if raw := strings.TrimSpace(r.URL.Query().Get("due_date_before")); raw != "" {
-		if !isValidDateString(raw) {
-			presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid due_date_before"))
-			return
-		}
-		filter.DueDateBefore = &raw
-	}
-	if raw := strings.TrimSpace(r.URL.Query().Get("story_points_min")); raw != "" {
-		v, err := strconv.Atoi(raw)
-		if err != nil {
-			presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid story_points_min"))
-			return
-		}
-		filter.StoryPointsMin = &v
-	}
-	if raw := strings.TrimSpace(r.URL.Query().Get("story_points_max")); raw != "" {
-		v, err := strconv.Atoi(raw)
-		if err != nil {
-			presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid story_points_max"))
-			return
-		}
-		filter.StoryPointsMax = &v
-	}
-	if raw := strings.TrimSpace(r.URL.Query().Get("importance_ranges")); raw != "" {
-		ranges, err := parseImportanceRanges(raw)
-		if err != nil {
-			presenter.Error(w, r, err)
-			return
-		}
-		filter.ImportanceRanges = ranges
-	}
-	if raw := strings.TrimSpace(r.URL.Query().Get("tags")); raw != "" {
-		var tags []string
-		for _, tag := range strings.Split(raw, ",") {
-			if tag = strings.TrimSpace(tag); tag != "" {
-				tags = append(tags, tag)
-			}
-		}
-		filter.Tags = tags
 	}
 	if cursorRaw := r.URL.Query().Get("cursor"); cursorRaw != "" {
 		filter.CursorAfter = &cursorRaw
@@ -796,6 +800,12 @@ func (h *TaskHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 		}
 		resp = append(resp, r)
 	}
+	if include.people {
+		if err := h.attachPeople(scopeCtx, tasks, resp); err != nil {
+			presenter.Error(w, r, err)
+			return
+		}
+	}
 
 	var nextCursor *string
 	if hasMore && len(tasks) > 0 {
@@ -834,10 +844,12 @@ func (h *TaskHandler) ListAssignedToMe(w http.ResponseWriter, r *http.Request) {
 		presenter.Error(w, r, err)
 		return
 	}
-	var cursor *string
-	if raw := r.URL.Query().Get("cursor"); raw != "" {
-		cursor = &raw
+	include, err := parseTaskInclude(r)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
 	}
+	cursor := parseCursorParam(r)
 
 	empty := func() {
 		presenter.OK(w, r, map[string]any{
@@ -873,7 +885,7 @@ func (h *TaskHandler) ListAssignedToMe(w http.ResponseWriter, r *http.Request) {
 	for _, p := range projects {
 		projectID := p.ID
 		g.Go(func() error {
-			members, listErr := h.projectSvc.ListMembers(gctx, projectID)
+			members, listErr := h.projectSvc.ListAllMembers(gctx, projectID)
 			if listErr != nil {
 				return listErr
 			}
@@ -927,6 +939,12 @@ func (h *TaskHandler) ListAssignedToMe(w http.ResponseWriter, r *http.Request) {
 	resp := make([]dto.TaskResponse, 0, len(tasks))
 	for _, t := range tasks {
 		resp = append(resp, dto.TaskFromEntity(t))
+	}
+	if include.people {
+		if err := h.attachPeople(r.Context(), tasks, resp); err != nil {
+			presenter.Error(w, r, err)
+			return
+		}
 	}
 
 	var nextCursor *string
@@ -1661,7 +1679,9 @@ func parseCommentID(r *http.Request) (uuid.UUID, error) {
 	return id, nil
 }
 
-// ListTaskActivities handles GET /projects/:projectId/tasks/:taskId/activities.
+// ListTaskActivities handles GET /projects/:projectId/tasks/:taskId/activities —
+// one cursor-paginated page of the timeline, newest first (page_size 1-100,
+// default 30; cursor from the previous page's next_cursor).
 func (h *TaskHandler) ListTaskActivities(w http.ResponseWriter, r *http.Request) {
 	projectID, err := parseProjectID(r)
 	if err != nil {
@@ -1673,7 +1693,13 @@ func (h *TaskHandler) ListTaskActivities(w http.ResponseWriter, r *http.Request)
 		presenter.Error(w, r, err)
 		return
 	}
-	activities, err := h.activitySvc.ListActivities(r.Context(), projectID, taskID)
+	pageSize, err := parsePageSize(r, 30, 100)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+	cursor := parseCursorParam(r)
+	activities, next, err := h.activitySvc.ListActivities(r.Context(), projectID, taskID, cursor, pageSize)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
@@ -1682,7 +1708,7 @@ func (h *TaskHandler) ListTaskActivities(w http.ResponseWriter, r *http.Request)
 	for _, a := range activities {
 		resp = append(resp, h.toActivityResponse(r.Context(), a))
 	}
-	presenter.OK(w, r, map[string]any{"items": resp})
+	presenter.OK(w, r, map[string]any{"items": resp, "next_cursor": next})
 }
 
 // AddComment handles POST /projects/:projectId/tasks/:taskId/activities/comments.
@@ -1958,4 +1984,114 @@ func parseLinkID(r *http.Request) (uuid.UUID, error) {
 		return uuid.Nil, apierr.New(apierr.CodeBadRequest, "invalid link id")
 	}
 	return id, nil
+}
+
+// CountTasks handles GET /projects/:projectId/tasks/count. It accepts the same
+// filter query params as ListTasks and returns only the number of matching
+// tasks the caller may read, so callers that need a count don't fetch a page.
+func (h *TaskHandler) CountTasks(w http.ResponseWriter, r *http.Request) {
+	projectID, err := parseProjectID(r)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+	filter, err := h.parseTaskFilter(r, projectID)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+	scopeCtx, err := scopedContext(r, h.listScoper, iam.ActionTasksRead, projectID, "task")
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+	total, err := h.svc.CountTasks(scopeCtx, projectID, filter)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+	presenter.OK(w, r, map[string]any{"total_count": total})
+}
+
+// taskInclude is the set of related records a task list request asked to have
+// embedded in each task (include=assignees,reporter).
+type taskInclude struct{ people bool }
+
+// parseTaskInclude reads the include query param: a comma-separated list of
+// "assignees" and/or "reporter". Both embed the people behind the task's
+// assignee_ids / reporter_id.
+func parseTaskInclude(r *http.Request) (taskInclude, error) {
+	var inc taskInclude
+	for _, part := range strings.Split(r.URL.Query().Get("include"), ",") {
+		switch strings.TrimSpace(part) {
+		case "":
+		case "assignees", "reporter":
+			inc.people = true
+		default:
+			return inc, apierr.New(apierr.CodeBadRequest, "include must be a comma-separated list of: assignees, reporter")
+		}
+	}
+	return inc, nil
+}
+
+// maxMembersPerLookup is how many member ids one members query is given.
+const maxMembersPerLookup = 100
+
+// attachPeople embeds the assignees and reporter of each task in resp (which
+// parallels tasks), resolving them with one batched members lookup per
+// project instead of a call per task. A person who is no longer a member is
+// simply left out; the ids stay in assignee_ids / reporter_id.
+func (h *TaskHandler) attachPeople(ctx context.Context, tasks []*taskdom.Task, resp []dto.TaskResponse) error {
+	if h.projectSvc == nil {
+		return apierr.New(apierr.CodeInternalError, "member resolver not available")
+	}
+	idsByProject := map[uuid.UUID]map[uuid.UUID]struct{}{}
+	add := func(project, member uuid.UUID) {
+		if idsByProject[project] == nil {
+			idsByProject[project] = map[uuid.UUID]struct{}{}
+		}
+		idsByProject[project][member] = struct{}{}
+	}
+	for _, t := range tasks {
+		for _, id := range t.AssigneeIDs {
+			add(t.ProjectID, id)
+		}
+		if t.ReporterID != nil {
+			add(t.ProjectID, *t.ReporterID)
+		}
+	}
+	people := map[uuid.UUID]dto.ProjectMemberResponse{}
+	for project, set := range idsByProject {
+		ids := make([]uuid.UUID, 0, len(set))
+		for id := range set {
+			ids = append(ids, id)
+		}
+		for start := 0; start < len(ids); start += maxMembersPerLookup {
+			end := min(start+maxMembersPerLookup, len(ids))
+			members, _, err := h.projectSvc.ListMembers(ctx, project, maxMembersPerLookup, nil,
+				projectdom.MemberFilter{AccountIDs: ids[start:end], SkipRoles: true})
+			if err != nil {
+				return err
+			}
+			for _, m := range members {
+				r := memberResponse(ctx, h.avatarSvc, m)
+				r.Roles = []dto.RoleSummaryResponse{}
+				r.Description = ""
+				people[m.ID] = r
+			}
+		}
+	}
+	for i, t := range tasks {
+		for _, id := range t.AssigneeIDs {
+			if p, ok := people[id]; ok {
+				resp[i].Assignees = append(resp[i].Assignees, p)
+			}
+		}
+		if t.ReporterID != nil {
+			if p, ok := people[*t.ReporterID]; ok {
+				resp[i].Reporter = &p
+			}
+		}
+	}
+	return nil
 }

@@ -40,7 +40,15 @@ func newFakeDocRepo() *fakeDocRepo {
 
 // -- DocFolderRepository --
 
-func (r *fakeDocRepo) ListFolders(_ context.Context, projectID uuid.UUID) ([]*docdom.DocFolder, error) {
+func (r *fakeDocRepo) ListFolders(context.Context, uuid.UUID, *uuid.UUID, *string, int) ([]*docdom.DocFolder, bool, error) {
+	return nil, false, nil
+}
+
+func (r *fakeDocRepo) FolderPath(context.Context, uuid.UUID, uuid.UUID) ([]*docdom.DocFolder, error) {
+	return nil, nil
+}
+
+func (r *fakeDocRepo) ListAllFolders(_ context.Context, projectID uuid.UUID) ([]*docdom.DocFolder, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var out []*docdom.DocFolder
@@ -108,7 +116,7 @@ func (r *fakeDocRepo) DeleteFolder(_ context.Context, id uuid.UUID) error {
 
 // -- DocumentRepository --
 
-func (r *fakeDocRepo) ListDocuments(_ context.Context, projectID uuid.UUID, folderID *uuid.UUID, search *string, cursor *string, limit *int) ([]*docdom.Document, bool, error) {
+func (r *fakeDocRepo) ListDocuments(_ context.Context, projectID uuid.UUID, filter docdom.DocumentFilter, cursor *string, limit int) ([]*docdom.Document, bool, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var out []*docdom.Document
@@ -116,45 +124,56 @@ func (r *fakeDocRepo) ListDocuments(_ context.Context, projectID uuid.UUID, fold
 		if d.ProjectID != projectID || d.DeletedAt != nil {
 			continue
 		}
-		if folderID != nil {
-			if d.FolderID == nil || *d.FolderID != *folderID {
-				continue
-			}
+		if filter.FolderID != nil && (d.FolderID == nil || *d.FolderID != *filter.FolderID) {
+			continue
 		}
-		if search != nil && *search != "" {
-			if !strings.Contains(strings.ToLower(d.Title), strings.ToLower(*search)) {
-				continue
-			}
+		if filter.RootOnly && filter.FolderID == nil && d.FolderID != nil {
+			continue
+		}
+		if filter.Search != "" && !strings.Contains(strings.ToLower(d.Title), strings.ToLower(filter.Search)) {
+			continue
 		}
 		cp := *d
 		out = append(out, &cp)
 	}
-	// Mirrors the real repository's pagination-mode ordering (title ASC, id
-	// ASC) — the map above has no inherent order, so this is required for
-	// the cursor test below to be meaningful, not just cosmetic.
+	// Mirrors the real repository's manual order (position, title, id) — the
+	// map above has no inherent order, so this is required for the cursor
+	// test below to be meaningful, not just cosmetic.
 	sort.Slice(out, func(i, j int) bool {
+		if out[i].Position != out[j].Position {
+			return out[i].Position < out[j].Position
+		}
 		if out[i].Title != out[j].Title {
 			return out[i].Title < out[j].Title
 		}
 		return out[i].ID.String() < out[j].ID.String()
 	})
-	if limit == nil {
+	if cursor != nil {
+		cur, err := docdom.DecodeTreeCursor(*cursor)
+		if err != nil {
+			return nil, false, err
+		}
+		i := 0
+		for i < len(out) && (out[i].Position < cur.Position ||
+			(out[i].Position == cur.Position && (out[i].Title < cur.Name ||
+				(out[i].Title == cur.Name && out[i].ID.String() <= cur.ID)))) {
+			i++
+		}
+		out = out[i:]
+	}
+	if limit <= 0 {
 		return out, false, nil
 	}
-	if cursor != nil {
-		if cur, ok := docdom.DecodeDocumentCursor(*cursor); ok {
-			i := 0
-			for i < len(out) && (out[i].Title < cur.Title || (out[i].Title == cur.Title && out[i].ID.String() <= cur.ID)) {
-				i++
-			}
-			out = out[i:]
-		}
-	}
-	hasMore := len(out) > *limit
+	hasMore := len(out) > limit
 	if hasMore {
-		out = out[:*limit]
+		out = out[:limit]
 	}
 	return out, hasMore, nil
+}
+
+func (r *fakeDocRepo) ListAllDocuments(ctx context.Context, projectID uuid.UUID) ([]*docdom.Document, error) {
+	docs, _, err := r.ListDocuments(ctx, projectID, docdom.DocumentFilter{}, nil, 0)
+	return docs, err
 }
 
 func (r *fakeDocRepo) SearchDocuments(_ context.Context, projectID uuid.UUID, query string, limit int) ([]*docdom.Document, error) {
@@ -239,7 +258,7 @@ func (r *fakeDocRepo) DeleteDocument(_ context.Context, id uuid.UUID) error {
 
 // -- DocSnapshotRepository --
 
-func (r *fakeDocRepo) ListSnapshots(_ context.Context, documentID uuid.UUID) ([]*docdom.DocSnapshot, error) {
+func (r *fakeDocRepo) ListSnapshots(_ context.Context, documentID uuid.UUID, cursorAfter *string, limit int) ([]*docdom.DocSnapshot, bool, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var out []*docdom.DocSnapshot
@@ -249,7 +268,24 @@ func (r *fakeDocRepo) ListSnapshots(_ context.Context, documentID uuid.UUID) ([]
 			out = append(out, &cp)
 		}
 	}
-	return out, nil
+	// Newest first, as the real repository returns them.
+	sort.Slice(out, func(i, j int) bool { return out[i].SnapshotNumber > out[j].SnapshotNumber })
+	if cursorAfter != nil {
+		n, err := docdom.DecodeSnapshotCursor(*cursorAfter)
+		if err != nil {
+			return nil, false, err
+		}
+		i := 0
+		for i < len(out) && out[i].SnapshotNumber >= n {
+			i++
+		}
+		out = out[i:]
+	}
+	hasMore := limit > 0 && len(out) > limit
+	if hasMore {
+		out = out[:limit]
+	}
+	return out, hasMore, nil
 }
 
 func (r *fakeDocRepo) FindSnapshotByID(_ context.Context, id uuid.UUID) (*docdom.DocSnapshot, error) {
@@ -798,7 +834,7 @@ func TestUpdateDocument_TitleChange_CreatesSnapshot(t *testing.T) {
 	}
 
 	// A snapshot should have been created preserving the old title.
-	snaps, err := repo.ListSnapshots(ctx, d.ID)
+	snaps, _, err := repo.ListSnapshots(ctx, d.ID, nil, 100)
 	if err != nil {
 		t.Fatalf("ListSnapshots error: %v", err)
 	}
@@ -834,7 +870,7 @@ func TestUpdateDocument_ContentChange_CreatesSnapshot(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	snaps, _ := repo.ListSnapshots(ctx, d.ID)
+	snaps, _, _ := repo.ListSnapshots(ctx, d.ID, nil, 100)
 	if len(snaps) != 1 {
 		t.Fatalf("expected 1 snapshot, got %d", len(snaps))
 	}
@@ -851,7 +887,7 @@ func TestUpdateDocument_ContentChange_CreatesSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error on second update: %v", err)
 	}
-	snaps, _ = repo.ListSnapshots(ctx, d.ID)
+	snaps, _, _ = repo.ListSnapshots(ctx, d.ID, nil, 100)
 	if len(snaps) != 1 {
 		t.Errorf("expected still 1 snapshot (no duplicate on identical content), got %d", len(snaps))
 	}
@@ -966,7 +1002,7 @@ func TestListDocuments_Search(t *testing.T) {
 	}
 
 	search := "onboard"
-	docs, _, err := svc.ListDocuments(ctx, projectID, nil, &search, nil, nil)
+	docs, _, err := svc.ListDocuments(ctx, projectID, docdom.DocumentFilter{Search: search}, nil, 50)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -977,7 +1013,7 @@ func TestListDocuments_Search(t *testing.T) {
 		t.Errorf("expected Title=Onboarding Flow, got %q", docs[0].Title)
 	}
 
-	all, _, err := svc.ListDocuments(ctx, projectID, nil, nil, nil, nil)
+	all, _, err := svc.ListDocuments(ctx, projectID, docdom.DocumentFilter{}, nil, 50)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1004,7 +1040,7 @@ func TestListDocuments_CursorPagination(t *testing.T) {
 	var seen []string
 	var cursor *string
 	for {
-		page, hasMore, err := svc.ListDocuments(ctx, projectID, nil, nil, cursor, &pageSize)
+		page, hasMore, err := svc.ListDocuments(ctx, projectID, docdom.DocumentFilter{}, cursor, pageSize)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -1017,7 +1053,7 @@ func TestListDocuments_CursorPagination(t *testing.T) {
 		if !hasMore {
 			break
 		}
-		s := docdom.EncodeDocumentCursor(page[len(page)-1])
+		s := docdom.EncodeDocumentTreeCursor(page[len(page)-1])
 		cursor = &s
 	}
 
@@ -1042,7 +1078,7 @@ func TestListSnapshots_DocNotFound(t *testing.T) {
 	repo := newFakeDocRepo()
 	svc := docsvc.New(repo, nil)
 
-	_, err := svc.ListSnapshots(ctx, uuid.New(), uuid.New())
+	_, _, err := svc.ListSnapshots(ctx, uuid.New(), uuid.New(), nil, 100)
 	if err != docdom.ErrDocNotFound {
 		t.Errorf("expected ErrDocNotFound, got %v", err)
 	}
@@ -1065,7 +1101,7 @@ func TestListSnapshots_OK(t *testing.T) {
 	v2 := json.RawMessage(`{"v":2}`)
 	_, _ = svc.UpdateDocument(ctx, projectID, d.ID, docdom.UpdateDocumentInput{Content: &v2, UpdatedBy: &actor})
 
-	snaps, err := svc.ListSnapshots(ctx, projectID, d.ID)
+	snaps, _, err := svc.ListSnapshots(ctx, projectID, d.ID, nil, 100)
 	if err != nil {
 		t.Fatalf("ListSnapshots error: %v", err)
 	}
@@ -1101,7 +1137,7 @@ func TestGetSnapshot_OK(t *testing.T) {
 	v2 := json.RawMessage(`{"v":2}`)
 	_, _ = svc.UpdateDocument(ctx, projectID, d.ID, docdom.UpdateDocumentInput{Content: &v2, UpdatedBy: &actor})
 
-	snaps, _ := svc.ListSnapshots(ctx, projectID, d.ID)
+	snaps, _, _ := svc.ListSnapshots(ctx, projectID, d.ID, nil, 100)
 	if len(snaps) == 0 {
 		t.Fatal("no snapshots created")
 	}
@@ -1181,7 +1217,7 @@ func TestListSnapshots_WrongProject_ReturnsNotFound(t *testing.T) {
 	v2 := json.RawMessage(`{"v":2}`)
 	_, _ = svc.UpdateDocument(ctx, ownerProjectID, d.ID, docdom.UpdateDocumentInput{Content: &v2, UpdatedBy: &actor})
 
-	if _, err := svc.ListSnapshots(ctx, attackerProjectID, d.ID); err != docdom.ErrDocNotFound {
+	if _, _, err := svc.ListSnapshots(ctx, attackerProjectID, d.ID, nil, 100); err != docdom.ErrDocNotFound {
 		t.Fatalf("expected ErrDocNotFound for cross-project ListSnapshots, got %v", err)
 	}
 }
@@ -1201,7 +1237,7 @@ func TestGetSnapshot_WrongProject_ReturnsNotFound(t *testing.T) {
 	})
 	v2 := json.RawMessage(`{"v":2}`)
 	_, _ = svc.UpdateDocument(ctx, ownerProjectID, d.ID, docdom.UpdateDocumentInput{Content: &v2, UpdatedBy: &actor})
-	snaps, _ := svc.ListSnapshots(ctx, ownerProjectID, d.ID)
+	snaps, _, _ := svc.ListSnapshots(ctx, ownerProjectID, d.ID, nil, 100)
 	if len(snaps) == 0 {
 		t.Fatal("no snapshots created")
 	}

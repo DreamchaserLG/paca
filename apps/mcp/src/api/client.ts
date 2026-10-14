@@ -18,6 +18,7 @@ import type {
 	UpdateTaskInput,
 } from "../types/index.js";
 import { formatApiRequestError, markdownToBlocknote } from "../utils/index.js";
+import { fetchAllPages, withPaging } from "./paginate.js";
 
 /**
  * Paca API client for interacting with the Paca backend.
@@ -332,13 +333,11 @@ export class PacaAPIClient {
 		folderId?: string,
 	): Promise<Document[]> {
 		const queryString = folderId ? `?folder_id=${folderId}` : "";
-		const response = await this.get(
-			`/api/v1/projects/${projectId}/docs${queryString}`,
+		return fetchAllPages((cursor) =>
+			this.get(
+				withPaging(`/api/v1/projects/${projectId}/docs${queryString}`, cursor),
+			),
 		);
-		if (Array.isArray(response)) {
-			return response;
-		}
-		return response.items || response.documents || response.data || [];
 	}
 
 	async getDocument(projectId: string, docId: string): Promise<Document> {

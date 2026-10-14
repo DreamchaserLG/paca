@@ -16,7 +16,7 @@ import {
 import {
 	deleteServiceAccount,
 	type ServiceAccount,
-	serviceAccountsQueryOptions,
+	serviceAccountsKey,
 } from "@/lib/service-account-api";
 
 interface DeleteServiceAccountDialogProps {
@@ -41,7 +41,7 @@ export function DeleteServiceAccountDialog({
 		mutationFn: () => deleteServiceAccount(account.id),
 		onSuccess: () => {
 			void queryClient.invalidateQueries({
-				queryKey: serviceAccountsQueryOptions.queryKey,
+				queryKey: serviceAccountsKey,
 			});
 			onOpenChange(false);
 			onDeleted?.();

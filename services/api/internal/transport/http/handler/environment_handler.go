@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -103,9 +104,34 @@ func (h *EnvironmentHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// parseEnvListParams reads the paging params every environment list takes:
+// page_size (1-100, default 30) and cursor.
+func parseEnvListParams(r *http.Request) (cursor *string, pageSize int, err error) {
+	cursor = parseCursorParam(r)
+	pageSize, err = parsePageSize(r, 30, 100)
+	return cursor, pageSize, err
+}
+
+// pageBody builds a cursor page response. total_count is a first-page field
+// (the lists skip the COUNT on later pages), so it is included only then.
+func pageBody(items any, pageSize int, nextCursor *string, firstPage bool, total any) map[string]any {
+	body := map[string]any{"items": items, "page_size": pageSize, "next_cursor": nextCursor}
+	if firstPage {
+		body["total_count"] = total
+	}
+	return body
+}
+
 // --- Environments -------------------------------------------------------
 
-// ListEnvironments handles GET /projects/:projectId/environments.
+// ListEnvironments handles GET /projects/:projectId/environments — one
+// cursor-paginated page of the project's environments, newest first:
+//   - page_size=<1-100>  (default 30)
+//   - cursor=<opaque>    from the previous page's next_cursor
+//   - search=<text>      every word must appear in the name or slug
+//   - ids=<uuid,...>     only these environments (batch lookup, at most 100)
+//
+// Responds with {"items": [...], "page_size": n, "next_cursor": ...}.
 func (h *EnvironmentHandler) ListEnvironments(w http.ResponseWriter, r *http.Request) {
 	projectID, err := parseProjectID(r)
 	if err != nil {
@@ -117,7 +143,18 @@ func (h *EnvironmentHandler) ListEnvironments(w http.ResponseWriter, r *http.Req
 		presenter.Error(w, r, err)
 		return
 	}
-	envs, err := h.svc.ListEnvironments(ctx, projectID)
+	cursor, pageSize, err := parseEnvListParams(r)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+	ids, err := parseIDsParam(r)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+	filter := environmentdom.EnvironmentFilter{Search: strings.TrimSpace(r.URL.Query().Get("search")), IDs: ids}
+	envs, hasMore, err := h.svc.ListEnvironments(ctx, projectID, filter, cursor, pageSize)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
@@ -126,7 +163,13 @@ func (h *EnvironmentHandler) ListEnvironments(w http.ResponseWriter, r *http.Req
 	for _, e := range envs {
 		resp = append(resp, dto.EnvironmentFromEntity(e))
 	}
-	presenter.OK(w, r, map[string]any{"environments": resp})
+	var nextCursor *string
+	if hasMore && len(envs) > 0 {
+		last := envs[len(envs)-1]
+		c := environmentdom.EncodeCursor(last.CreatedAt, last.ID)
+		nextCursor = &c
+	}
+	presenter.OK(w, r, map[string]any{"items": resp, "page_size": pageSize, "next_cursor": nextCursor})
 }
 
 // CreateEnvironment handles POST /projects/:projectId/environments.
@@ -310,14 +353,27 @@ func (h *EnvironmentHandler) VerifyCLILogin(w http.ResponseWriter, r *http.Reque
 
 // --- Folders --------------------------------------------------------------
 
-// ListFolders handles GET /projects/:projectId/environments/:environmentId/folders.
+// ListFolders handles GET /projects/:projectId/environments/:environmentId/folders —
+// one cursor-paginated page of the environment's folders, oldest first
+// (page_size, cursor, search over the path, ids), with total_count.
 func (h *EnvironmentHandler) ListFolders(w http.ResponseWriter, r *http.Request) {
 	projectID, environmentID, err := h.parseEnvironment(r)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
 	}
-	folders, err := h.svc.ListFolders(r.Context(), projectID, environmentID)
+	cursor, pageSize, err := parseEnvListParams(r)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+	ids, err := parseIDsParam(r)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+	filter := environmentdom.FolderFilter{Search: strings.TrimSpace(r.URL.Query().Get("search")), IDs: ids}
+	folders, hasMore, total, err := h.svc.ListFolders(r.Context(), projectID, environmentID, filter, cursor, pageSize)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
@@ -326,7 +382,13 @@ func (h *EnvironmentHandler) ListFolders(w http.ResponseWriter, r *http.Request)
 	for _, f := range folders {
 		resp = append(resp, dto.EnvironmentFolderFromEntity(f))
 	}
-	presenter.OK(w, r, map[string]any{"folders": resp})
+	var nextCursor *string
+	if hasMore && len(folders) > 0 {
+		last := folders[len(folders)-1]
+		c := environmentdom.EncodeCursor(last.CreatedAt, last.ID)
+		nextCursor = &c
+	}
+	presenter.OK(w, r, pageBody(resp, pageSize, nextCursor, cursor == nil, total))
 }
 
 // AddFolder handles POST /projects/:projectId/environments/:environmentId/folders.
@@ -409,14 +471,21 @@ func (h *EnvironmentHandler) BrowseFolder(w http.ResponseWriter, r *http.Request
 
 // --- SSH keys ---------------------------------------------------------------
 
-// ListSSHKeys handles GET /projects/:projectId/environments/:environmentId/ssh-keys.
+// ListSSHKeys handles GET /projects/:projectId/environments/:environmentId/ssh-keys —
+// one cursor-paginated page of the environment's SSH keys, oldest first
+// (page_size, cursor), with total_count.
 func (h *EnvironmentHandler) ListSSHKeys(w http.ResponseWriter, r *http.Request) {
 	projectID, environmentID, err := h.parseEnvironment(r)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
 	}
-	keys, err := h.svc.ListSSHKeys(r.Context(), projectID, environmentID)
+	cursor, pageSize, err := parseEnvListParams(r)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+	keys, hasMore, total, err := h.svc.ListSSHKeys(r.Context(), projectID, environmentID, cursor, pageSize)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
@@ -425,7 +494,13 @@ func (h *EnvironmentHandler) ListSSHKeys(w http.ResponseWriter, r *http.Request)
 	for _, k := range keys {
 		resp = append(resp, dto.EnvironmentSSHKeyFromEntity(k))
 	}
-	presenter.OK(w, r, map[string]any{"ssh_keys": resp})
+	var nextCursor *string
+	if hasMore && len(keys) > 0 {
+		last := keys[len(keys)-1]
+		c := environmentdom.EncodeCursor(last.CreatedAt, last.ID)
+		nextCursor = &c
+	}
+	presenter.OK(w, r, pageBody(resp, pageSize, nextCursor, cursor == nil, total))
 }
 
 // AddSSHKey handles POST /projects/:projectId/environments/:environmentId/ssh-keys.
@@ -486,14 +561,21 @@ func (h *EnvironmentHandler) DeleteSSHKey(w http.ResponseWriter, r *http.Request
 // --- Port forwards -----------------------------------------------------------
 
 // ListPortForwards handles GET
-// /projects/:projectId/environments/:environmentId/port-forwards.
+// /projects/:projectId/environments/:environmentId/port-forwards — one
+// cursor-paginated page of the environment's port forwards, oldest first
+// (page_size, cursor), with total_count.
 func (h *EnvironmentHandler) ListPortForwards(w http.ResponseWriter, r *http.Request) {
 	projectID, environmentID, err := h.parseEnvironment(r)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
 	}
-	forwards, err := h.svc.ListPortForwards(r.Context(), projectID, environmentID)
+	cursor, pageSize, err := parseEnvListParams(r)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+	forwards, hasMore, total, err := h.svc.ListPortForwards(r.Context(), projectID, environmentID, cursor, pageSize)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
@@ -502,7 +584,13 @@ func (h *EnvironmentHandler) ListPortForwards(w http.ResponseWriter, r *http.Req
 	for _, pf := range forwards {
 		resp = append(resp, dto.EnvironmentPortForwardFromEntity(pf))
 	}
-	presenter.OK(w, r, map[string]any{"port_forwards": resp})
+	var nextCursor *string
+	if hasMore && len(forwards) > 0 {
+		last := forwards[len(forwards)-1]
+		c := environmentdom.EncodeCursor(last.CreatedAt, last.ID)
+		nextCursor = &c
+	}
+	presenter.OK(w, r, pageBody(resp, pageSize, nextCursor, cursor == nil, total))
 }
 
 // GetPortForward handles GET

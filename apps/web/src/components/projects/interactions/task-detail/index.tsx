@@ -16,6 +16,7 @@ import {
 	taskQueryOptions,
 	updateTask,
 } from "@/lib/interaction-api";
+import { useMemberDirectory } from "@/lib/member-directory";
 import { ExtensionPoint } from "@/lib/plugins/extension-point";
 import {
 	customFieldsQueryOptions,
@@ -56,7 +57,6 @@ export function TaskDetailModal({
 	onOpenChange,
 	statuses,
 	taskTypes,
-	members = [],
 	projectName,
 	interactionName,
 	projectId,
@@ -118,7 +118,8 @@ export function TaskDetailModal({
 	const status = statuses.find((s) => s.id === task?.status_id);
 	const taskType = taskTypes.find((t) => t.id === task?.task_type_id);
 	const priority = getPriority(task?.importance ?? 0);
-	const reporter = members.find((m) => m.id === task?.reporter_id);
+	const getMember = useMemberDirectory(projectId ?? "");
+	const reporter = getMember(task?.reporter_id);
 
 	// ── Task role detection ────────────────────────────────────────────────────
 	const isEpic = isEpicType(taskType);
@@ -428,7 +429,6 @@ export function TaskDetailModal({
 								reporter={reporter}
 								statuses={statuses}
 								taskTypes={taskTypes}
-								members={members}
 								sprints={sprints}
 								projectId={projectId}
 								initialCustomFields={customFieldDefs}
@@ -457,7 +457,6 @@ export function TaskDetailModal({
 							subtasks={subtasks}
 							statuses={statuses}
 							taskTypes={taskTypes}
-							members={members}
 							canEdit={canEdit}
 							task={task}
 							taskIdPrefix={taskIdPrefix}

@@ -121,7 +121,7 @@ func TestFlow_CreateProject_RolesCreatorAndAccess(t *testing.T) {
 	}
 
 	// The creator is a member holding Admin inside the project, and can act at once.
-	members, err := e.projs.ListMembers(context.Background(), p.ID)
+	members, err := e.projs.ListAllMembers(context.Background(), p.ID)
 	if err != nil || len(members) != 1 {
 		t.Fatalf("members = %v, %v", members, err)
 	}
@@ -143,7 +143,7 @@ func TestFlow_CreateProject_RolesCreatorAndAccess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ms, _ := e.projs.ListMembers(context.Background(), bare.ID); len(ms) != 0 {
+	if ms, _ := e.projs.ListAllMembers(context.Background(), bare.ID); len(ms) != 0 {
 		t.Errorf("bare project has members: %v", ms)
 	}
 }
@@ -350,7 +350,7 @@ func TestFlow_RoleReplacementThroughTheRoleService(t *testing.T) {
 	if err != nil || len(loaded.Roles) != 1 || loaded.Roles[0].Name != "ADMIN" {
 		t.Errorf("FindAgentByID roles = %+v %v", loaded, err)
 	}
-	listed, err := e.agent.ListGlobalAgents(ctx)
+	listed, _, err := e.agent.ListGlobalAgents(ctx, agentdom.AgentFilter{}, nil, 50)
 	if err != nil || len(listed) != 1 || len(listed[0].Roles) != 1 {
 		t.Errorf("ListGlobalAgents roles = %+v %v", listed, err)
 	}

@@ -273,29 +273,15 @@ func (s *Service) decryptSecret(stored string) (string, error) {
 // Environments
 // -------------------------------------------------------------------------
 
-// ListEnvironments returns every environment in a project.
-func (s *Service) ListEnvironments(ctx context.Context, projectID uuid.UUID) ([]*environmentdom.Environment, error) {
-	return s.repo.ListEnvironments(ctx, projectID)
+// ListEnvironments returns one page of a project's environments.
+func (s *Service) ListEnvironments(ctx context.Context, projectID uuid.UUID, filter environmentdom.EnvironmentFilter, cursorAfter *string, limit int) ([]*environmentdom.Environment, bool, error) {
+	return s.repo.ListEnvironments(ctx, projectID, filter, cursorAfter, limit)
 }
 
-// GetEnvironment returns a single environment visible in projectID, with
-// its Folders populated. Unlike FindVisibleEnvironmentInProject — used
-// internally by every other operation in this file (Start/Stop/AddFolder/
-// etc.), none of which need Folders and shouldn't pay for the extra
-// query — this is the one path a client actually reads Folders back from
-// (see dto.EnvironmentFromEntity), so the fetch-then-attach happens here
-// rather than inside FindVisibleEnvironmentInProject itself.
+// GetEnvironment returns a single environment visible in projectID. Its
+// folders are listed separately (ListFolders) rather than embedded.
 func (s *Service) GetEnvironment(ctx context.Context, projectID, environmentID uuid.UUID) (*environmentdom.Environment, error) {
-	env, err := s.repo.FindVisibleEnvironmentInProject(ctx, projectID, environmentID)
-	if err != nil {
-		return nil, err
-	}
-	folders, err := s.repo.ListFolders(ctx, env.ID)
-	if err != nil {
-		return nil, err
-	}
-	env.Folders = folders
-	return env, nil
+	return s.repo.FindVisibleEnvironmentInProject(ctx, projectID, environmentID)
 }
 
 // CreateEnvironment writes the environment row (status StatusCreating) and
@@ -965,11 +951,12 @@ func (s *Service) ResolveConversationWorkdir(ctx context.Context, projectID uuid
 		return env, folder, nil
 	}
 
-	folders, err := s.repo.ListFolders(ctx, env.ID)
+	// Two rows are enough to tell "exactly one" from "none" or "ambiguous".
+	folders, hasMore, _, err := s.repo.ListFolders(ctx, env.ID, environmentdom.FolderFilter{}, nil, 2)
 	if err != nil {
 		return nil, nil, err
 	}
-	if len(folders) != 1 {
+	if len(folders) != 1 || hasMore {
 		// Zero folders: nothing to auto-select. More than one: ambiguous —
 		// the caller must ask the user to pick.
 		return nil, nil, environmentdom.ErrFolderNotFound
@@ -981,14 +968,14 @@ func (s *Service) ResolveConversationWorkdir(ctx context.Context, projectID uuid
 // Folders
 // -------------------------------------------------------------------------
 
-// ListFolders returns every folder in an environment, verifying the
+// ListFolders returns one page of an environment's folders, verifying the
 // environment itself is visible in projectID first.
-func (s *Service) ListFolders(ctx context.Context, projectID, environmentID uuid.UUID) ([]*environmentdom.EnvironmentFolder, error) {
+func (s *Service) ListFolders(ctx context.Context, projectID, environmentID uuid.UUID, filter environmentdom.FolderFilter, cursorAfter *string, limit int) ([]*environmentdom.EnvironmentFolder, bool, int64, error) {
 	env, err := s.repo.FindVisibleEnvironmentInProject(ctx, projectID, environmentID)
 	if err != nil {
-		return nil, err
+		return nil, false, 0, err
 	}
-	return s.repo.ListFolders(ctx, env.ID)
+	return s.repo.ListFolders(ctx, env.ID, filter, cursorAfter, limit)
 }
 
 // AddFolder creates the folder row and asks agent-runner to mkdir it into
@@ -1123,13 +1110,13 @@ func (s *Service) DeleteFolder(ctx context.Context, projectID, environmentID, fo
 // environmentdom.SSHKeyService's doc comment).
 // -------------------------------------------------------------------------
 
-// ListSSHKeys returns every SSH key registered on an environment.
-func (s *Service) ListSSHKeys(ctx context.Context, projectID, environmentID uuid.UUID) ([]*environmentdom.EnvironmentSSHKey, error) {
+// ListSSHKeys returns one page of the SSH keys registered on an environment.
+func (s *Service) ListSSHKeys(ctx context.Context, projectID, environmentID uuid.UUID, cursorAfter *string, limit int) ([]*environmentdom.EnvironmentSSHKey, bool, int64, error) {
 	env, err := s.repo.FindVisibleEnvironmentInProject(ctx, projectID, environmentID)
 	if err != nil {
-		return nil, err
+		return nil, false, 0, err
 	}
-	return s.repo.ListSSHKeys(ctx, env.ID)
+	return s.repo.ListSSHKeys(ctx, env.ID, cursorAfter, limit)
 }
 
 // AddSSHKey parses PublicKey, derives its fingerprint, and registers it —
@@ -1217,14 +1204,14 @@ func (s *Service) syncSSHKeys(ctx context.Context, env *environmentdom.Environme
 // SSHPort).
 // -------------------------------------------------------------------------
 
-// ListPortForwards returns every port forward on an environment, verifying
-// the environment itself is visible in projectID first.
-func (s *Service) ListPortForwards(ctx context.Context, projectID, environmentID uuid.UUID) ([]*environmentdom.EnvironmentPortForward, error) {
+// ListPortForwards returns one page of an environment's port forwards,
+// verifying the environment itself is visible in projectID first.
+func (s *Service) ListPortForwards(ctx context.Context, projectID, environmentID uuid.UUID, cursorAfter *string, limit int) ([]*environmentdom.EnvironmentPortForward, bool, int64, error) {
 	env, err := s.repo.FindVisibleEnvironmentInProject(ctx, projectID, environmentID)
 	if err != nil {
-		return nil, err
+		return nil, false, 0, err
 	}
-	return s.repo.ListPortForwards(ctx, env.ID)
+	return s.repo.ListPortForwards(ctx, env.ID, cursorAfter, limit)
 }
 
 // GetPortForward returns a single port forward, verifying it belongs to

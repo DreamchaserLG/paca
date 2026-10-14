@@ -112,7 +112,15 @@ func (s *stubProjectSvc) CompleteAvatarUpload(context.Context, uuid.UUID, uuid.U
 func (s *stubProjectSvc) RemoveAvatar(context.Context, uuid.UUID) (*projectdom.Project, error) {
 	return nil, projectdom.ErrNotFound
 }
-func (s *stubProjectSvc) ListMembers(context.Context, uuid.UUID) ([]*projectdom.ProjectMember, error) {
+func (s *stubProjectSvc) CountMembers(context.Context, uuid.UUID, projectdom.MemberFilter) (int64, error) {
+	return 0, nil
+}
+
+func (s *stubProjectSvc) ListMembers(context.Context, uuid.UUID, int, *string, projectdom.MemberFilter) ([]*projectdom.ProjectMember, bool, error) {
+	return nil, false, nil
+}
+
+func (s *stubProjectSvc) ListAllMembers(context.Context, uuid.UUID) ([]*projectdom.ProjectMember, error) {
 	return nil, nil
 }
 func (s *stubProjectSvc) CountDistinctAgentsByProjects(context.Context, []uuid.UUID) (int64, error) {

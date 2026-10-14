@@ -33,8 +33,9 @@ import {
 	replaceServiceAccountRoles,
 	revokeServiceAccountKey,
 	type ServiceAccount,
-	serviceAccountKeysQueryOptions,
-	serviceAccountsQueryOptions,
+	serviceAccountKeysInfiniteQueryOptions,
+	serviceAccountsInfiniteQueryOptions,
+	serviceAccountsKey,
 	updateServiceAccount,
 } from "./service-account-api";
 
@@ -55,9 +56,14 @@ describe("service-account-api", () => {
 	});
 
 	it("lists service accounts from /admin/service-accounts", async () => {
-		mockGet.mockResolvedValue(envelope([account]));
-		await expect(listServiceAccounts()).resolves.toEqual([account]);
-		expect(mockGet).toHaveBeenCalledWith("/admin/service-accounts");
+		const page = { items: [account], page_size: 30, next_cursor: "c2" };
+		mockGet.mockResolvedValue(envelope(page));
+		await expect(
+			listServiceAccounts({ search: "  ci ", cursor: "c1" }),
+		).resolves.toEqual(page);
+		expect(mockGet).toHaveBeenCalledWith("/admin/service-accounts", {
+			params: { page_size: 30, search: "ci", cursor: "c1" },
+		});
 	});
 
 	it("reads one account", async () => {
@@ -92,10 +98,13 @@ describe("service-account-api", () => {
 	});
 
 	it("manages an account's API keys under its own path", async () => {
-		mockGet.mockResolvedValue(envelope([]));
+		mockGet.mockResolvedValue(
+			envelope({ items: [], page_size: 30, next_cursor: null, total_count: 0 }),
+		);
 		await listServiceAccountKeys("sa-1");
 		expect(mockGet).toHaveBeenCalledWith(
 			"/admin/service-accounts/sa-1/api-keys",
+			{ params: { page_size: 30, cursor: undefined } },
 		);
 
 		mockPost.mockResolvedValue(
@@ -129,12 +138,12 @@ describe("service-account-api", () => {
 	});
 
 	it("keys the caches per account so one account's keys never show for another", () => {
-		expect(serviceAccountsQueryOptions.queryKey).toEqual([
-			"admin",
-			"service-accounts",
-		]);
-		expect(serviceAccountKeysQueryOptions("a").queryKey).not.toEqual(
-			serviceAccountKeysQueryOptions("b").queryKey,
+		expect(serviceAccountsKey).toEqual(["admin", "service-accounts"]);
+		expect(
+			serviceAccountsInfiniteQueryOptions("x").queryKey.slice(0, 2),
+		).toEqual(serviceAccountsKey);
+		expect(serviceAccountKeysInfiniteQueryOptions("a").queryKey).not.toEqual(
+			serviceAccountKeysInfiniteQueryOptions("b").queryKey,
 		);
 	});
 });

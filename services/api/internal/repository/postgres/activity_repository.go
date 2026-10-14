@@ -201,16 +201,26 @@ func (r *ActivityRepository) List(ctx context.Context, f activitydom.ListFilter,
 	return activitiesFromRecords(records), hasMore, nil
 }
 
-// ListForEntity returns one entity's non-deleted entries, oldest first.
-func (r *ActivityRepository) ListForEntity(ctx context.Context, entityType string, entityID uuid.UUID) ([]*activitydom.Activity, error) {
-	var records []activityRecord
-	err := r.db.SelectContext(ctx, &records, activitySelectSQL+`
-		WHERE a.entity_type = $1 AND a.entity_id = $2 AND a.deleted_at IS NULL
-		ORDER BY a.created_at ASC`, entityType, entityID.String())
-	if err != nil {
-		return nil, err
+// ListForEntity returns a page of one entity's non-deleted entries,
+// newest first, keyset-paginated on (created_at, id).
+func (r *ActivityRepository) ListForEntity(ctx context.Context, entityType string, entityID uuid.UUID, cursor *activitydom.Cursor, limit int) ([]*activitydom.Activity, bool, error) {
+	where := `a.entity_type = $1 AND a.entity_id = $2 AND a.deleted_at IS NULL`
+	args := []any{entityType, entityID.String()}
+	if cursor != nil {
+		args = append(args, cursor.CreatedAt, cursor.ID.String())
+		where += fmt.Sprintf(` AND (a.created_at, a.id) < ($%d, $%d)`, len(args)-1, len(args))
 	}
-	return activitiesFromRecords(records), nil
+	args = append(args, limit+1)
+	var records []activityRecord
+	if err := r.db.SelectContext(ctx, &records, activitySelectSQL+` WHERE `+where+
+		fmt.Sprintf(` ORDER BY a.created_at DESC, a.id DESC LIMIT $%d`, len(args)), args...); err != nil {
+		return nil, false, err
+	}
+	hasMore := len(records) > limit
+	if hasMore {
+		records = records[:limit]
+	}
+	return activitiesFromRecords(records), hasMore, nil
 }
 
 // FindByID returns a single entry, including a soft-deleted one.

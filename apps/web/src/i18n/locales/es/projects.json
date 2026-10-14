@@ -114,6 +114,7 @@
 			}
 		},
 		"page": {
+			"searchPlaceholder": "Buscar agentes por nombre o identificador…",
 			"title": "Agentes de IA",
 			"subtitle": "Agentes autónomos que trabajan en tareas y conversan con tu equipo",
 			"newAgent": "Nuevo agente",
@@ -1432,6 +1433,7 @@
 			"title": "Descripción",
 			"writeWithAI": "Redactar con IA",
 			"writeWithAIDialog": {
+				"searchAgents": "Buscar agentes…",
 				"title": "Redactar con IA",
 				"description": "Selecciona un agente para redactar la descripción de la tarea.",
 				"noAgents": "No hay agentes configurados para este proyecto.",
@@ -1813,6 +1815,7 @@
 			"error": "No se pudo eliminar la conversación. Inténtalo de nuevo."
 		},
 		"filters": {
+			"searchAgents": "Buscar agentes…",
 			"title": "Filtros",
 			"agent": "Agente",
 			"status": "Estado",

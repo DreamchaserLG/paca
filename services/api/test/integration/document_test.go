@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -49,7 +50,30 @@ func newFakeDocRepoIT() *fakeDocRepoIT {
 	}
 }
 
-func (r *fakeDocRepoIT) ListFolders(_ context.Context, projectID uuid.UUID) ([]*docdom.DocFolder, error) {
+// ListFolders returns the project's direct children of parentID (root when
+// nil) in one page; the fake does not page.
+func (r *fakeDocRepoIT) ListFolders(_ context.Context, projectID uuid.UUID, parentID *uuid.UUID, _ *string, _ int) ([]*docdom.DocFolder, bool, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var out []*docdom.DocFolder
+	for _, f := range r.folders {
+		if f.ProjectID != projectID {
+			continue
+		}
+		if (parentID == nil) != (f.ParentID == nil) || (parentID != nil && *f.ParentID != *parentID) {
+			continue
+		}
+		cp := *f
+		out = append(out, &cp)
+	}
+	return out, false, nil
+}
+
+func (r *fakeDocRepoIT) FolderPath(context.Context, uuid.UUID, uuid.UUID) ([]*docdom.DocFolder, error) {
+	return nil, nil
+}
+
+func (r *fakeDocRepoIT) ListAllFolders(_ context.Context, projectID uuid.UUID) ([]*docdom.DocFolder, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var out []*docdom.DocFolder
@@ -115,10 +139,8 @@ func (r *fakeDocRepoIT) DeleteFolder(_ context.Context, id uuid.UUID) error {
 }
 
 // ListDocuments ignores cursor/limit — no test in this file exercises
-// pagination, so it always returns the full matching set (equivalent to
-// always passing limit=nil), matching the real repository's own
-// no-pagination-requested behavior.
-func (r *fakeDocRepoIT) ListDocuments(_ context.Context, projectID uuid.UUID, folderID *uuid.UUID, search *string, _ *string, _ *int) ([]*docdom.Document, bool, error) {
+// pagination, so it returns every matching document.
+func (r *fakeDocRepoIT) ListDocuments(_ context.Context, projectID uuid.UUID, filter docdom.DocumentFilter, _ *string, _ int) ([]*docdom.Document, bool, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var out []*docdom.Document
@@ -126,20 +148,24 @@ func (r *fakeDocRepoIT) ListDocuments(_ context.Context, projectID uuid.UUID, fo
 		if d.ProjectID != projectID || d.DeletedAt != nil {
 			continue
 		}
-		if folderID != nil {
-			if d.FolderID == nil || *d.FolderID != *folderID {
-				continue
-			}
+		if filter.FolderID != nil && (d.FolderID == nil || *d.FolderID != *filter.FolderID) {
+			continue
 		}
-		if search != nil && *search != "" {
-			if !strings.Contains(strings.ToLower(d.Title), strings.ToLower(*search)) {
-				continue
-			}
+		if filter.RootOnly && filter.FolderID == nil && d.FolderID != nil {
+			continue
+		}
+		if filter.Search != "" && !strings.Contains(strings.ToLower(d.Title), strings.ToLower(filter.Search)) {
+			continue
 		}
 		cp := *d
 		out = append(out, &cp)
 	}
 	return out, false, nil
+}
+
+func (r *fakeDocRepoIT) ListAllDocuments(ctx context.Context, projectID uuid.UUID) ([]*docdom.Document, error) {
+	docs, _, err := r.ListDocuments(ctx, projectID, docdom.DocumentFilter{}, nil, 0)
+	return docs, err
 }
 
 func (r *fakeDocRepoIT) SearchDocuments(context.Context, uuid.UUID, string, int) ([]*docdom.Document, error) {
@@ -203,7 +229,7 @@ func (r *fakeDocRepoIT) DeleteDocument(_ context.Context, id uuid.UUID) error {
 	return nil
 }
 
-func (r *fakeDocRepoIT) ListSnapshots(_ context.Context, documentID uuid.UUID) ([]*docdom.DocSnapshot, error) {
+func (r *fakeDocRepoIT) ListSnapshots(_ context.Context, documentID uuid.UUID, cursorAfter *string, limit int) ([]*docdom.DocSnapshot, bool, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var out []*docdom.DocSnapshot
@@ -213,7 +239,24 @@ func (r *fakeDocRepoIT) ListSnapshots(_ context.Context, documentID uuid.UUID) (
 			out = append(out, &cp)
 		}
 	}
-	return out, nil
+	// Newest first, as the real repository returns them.
+	sort.Slice(out, func(i, j int) bool { return out[i].SnapshotNumber > out[j].SnapshotNumber })
+	if cursorAfter != nil {
+		n, err := docdom.DecodeSnapshotCursor(*cursorAfter)
+		if err != nil {
+			return nil, false, err
+		}
+		i := 0
+		for i < len(out) && out[i].SnapshotNumber >= n {
+			i++
+		}
+		out = out[i:]
+	}
+	hasMore := limit > 0 && len(out) > limit
+	if hasMore {
+		out = out[:limit]
+	}
+	return out, hasMore, nil
 }
 
 func (r *fakeDocRepoIT) FindSnapshotByID(_ context.Context, id uuid.UUID) (*docdom.DocSnapshot, error) {

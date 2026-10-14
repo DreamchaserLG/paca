@@ -84,10 +84,6 @@ vi.mock("@/lib/project-api", async () => {
 			queryKey: ["test", "types", projectId],
 			queryFn: async () => [],
 		}),
-		projectMembersQueryOptions: (projectId: string) => ({
-			queryKey: ["test", "members", projectId],
-			queryFn: async () => [],
-		}),
 	};
 });
 

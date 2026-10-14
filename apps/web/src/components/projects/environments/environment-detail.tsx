@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
 	AlertTriangle,
@@ -28,6 +33,7 @@ import {
 	useEnvironmentUsage,
 } from "@/components/projects/environments/environment-status-ring";
 import { FolderCreateDialog } from "@/components/projects/environments/folder-create-dialog";
+import { LoadMoreSentinel } from "@/components/shared/load-more-sentinel";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
 	Dialog,
@@ -57,8 +63,8 @@ import {
 	type Environment,
 	type EnvironmentStatus,
 	environmentConfigQueryOptions,
-	environmentFoldersQueryOptions,
-	environmentPortForwardsQueryOptions,
+	environmentFoldersInfiniteQueryOptions,
+	environmentPortForwardsInfiniteQueryOptions,
 	environmentQueryOptions,
 	portForwardUrl,
 	restartEnvironment,
@@ -339,14 +345,15 @@ function FoldersTab({
 }) {
 	const { t } = useTranslation("projects");
 	const qc = useQueryClient();
-	const { data: folders = [] } = useQuery({
-		...environmentFoldersQueryOptions(projectId, environmentId),
-	});
+	const foldersQuery = useInfiniteQuery(
+		environmentFoldersInfiniteQueryOptions(projectId, environmentId),
+	);
+	const folders = foldersQuery.data?.pages.flatMap((p) => p.items) ?? [];
+	const folderCount =
+		foldersQuery.data?.pages[0]?.total_count ?? folders.length;
 	const [addOpen, setAddOpen] = useState(false);
-	const foldersKey = environmentFoldersQueryOptions(
-		projectId,
-		environmentId,
-	).queryKey;
+	// Prefix of every folder list (any search) plus the environment itself.
+	const foldersKey = environmentQueryOptions(projectId, environmentId).queryKey;
 
 	const deleteMutation = useMutation({
 		mutationFn: (folderId: string) =>
@@ -363,7 +370,7 @@ function FoldersTab({
 		<div className="space-y-4">
 			<div className="flex items-center justify-between">
 				<p className="text-sm text-muted-foreground">
-					{t("environments.detail.folders.count", { count: folders.length })}
+					{t("environments.detail.folders.count", { count: folderCount })}
 				</p>
 				{canWrite && (
 					<Button size="sm" onClick={() => setAddOpen(true)}>
@@ -416,6 +423,12 @@ function FoldersTab({
 							)}
 						</div>
 					))}
+					<LoadMoreSentinel
+						hasMore={foldersQuery.hasNextPage}
+						isLoadingMore={foldersQuery.isFetchingNextPage}
+						isError={foldersQuery.isFetchNextPageError}
+						onLoadMore={() => void foldersQuery.fetchNextPage()}
+					/>
 				</div>
 			)}
 			{deleteMutation.isError && (
@@ -504,8 +517,10 @@ function AddPortForwardDialog({
 			}),
 		onSuccess: () => {
 			qc.invalidateQueries({
-				queryKey: environmentPortForwardsQueryOptions(projectId, environmentId)
-					.queryKey,
+				queryKey: environmentPortForwardsInfiniteQueryOptions(
+					projectId,
+					environmentId,
+				).queryKey,
 			});
 			qc.invalidateQueries({
 				queryKey: environmentQueryOptions(projectId, environmentId).queryKey,
@@ -632,8 +647,10 @@ function RestartEnvironmentDialog({
 				updated,
 			);
 			qc.invalidateQueries({
-				queryKey: environmentPortForwardsQueryOptions(projectId, environment.id)
-					.queryKey,
+				queryKey: environmentPortForwardsInfiniteQueryOptions(
+					projectId,
+					environment.id,
+				).queryKey,
 			});
 			onOpenChange(false);
 		},
@@ -697,15 +714,18 @@ function PortForwardsTab({
 	const { t } = useTranslation("projects");
 	const qc = useQueryClient();
 	const { data: config } = useQuery(environmentConfigQueryOptions());
-	const { data: forwards = [] } = useQuery({
-		...environmentPortForwardsQueryOptions(projectId, environment.id),
-	});
+	const forwardsQuery = useInfiniteQuery(
+		environmentPortForwardsInfiniteQueryOptions(projectId, environment.id),
+	);
+	const forwards = forwardsQuery.data?.pages.flatMap((p) => p.items) ?? [];
+	const forwardCount =
+		forwardsQuery.data?.pages[0]?.total_count ?? forwards.length;
 	const [addOpen, setAddOpen] = useState(false);
 	const [restartOpen, setRestartOpen] = useState(false);
 	const host = config?.port_forward_host || null;
 	const isRunning = environment.status === "running";
 
-	const forwardsKey = environmentPortForwardsQueryOptions(
+	const forwardsKey = environmentPortForwardsInfiniteQueryOptions(
 		projectId,
 		environment.id,
 	).queryKey;
@@ -752,7 +772,7 @@ function PortForwardsTab({
 			<div className="flex items-center justify-between">
 				<p className="text-sm text-muted-foreground">
 					{t("environments.detail.portForwards.count", {
-						count: forwards.length,
+						count: forwardCount,
 					})}
 				</p>
 				{canWrite && (
@@ -854,6 +874,12 @@ function PortForwardsTab({
 							</div>
 						</div>
 					))}
+					<LoadMoreSentinel
+						hasMore={forwardsQuery.hasNextPage}
+						isLoadingMore={forwardsQuery.isFetchingNextPage}
+						isError={forwardsQuery.isFetchNextPageError}
+						onLoadMore={() => void forwardsQuery.fetchNextPage()}
+					/>
 				</div>
 			)}
 			{deleteMutation.isError && (

@@ -3,11 +3,13 @@ package handler
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
 	"github.com/Paca-AI/api/internal/apierr"
+	attachmentdom "github.com/Paca-AI/api/internal/domain/attachment"
 	projectdom "github.com/Paca-AI/api/internal/domain/project"
 	"github.com/Paca-AI/api/internal/transport/http/dto"
 	"github.com/Paca-AI/api/internal/transport/http/middleware"
@@ -18,32 +20,95 @@ import (
 // AvatarService is configured, resolves the backing user/agent's avatar
 // keys into presigned display URLs.
 func (h *ProjectHandler) toProjectMemberResponse(ctx context.Context, m *projectdom.ProjectMember) dto.ProjectMemberResponse {
+	return memberResponse(ctx, h.avatarSvc, m)
+}
+
+// memberResponse maps m to its API shape and, when avatarSvc is non-nil,
+// resolves the backing user/agent's avatar keys into presigned display URLs.
+func memberResponse(ctx context.Context, avatarSvc attachmentdom.AvatarService, m *projectdom.ProjectMember) dto.ProjectMemberResponse {
 	resp := dto.ProjectMemberFromEntity(m)
-	if h.avatarSvc != nil {
+	if avatarSvc != nil {
 		key, thumbKey := dto.MemberAvatarKeys(m)
-		resp.AvatarURL, _ = h.avatarSvc.ResolveAvatarURL(ctx, key)
-		resp.AvatarThumbURL, _ = h.avatarSvc.ResolveAvatarURL(ctx, thumbKey)
+		resp.AvatarURL, _ = avatarSvc.ResolveAvatarURL(ctx, key)
+		resp.AvatarThumbURL, _ = avatarSvc.ResolveAvatarURL(ctx, thumbKey)
 	}
 	return resp
 }
 
-// ListMembers handles GET /projects/:projectId/members.
+// ListMembers handles GET /projects/:projectId/members — keyset-paginated and
+// filterable, for infinite-scroll lists and pickers. The response is
+// {items, page_size, next_cursor, total_count}.
+//
+// Supported query params (all optional):
+//   - page_size=<1-100>      defaults to 20
+//   - cursor=<opaque>        from the previous page's next_cursor
+//   - search=<text>          every word must match username, name or handle
+//   - role_id=<uuid>         only members holding that project role
+//   - member_type=<type>     human | agent | service_account
+//   - ids=<uuid,uuid,...>    only members whose account id or membership id is
+//     listed (batch lookup, at most 100)
 func (h *ProjectHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
 	id, err := parseProjectID(r)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
 	}
-	members, err := h.svc.ListMembers(r.Context(), id)
+	pageSize, err := parsePageSize(r, 20, 100)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
 	}
-	resp := make([]dto.ProjectMemberResponse, 0, len(members))
-	for _, m := range members {
-		resp = append(resp, h.toProjectMemberResponse(r.Context(), m))
+	q := r.URL.Query()
+	filter := projectdom.MemberFilter{Search: strings.TrimSpace(q.Get("search"))}
+	if raw := q.Get("role_id"); raw != "" {
+		roleID, err := uuid.Parse(raw)
+		if err != nil {
+			presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid role_id"))
+			return
+		}
+		filter.RoleID = &roleID
 	}
-	presenter.OK(w, r, resp)
+	switch mt := q.Get("member_type"); mt {
+	case "":
+	case "human", "agent", "service_account":
+		filter.MemberType = mt
+	default:
+		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid member_type"))
+		return
+	}
+	ids, err := parseIDsParam(r)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+	filter.AccountIDs = ids
+	cursor := parseCursorParam(r)
+
+	members, hasMore, err := h.svc.ListMembers(r.Context(), id, pageSize, cursor, filter)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+	// total_count is a first-page field: later pages skip the COUNT.
+	var total *int64
+	if cursor == nil {
+		n, err := h.svc.CountMembers(r.Context(), id, filter)
+		if err != nil {
+			presenter.Error(w, r, err)
+			return
+		}
+		total = &n
+	}
+	items := make([]dto.ProjectMemberResponse, 0, len(members))
+	for _, m := range members {
+		items = append(items, h.toProjectMemberResponse(r.Context(), m))
+	}
+	var nextCursor *string
+	if hasMore && len(members) > 0 {
+		s := projectdom.EncodeMemberCursor(members[len(members)-1])
+		nextCursor = &s
+	}
+	presenter.OK(w, r, dto.CursorProjectMembersResponse{Items: items, PageSize: pageSize, NextCursor: nextCursor, TotalCount: total})
 }
 
 // AddMember handles POST /projects/:projectId/members.

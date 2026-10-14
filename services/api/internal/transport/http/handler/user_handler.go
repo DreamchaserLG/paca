@@ -222,10 +222,7 @@ func (h *UserHandler) ListUsersByCursor(w http.ResponseWriter, r *http.Request) 
 		presenter.Error(w, r, err)
 		return
 	}
-	var cursor *string
-	if raw := r.URL.Query().Get("cursor"); raw != "" {
-		cursor = &raw
-	}
+	cursor := parseCursorParam(r)
 
 	users, hasMore, err := h.svc.ListAfter(r.Context(), pageSize, cursor, domainuser.ListFilter{
 		Search: strings.TrimSpace(r.URL.Query().Get("search")),

@@ -29,7 +29,7 @@ import { isForbiddenError } from "@/lib/api-error";
 import {
 	deletePortForward,
 	environmentConfigQueryOptions,
-	environmentPortForwardsQueryOptions,
+	environmentPortForwardsInfiniteQueryOptions,
 	environmentQueryOptions,
 	portForwardQueryOptions,
 	portForwardUrl,
@@ -128,8 +128,10 @@ export function PortForwardDetailView({
 			deletePortForward(projectId, environmentId, portForwardId),
 		onSuccess: () => {
 			qc.invalidateQueries({
-				queryKey: environmentPortForwardsQueryOptions(projectId, environmentId)
-					.queryKey,
+				queryKey: environmentPortForwardsInfiniteQueryOptions(
+					projectId,
+					environmentId,
+				).queryKey,
 			});
 			navigate({
 				to: "/projects/$projectId/environments/$environmentId",

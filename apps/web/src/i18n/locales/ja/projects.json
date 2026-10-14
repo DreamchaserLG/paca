@@ -114,6 +114,7 @@
 			}
 		},
 		"page": {
+			"searchPlaceholder": "名前またはハンドルでエージェントを検索…",
 			"title": "AIエージェント",
 			"subtitle": "タスクを処理し、チームとチャットする自律型エージェント",
 			"newAgent": "新規エージェント",
@@ -1432,6 +1433,7 @@
 			"title": "説明",
 			"writeWithAI": "AIで作成",
 			"writeWithAIDialog": {
+				"searchAgents": "エージェントを検索…",
 				"title": "AIで作成",
 				"description": "タスクの説明を作成するエージェントを選択してください。",
 				"noAgents": "このプロジェクトにはエージェントが設定されていません。",
@@ -1813,6 +1815,7 @@
 			"error": "会話を削除できませんでした。もう一度お試しください。"
 		},
 		"filters": {
+			"searchAgents": "エージェントを検索…",
 			"title": "フィルター",
 			"agent": "エージェント",
 			"status": "ステータス",

@@ -23,7 +23,7 @@ import {
 	deleteSprint,
 	sprintQueryOptions,
 	sprintsQueryOptions,
-	sprintTasksQueryOptions,
+	sprintTaskCountQueryOptions,
 	type UpdateSprintPayload,
 	updateSprint,
 } from "@/lib/interaction-api";
@@ -65,9 +65,6 @@ function SprintPage() {
 		sprintQueryOptions(projectId, sprintId),
 	);
 	const { data: allSprints = [] } = useQuery(sprintsQueryOptions(projectId));
-	const { data: tasksResult } = useQuery(
-		sprintTasksQueryOptions(projectId, sprintId),
-	);
 	const { data: taskStatuses = [] } = useQuery(
 		taskStatusesQueryOptions(projectId),
 	);
@@ -110,14 +107,21 @@ function SprintPage() {
 		return () => document.removeEventListener("keydown", handleKeyDown);
 	}, [deleteConfirmOpen]);
 
-	const sprintTasks = tasksResult?.items ?? [];
+	const doneStatusIds = taskStatuses
+		.filter((s) => s.category === "done")
+		.map((s) => s.id);
 
-	const doneStatusIds = new Set(
-		taskStatuses.filter((s) => s.category === "done").map((s) => s.id),
-	);
-	const incompleteTasks = sprintTasks.filter(
-		(task) => !task.status_id || !doneStatusIds.has(task.status_id),
-	);
+	// Only the dialog's count is needed, so ask the server for totals instead
+	// of paging through the sprint's tasks.
+	const { data: sprintTaskCount = 0 } = useQuery({
+		...sprintTaskCountQueryOptions(projectId, sprintId),
+		enabled: completeOpen,
+	});
+	const { data: doneTaskCount = 0 } = useQuery({
+		...sprintTaskCountQueryOptions(projectId, sprintId, doneStatusIds),
+		enabled: completeOpen && doneStatusIds.length > 0,
+	});
+	const incompleteCount = Math.max(0, sprintTaskCount - doneTaskCount);
 
 	const otherSprints = allSprints.filter(
 		(s) => s.id !== sprintId && s.status !== "completed",
@@ -339,16 +343,16 @@ function SprintPage() {
 							{t("layout.sprintDetail.completeSprintModal.title")}
 						</h2>
 						<p className="text-sm text-muted-foreground mb-5">
-							{incompleteTasks.length > 0
+							{incompleteCount > 0
 								? t("layout.sprintDetail.completeSprintModal.willBeMovedTo", {
-										count: incompleteTasks.length,
+										count: incompleteCount,
 									})
 								: t(
 										"layout.sprintDetail.completeSprintModal.noIncompleteTasks",
 									)}
 						</p>
 
-						{incompleteTasks.length > 0 && (
+						{incompleteCount > 0 && (
 							<div className="flex flex-col gap-2 mb-5">
 								{/* Backlog option */}
 								<label

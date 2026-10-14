@@ -20,9 +20,12 @@ type Service interface {
 
 // AgentService defines agent CRUD use cases.
 type AgentService interface {
-	// ListAgents returns agents visible in the given project, optionally
-	// narrowed to a single AgentScope. See AgentRepository.ListAgents.
-	ListAgents(ctx context.Context, projectID uuid.UUID, scope AgentScope) ([]*Agent, error)
+	// ListAgents returns one cursor-paginated page of the agents visible in the
+	// project — see AgentRepository.ListAgents.
+	ListAgents(ctx context.Context, projectID uuid.UUID, filter AgentFilter, cursorAfter *string, limit int) ([]*Agent, bool, error)
+	// ListAllAgents returns every agent visible in the project, for server-side
+	// jobs — see AgentRepository.ListAllAgents.
+	ListAllAgents(ctx context.Context, projectID uuid.UUID, scope AgentScope) ([]*Agent, error)
 	GetAgent(ctx context.Context, projectID, agentID uuid.UUID) (*Agent, error)
 	CreateAgent(ctx context.Context, projectID uuid.UUID, in CreateAgentInput) (*Agent, error)
 	UpdateAgent(ctx context.Context, projectID, agentID uuid.UUID, in UpdateAgentInput) (*Agent, error)
@@ -60,7 +63,9 @@ type AgentService interface {
 	// own, and is attached to projects only indirectly via project_members
 	// (see project.MemberService.AddMember's AgentID branch).
 
-	ListGlobalAgents(ctx context.Context) ([]*Agent, error)
+	ListGlobalAgents(ctx context.Context, filter AgentFilter, cursorAfter *string, limit int) ([]*Agent, bool, error)
+	// ListAllGlobalAgents returns every global-scope agent, for server-side jobs.
+	ListAllGlobalAgents(ctx context.Context) ([]*Agent, error)
 	GetGlobalAgent(ctx context.Context, agentID uuid.UUID) (*Agent, error)
 	CreateGlobalAgent(ctx context.Context, in CreateGlobalAgentInput) (*Agent, error)
 	UpdateGlobalAgent(ctx context.Context, agentID uuid.UUID, in UpdateAgentInput) (*Agent, error)

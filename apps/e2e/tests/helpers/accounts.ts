@@ -87,13 +87,26 @@ export function putServiceAccountRoles(
 	);
 }
 
-/** The ids of every live service account whose name starts with `prefix`. */
+/** Every live service account (the list endpoint is paginated, so follow its cursor). */
 export async function listServiceAccounts(
 	request: APIRequestContext,
+	search?: string,
 ): Promise<ServiceAccountRecord[]> {
-	const response = await request.get(`${API_URL}/admin/service-accounts`);
-	expect(response.ok(), await response.text()).toBeTruthy();
-	return (await response.json()).data ?? [];
+	const all: ServiceAccountRecord[] = [];
+	let cursor: string | null = null;
+	do {
+		const params = new URLSearchParams({ page_size: "100" });
+		if (search) params.set("search", search);
+		if (cursor) params.set("cursor", cursor);
+		const response = await request.get(
+			`${API_URL}/admin/service-accounts?${params.toString()}`,
+		);
+		expect(response.ok(), await response.text()).toBeTruthy();
+		const data = (await response.json()).data;
+		all.push(...(data?.items ?? []));
+		cursor = data?.next_cursor ?? null;
+	} while (cursor);
+	return all;
 }
 
 export async function cleanupServiceAccountsByPrefix(
@@ -101,7 +114,7 @@ export async function cleanupServiceAccountsByPrefix(
 	prefix: string,
 ): Promise<void> {
 	await authRequest(request);
-	const accounts = await listServiceAccounts(request);
+	const accounts = await listServiceAccounts(request, prefix);
 	await Promise.all(
 		accounts
 			.filter((a) => a.name.startsWith(prefix))

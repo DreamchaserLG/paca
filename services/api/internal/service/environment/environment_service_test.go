@@ -122,11 +122,12 @@ type mockRepo struct {
 	findPortForwardByID func(ctx context.Context, id uuid.UUID) (*environmentdom.EnvironmentPortForward, error)
 }
 
-func (m *mockRepo) ListEnvironments(ctx context.Context, projectID uuid.UUID) ([]*environmentdom.Environment, error) {
+func (m *mockRepo) ListEnvironments(ctx context.Context, projectID uuid.UUID, _ environmentdom.EnvironmentFilter, _ *string, _ int) ([]*environmentdom.Environment, bool, error) {
 	if m.listEnvironments != nil {
-		return m.listEnvironments(ctx, projectID)
+		envs, err := m.listEnvironments(ctx, projectID)
+		return envs, false, err
 	}
-	return nil, nil
+	return nil, false, nil
 }
 func (m *mockRepo) FindEnvironmentByID(ctx context.Context, id uuid.UUID) (*environmentdom.Environment, error) {
 	if m.findEnvironmentByID != nil {
@@ -188,11 +189,17 @@ func (m *mockRepo) SetPortsPendingRestart(ctx context.Context, id uuid.UUID, pen
 	}
 	return nil
 }
-func (m *mockRepo) ListFolders(ctx context.Context, environmentID uuid.UUID) ([]*environmentdom.EnvironmentFolder, error) {
+func (m *mockRepo) ListFolders(ctx context.Context, environmentID uuid.UUID, _ environmentdom.FolderFilter, _ *string, limit int) ([]*environmentdom.EnvironmentFolder, bool, int64, error) {
 	if m.listFolders != nil {
-		return m.listFolders(ctx, environmentID)
+		folders, err := m.listFolders(ctx, environmentID)
+		total := int64(len(folders))
+		more := false
+		if limit > 0 && len(folders) > limit {
+			folders, more = folders[:limit], true
+		}
+		return folders, more, total, err
 	}
-	return nil, nil
+	return nil, false, 0, nil
 }
 func (m *mockRepo) FindFolderByID(ctx context.Context, id uuid.UUID) (*environmentdom.EnvironmentFolder, error) {
 	if m.findFolderByID != nil {
@@ -212,11 +219,12 @@ func (m *mockRepo) DeleteFolder(ctx context.Context, id uuid.UUID) error {
 	}
 	return nil
 }
-func (m *mockRepo) ListSSHKeys(ctx context.Context, environmentID uuid.UUID) ([]*environmentdom.EnvironmentSSHKey, error) {
+func (m *mockRepo) ListSSHKeys(ctx context.Context, environmentID uuid.UUID, _ *string, _ int) ([]*environmentdom.EnvironmentSSHKey, bool, int64, error) {
 	if m.listSSHKeys != nil {
-		return m.listSSHKeys(ctx, environmentID)
+		keys, err := m.listSSHKeys(ctx, environmentID)
+		return keys, false, int64(len(keys)), err
 	}
-	return nil, nil
+	return nil, false, 0, nil
 }
 func (m *mockRepo) FindSSHKeyByID(ctx context.Context, id uuid.UUID) (*environmentdom.EnvironmentSSHKey, error) {
 	if m.findSSHKeyByID != nil {
@@ -242,11 +250,12 @@ func (m *mockRepo) FindSSHKeyByFingerprint(ctx context.Context, environmentID uu
 	}
 	return nil, environmentdom.ErrSSHKeyNotFound
 }
-func (m *mockRepo) ListPortForwards(ctx context.Context, environmentID uuid.UUID) ([]*environmentdom.EnvironmentPortForward, error) {
+func (m *mockRepo) ListPortForwards(ctx context.Context, environmentID uuid.UUID, _ *string, _ int) ([]*environmentdom.EnvironmentPortForward, bool, int64, error) {
 	if m.listPortForwards != nil {
-		return m.listPortForwards(ctx, environmentID)
+		forwards, err := m.listPortForwards(ctx, environmentID)
+		return forwards, false, int64(len(forwards)), err
 	}
-	return nil, nil
+	return nil, false, 0, nil
 }
 func (m *mockRepo) CreatePortForward(ctx context.Context, pf *environmentdom.EnvironmentPortForward) error {
 	if m.createPortForward != nil {

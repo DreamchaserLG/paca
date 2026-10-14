@@ -149,9 +149,8 @@ func (s *Service) validateDefaultEnvironment(ctx context.Context, projectID uuid
 // (already-resolved, by validateDefaultEnvironment, earlier in the same
 // call) default environment, since a default folder is meaningless without
 // one to scope it to (see Agent.DefaultFolderID's doc comment) — and the
-// agent must be project-scoped. GetEnvironment already returns Folders
-// populated (see environmentdom.EnvironmentService.GetEnvironment's doc
-// comment), so this needs no separate folder lookup.
+// agent must be project-scoped. The folder is looked up by id among the
+// environment's folders, so no folder list is ever loaded.
 func (s *Service) validateDefaultFolder(ctx context.Context, projectID uuid.UUID, candidate uuid.UUID, resolvedEnvID *uuid.UUID, scope agentdom.AgentScope) (*uuid.UUID, error) {
 	if candidate == uuid.Nil {
 		return nil, nil
@@ -165,17 +164,13 @@ func (s *Service) validateDefaultFolder(ctx context.Context, projectID uuid.UUID
 	if s.environmentSvc == nil {
 		return nil, agentdom.ErrDefaultFolderInvalid
 	}
-	env, err := s.environmentSvc.GetEnvironment(ctx, projectID, *resolvedEnvID)
-	if err != nil {
+	folders, _, _, err := s.environmentSvc.ListFolders(ctx, projectID, *resolvedEnvID,
+		environmentdom.FolderFilter{IDs: []uuid.UUID{candidate}}, nil, 1)
+	if err != nil || len(folders) == 0 {
 		return nil, agentdom.ErrDefaultFolderInvalid
 	}
-	for _, f := range env.Folders {
-		if f.ID == candidate {
-			id := candidate
-			return &id, nil
-		}
-	}
-	return nil, agentdom.ErrDefaultFolderInvalid
+	id := candidate
+	return &id, nil
 }
 
 // uuidPtrEqual reports whether a and b are both nil, or both non-nil and
@@ -248,10 +243,16 @@ func (s *Service) encryptKey(plaintext string) (string, error) {
 // Agents
 // -------------------------------------------------------------------------
 
-// ListAgents returns agents visible in the given project, optionally
-// narrowed to a single AgentScope. See AgentRepository.ListAgents.
-func (s *Service) ListAgents(ctx context.Context, projectID uuid.UUID, scope agentdom.AgentScope) ([]*agentdom.Agent, error) {
-	return s.repo.ListAgents(ctx, projectID, scope)
+// ListAgents returns one page of the agents visible in the given project. See
+// AgentRepository.ListAgents.
+func (s *Service) ListAgents(ctx context.Context, projectID uuid.UUID, filter agentdom.AgentFilter, cursorAfter *string, limit int) ([]*agentdom.Agent, bool, error) {
+	return s.repo.ListAgents(ctx, projectID, filter, cursorAfter, limit)
+}
+
+// ListAllAgents returns every agent visible in the given project, optionally
+// narrowed to a single AgentScope. See AgentRepository.ListAllAgents.
+func (s *Service) ListAllAgents(ctx context.Context, projectID uuid.UUID, scope agentdom.AgentScope) ([]*agentdom.Agent, error) {
+	return s.repo.ListAllAgents(ctx, projectID, scope)
 }
 
 // GetAgent returns a single agent visible in projectID — its own
@@ -690,9 +691,14 @@ func (s *Service) recordAgent(ctx context.Context, projectID uuid.UUID, a *agent
 // existing, tested project-scoped methods are never touched by this change.
 // -------------------------------------------------------------------------
 
-// ListGlobalAgents returns all global-scope agents.
-func (s *Service) ListGlobalAgents(ctx context.Context) ([]*agentdom.Agent, error) {
-	return s.repo.ListGlobalAgents(ctx)
+// ListGlobalAgents returns one page of the global-scope agents.
+func (s *Service) ListGlobalAgents(ctx context.Context, filter agentdom.AgentFilter, cursorAfter *string, limit int) ([]*agentdom.Agent, bool, error) {
+	return s.repo.ListGlobalAgents(ctx, filter, cursorAfter, limit)
+}
+
+// ListAllGlobalAgents returns every global-scope agent.
+func (s *Service) ListAllGlobalAgents(ctx context.Context) ([]*agentdom.Agent, error) {
+	return s.repo.ListAllGlobalAgents(ctx)
 }
 
 // GetGlobalAgent returns a single agent after verifying it is global-scope.

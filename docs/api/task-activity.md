@@ -119,8 +119,11 @@ reading; `tasks:write` is required for posting/editing/deleting comments.
 GET /api/v1/projects/:projectId/tasks/:taskId/activities
 ```
 
-Returns all activities and comments for a task, sorted oldest → newest.
-Soft-deleted comments are excluded.
+Returns one page of a task's activities and comments, **newest first**.
+Soft-deleted comments are excluded. Query: `page_size` (1-100, default 30) and
+`cursor` (the previous page's `next_cursor`; omit for the newest page). The
+response carries `next_cursor` (null on the last page) — follow it to read older
+entries.
 
 **Response:**
 ```json
@@ -139,7 +142,8 @@ Soft-deleted comments are excluded.
         "created_at": "2026-04-01T10:00:00Z",
         "updated_at": "2026-04-01T10:00:00Z"
       }
-    ]
+    ],
+    "next_cursor": "opaque-or-null"
   }
 }
 ```

@@ -17,13 +17,29 @@ type Repository interface {
 	ChatSessionRepository
 }
 
+// AgentFilter narrows an agent listing. Zero values match everything.
+type AgentFilter struct {
+	// Scope keeps only agents of that AgentScope ("project" or "global").
+	// Only meaningful when listing a project's agents.
+	Scope AgentScope
+	// Search is split on whitespace; every word must appear (case-insensitive)
+	// in the agent's name, handle or description.
+	Search string
+	// IDs, when non-empty, keeps only these agents — a batch lookup of known ids.
+	IDs []uuid.UUID
+}
+
 // AgentRepository defines storage operations for agents.
 type AgentRepository interface {
-	// ListAgents returns agents visible in the given project. scope narrows
-	// the result to just that AgentScope ("project" or "global"); the zero
-	// value (AgentScope("")) returns both — its own project-scoped agents
-	// plus any global agents currently invited into it.
-	ListAgents(ctx context.Context, projectID uuid.UUID, scope AgentScope) ([]*Agent, error)
+	// ListAgents returns up to limit agents visible in the given project, by
+	// name, after the agent cursorAfter names (nil = first page), plus whether
+	// more follow. The project's own project-scoped agents and any global agents
+	// currently invited into it are both visible; filter.Scope narrows to one.
+	ListAgents(ctx context.Context, projectID uuid.UUID, filter AgentFilter, cursorAfter *string, limit int) ([]*Agent, bool, error)
+	// ListAllAgents returns every agent visible in the project (optionally one
+	// scope), for server-side jobs that need the whole set such as picking an
+	// agent automatically. It is not exposed over the API.
+	ListAllAgents(ctx context.Context, projectID uuid.UUID, scope AgentScope) ([]*Agent, error)
 	FindAgentByID(ctx context.Context, id uuid.UUID) (*Agent, error)
 	// FindVisibleAgentInProject returns a single agent by ID, but only if it
 	// is visible in projectID — its own project-scoped agent, or a global
@@ -60,7 +76,12 @@ type AgentRepository interface {
 
 	// -- Global agents (AgentScope == AgentScopeGlobal, ProjectID == uuid.Nil).
 
-	ListGlobalAgents(ctx context.Context) ([]*Agent, error)
+	// ListGlobalAgents returns up to limit global-scope agents matching filter,
+	// by name, after cursorAfter, plus whether more follow.
+	ListGlobalAgents(ctx context.Context, filter AgentFilter, cursorAfter *string, limit int) ([]*Agent, bool, error)
+	// ListAllGlobalAgents returns every global-scope agent, for server-side
+	// jobs. It is not exposed over the API.
+	ListAllGlobalAgents(ctx context.Context) ([]*Agent, error)
 	// FindGlobalAgentByHandle looks up a global agent by its instance-wide
 	// unique handle (enforced among live agents by the account-identifier trigger). Distinct from
 	// FindAgentByHandle, which resolves within one project's visible agents

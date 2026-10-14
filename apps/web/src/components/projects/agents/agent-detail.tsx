@@ -86,8 +86,9 @@ import {
 	updateSkill,
 	verifyCLILogin,
 } from "@/lib/agent-api";
+import { invalidateAgentDirectory } from "@/lib/agent-directory";
 import { ApiErrorCode, getApiErrorCode } from "@/lib/api-error";
-import { environmentsQueryOptions } from "@/lib/environment-api";
+import { environmentQueryOptions } from "@/lib/environment-api";
 import { agentAvatar } from "@/lib/provider-logos";
 import { splitShellCommand } from "@/lib/shell-command";
 import { AcpBridgeSetup } from "./acp-bridge-setup";
@@ -135,10 +136,6 @@ function OverviewTab({
 	// Only fetched at project scope — a global agent has no project to
 	// default an environment from, and the Select below is hidden entirely
 	// in that case (see the !isAcp block below).
-	const { data: environments = [] } = useQuery({
-		...environmentsQueryOptions(projectId ?? ""),
-		enabled: !!projectId,
-	});
 
 	const providers = Object.keys(llmModels);
 
@@ -210,9 +207,10 @@ function OverviewTab({
 		}
 		setDefaultEnvironmentIdState(id);
 	};
-	const selectedEnvironment = environments.find(
-		(env) => env.id === defaultEnvironmentId,
-	);
+	const { data: selectedEnvironment } = useQuery({
+		...environmentQueryOptions(projectId ?? "", defaultEnvironmentId),
+		enabled: !!projectId && !!defaultEnvironmentId,
+	});
 	const [acpProviderSelect, setAcpProviderSelect] = useState<ACPProvider>(
 		agent.acp_provider ?? "claude-code",
 	);
@@ -334,6 +332,7 @@ function OverviewTab({
 				: updateGlobalAgent(agent.id, payload);
 		},
 		onSuccess: (updated) => {
+			invalidateAgentDirectory(projectId ?? null);
 			qc.setQueryData(
 				(projectId
 					? agentQueryOptions(projectId, agent.id)
@@ -776,7 +775,6 @@ function OverviewTab({
 									</div>
 									<DefaultEnvironmentSelect
 										projectId={projectId}
-										environments={environments}
 										value={defaultEnvironmentId}
 										onChange={setDefaultEnvironmentId}
 										disabled={!canWrite}

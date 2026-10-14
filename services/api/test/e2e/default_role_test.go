@@ -178,7 +178,7 @@ func TestDefaultRole(t *testing.T) {
 
 	t.Run("the_agent_roles_can_be_changed_afterwards_on_their_own_route", func(t *testing.T) {
 		userRoleID := platformRoleID(t, env, "USER")
-		_, out := doJSON(t, env, client, http.MethodGet, "/api/v1/admin/agents", nil)
+		_, out := doJSON(t, env, client, http.MethodGet, "/api/v1/admin/agents?search=default-role-bot", nil)
 		items, _ := assertDataMap(t, out)["items"].([]any)
 		var agentID string
 		for _, item := range items {

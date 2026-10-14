@@ -18,6 +18,7 @@ import type {
 	UpdateTaskTypeInput,
 } from "../types/index.js";
 import { formatApiRequestError } from "../utils/index.js";
+import { fetchAllPages, withPaging } from "./paginate.js";
 
 /**
  * Extended API client methods for additional Paca endpoints.
@@ -108,11 +109,9 @@ export class PacaAPIExtendedClient {
 	// ==================== Project Members ====================
 
 	async listProjectMembers(projectId: string): Promise<ProjectMember[]> {
-		const response = await this.get(`/api/v1/projects/${projectId}/members`);
-		if (Array.isArray(response)) {
-			return response;
-		}
-		return response.items || response.members || response.data || [];
+		return fetchAllPages((cursor) =>
+			this.get(withPaging(`/api/v1/projects/${projectId}/members`, cursor)),
+		);
 	}
 
 	async addProjectMember(

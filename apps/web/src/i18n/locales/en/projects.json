@@ -114,6 +114,7 @@
 			}
 		},
 		"page": {
+			"searchPlaceholder": "Search agents by name or handle…",
 			"title": "AI Agents",
 			"subtitle": "Autonomous agents that work on tasks and chat with your team",
 			"newAgent": "New Agent",
@@ -1432,6 +1433,7 @@
 			"title": "Description",
 			"writeWithAI": "Write with AI",
 			"writeWithAIDialog": {
+				"searchAgents": "Search agents…",
 				"title": "Write with AI",
 				"description": "Select an agent to write the task description.",
 				"noAgents": "No agents configured for this project.",
@@ -1813,6 +1815,7 @@
 			"error": "Couldn't delete the conversation. Please try again."
 		},
 		"filters": {
+			"searchAgents": "Search agents…",
 			"title": "Filters",
 			"agent": "Agent",
 			"status": "Status",

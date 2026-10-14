@@ -136,20 +136,20 @@ func (s *ActivitySvc) RecordActivity(ctx context.Context, in taskdom.RecordActiv
 	return nil
 }
 
-// ListActivities returns all non-deleted activities for a task, oldest first.
-func (s *ActivitySvc) ListActivities(ctx context.Context, projectID, taskID uuid.UUID) ([]*taskdom.Activity, error) {
+// ListActivities returns one page of a task's activities, newest first.
+func (s *ActivitySvc) ListActivities(ctx context.Context, projectID, taskID uuid.UUID, cursor *string, limit int) ([]*taskdom.Activity, *string, error) {
 	if err := s.taskInProject(ctx, projectID, taskID, taskdom.ErrTaskNotFound); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	items, err := s.act.ListForEntity(ctx, events.EntityTask, taskID)
+	items, next, err := s.act.ListForEntity(ctx, events.EntityTask, taskID, cursor, limit)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	out := make([]*taskdom.Activity, 0, len(items))
 	for _, a := range items {
 		out = append(out, toTaskActivity(a))
 	}
-	return out, nil
+	return out, next, nil
 }
 
 // AddComment creates a comment on the task, then notifies @-mentioned users

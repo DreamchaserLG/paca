@@ -1,7 +1,6 @@
 import {
 	useInfiniteQuery,
 	useMutation,
-	useQuery,
 	useQueryClient,
 } from "@tanstack/react-query";
 import {
@@ -53,11 +52,9 @@ import { useProjectRealtime } from "@/hooks/use-project-realtime";
 import {
 	type Agent,
 	type AgentConversation,
-	agentsQueryOptions,
 	CONVERSATION_STATUS_COLORS,
 	CONVERSATION_STATUS_LABELS,
 	type ConversationFilters as ConversationFiltersState,
-	chattableAgentsQueryOptions,
 	conversationEventWindowKey,
 	conversationQueryOptions,
 	conversationsQueryOptions,
@@ -68,6 +65,7 @@ import {
 	updateConversationTitle,
 	updateGlobalConversationTitle,
 } from "@/lib/agent-api";
+import { useAgentDirectory } from "@/lib/agent-directory";
 import { getApiErrorMessage, isForbiddenError } from "@/lib/api-error";
 import { formatCompactTokens, formatUsageCost } from "@/lib/format-usage";
 import { agentAvatar } from "@/lib/provider-logos";
@@ -384,10 +382,9 @@ export function ConversationsLayout({ projectId }: { projectId?: string }) {
 	const isLoading = isPermissionsLoading || isDataLoading;
 	const noPermission =
 		!isPermissionsLoading && (!canRead || (isError && isForbiddenError(error)));
-	const { data: agents = [] } = useQuery(
-		projectId ? agentsQueryOptions(projectId) : chattableAgentsQueryOptions,
-	);
-	const agentsById = new Map(agents.map((a) => [a.id, a]));
+	// Each conversation's agent is looked up by id as its row renders, rather
+	// than loading every agent up front.
+	const getAgent = useAgentDirectory(projectId);
 
 	// Pages are fetched newest-first (offset-paginated, ordered by created_at
 	// DESC on the backend), so concatenating them in fetch order already
@@ -505,7 +502,7 @@ export function ConversationsLayout({ projectId }: { projectId?: string }) {
 							)}
 						</div>
 						<ConversationFilters
-							agents={agents}
+							projectId={projectId}
 							filters={filters}
 							onFiltersChange={setFilters}
 						/>
@@ -546,7 +543,7 @@ export function ConversationsLayout({ projectId }: { projectId?: string }) {
 										<ConversationListItem
 											key={conv.id}
 											conv={conv}
-											agent={agentsById.get(conv.agent_id)}
+											agent={getAgent(conv.agent_id)}
 											projectId={projectId}
 											isActive={conv.id === activeConversationId}
 											canManage={canStartConversation}
@@ -620,7 +617,7 @@ export function ConversationsLayout({ projectId }: { projectId?: string }) {
 								title:
 									deleteTarget?.title ??
 									(deleteTarget
-										? agentsById.get(deleteTarget.agent_id)?.name
+										? getAgent(deleteTarget.agent_id)?.name
 										: undefined) ??
 									"",
 							})}

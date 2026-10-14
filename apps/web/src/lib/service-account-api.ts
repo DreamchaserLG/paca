@@ -1,10 +1,11 @@
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import { apiClient } from "./api-client";
 import type { SuccessEnvelope } from "./api-error";
-import type {
-	APIKey,
-	CreateAPIKeyRequest,
-	CreateAPIKeyResponse,
+import {
+	API_KEYS_PAGE_SIZE,
+	type APIKeyPage,
+	type CreateAPIKeyRequest,
+	type CreateAPIKeyResponse,
 } from "./apikey-api";
 import type { Role, RoleSummary } from "./role-api";
 
@@ -37,9 +38,27 @@ export interface UpdateServiceAccountRequest {
 
 const BASE = "/admin/service-accounts";
 
-export async function listServiceAccounts(): Promise<ServiceAccount[]> {
-	const { data } =
-		await apiClient.instance.get<SuccessEnvelope<ServiceAccount[]>>(BASE);
+export const SERVICE_ACCOUNTS_PAGE_SIZE = 30;
+
+export interface ServiceAccountPage {
+	items: ServiceAccount[];
+	page_size: number;
+	next_cursor: string | null;
+}
+
+/** One page of service accounts ordered by name; `search` matches every word
+ *  against the name or description. Follow next_cursor for further pages. */
+export async function listServiceAccounts(
+	opts: { search?: string; cursor?: string; pageSize?: number } = {},
+): Promise<ServiceAccountPage> {
+	const params: Record<string, string | number> = {
+		page_size: opts.pageSize ?? SERVICE_ACCOUNTS_PAGE_SIZE,
+	};
+	if (opts.search?.trim()) params.search = opts.search.trim();
+	if (opts.cursor) params.cursor = opts.cursor;
+	const { data } = await apiClient.instance.get<
+		SuccessEnvelope<ServiceAccountPage>
+	>(BASE, { params });
 	return data.data;
 }
 
@@ -73,9 +92,13 @@ export async function deleteServiceAccount(id: string): Promise<void> {
 	await apiClient.instance.delete(`${BASE}/${id}`);
 }
 
-export async function listServiceAccountKeys(id: string): Promise<APIKey[]> {
-	const { data } = await apiClient.instance.get<SuccessEnvelope<APIKey[]>>(
+export async function listServiceAccountKeys(
+	id: string,
+	cursor?: string,
+): Promise<APIKeyPage> {
+	const { data } = await apiClient.instance.get<SuccessEnvelope<APIKeyPage>>(
 		`${BASE}/${id}/api-keys`,
+		{ params: { page_size: API_KEYS_PAGE_SIZE, cursor } },
 	);
 	return data.data;
 }
@@ -115,10 +138,18 @@ export async function replaceServiceAccountRoles(
 	return data.data;
 }
 
-export const serviceAccountsQueryOptions = queryOptions({
-	queryKey: ["admin", "service-accounts"],
-	queryFn: listServiceAccounts,
-});
+/** Key prefix of every cached service account query (lists and single
+ *  accounts) — invalidate it after an account changes. */
+export const serviceAccountsKey = ["admin", "service-accounts"] as const;
+
+export const serviceAccountsInfiniteQueryOptions = (search = "") =>
+	infiniteQueryOptions({
+		queryKey: [...serviceAccountsKey, "list", search],
+		queryFn: ({ pageParam }: { pageParam: string | undefined }) =>
+			listServiceAccounts({ search, cursor: pageParam }),
+		initialPageParam: undefined as string | undefined,
+		getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
+	});
 
 export const serviceAccountQueryOptions = (id: string) =>
 	queryOptions({
@@ -126,10 +157,13 @@ export const serviceAccountQueryOptions = (id: string) =>
 		queryFn: () => getServiceAccount(id),
 	});
 
-export const serviceAccountKeysQueryOptions = (id: string) =>
-	queryOptions({
+export const serviceAccountKeysInfiniteQueryOptions = (id: string) =>
+	infiniteQueryOptions({
 		queryKey: ["admin", "service-accounts", id, "api-keys"],
-		queryFn: () => listServiceAccountKeys(id),
+		queryFn: ({ pageParam }: { pageParam: string | undefined }) =>
+			listServiceAccountKeys(id, pageParam),
+		initialPageParam: undefined as string | undefined,
+		getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
 	});
 
 export const serviceAccountRolesQueryOptions = (id: string) =>

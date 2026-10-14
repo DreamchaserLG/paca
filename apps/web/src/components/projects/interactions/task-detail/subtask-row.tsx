@@ -7,7 +7,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { Task } from "@/lib/interaction-api";
-import type { ProjectMember, TaskStatus, TaskType } from "@/lib/project-api";
+import type { TaskStatus, TaskType } from "@/lib/project-api";
 import { cn } from "@/lib/utils";
 import { AssigneePicker } from "../assignee-picker";
 import {
@@ -29,7 +29,6 @@ interface SubtaskRowProps {
 	taskIdPrefix?: string;
 	statuses: TaskStatus[];
 	taskTypes?: TaskType[];
-	members?: ProjectMember[];
 	/** Show the Type field (used for epic's task list) */
 	showTypeField?: boolean;
 	canEdit?: boolean;
@@ -42,7 +41,6 @@ export function SubtaskRow({
 	taskIdPrefix = "",
 	statuses,
 	taskTypes = [],
-	members = [],
 	showTypeField = false,
 	canEdit = true,
 	onUpdate,
@@ -105,7 +103,7 @@ export function SubtaskRow({
 				onKeyDown={(e) => e.stopPropagation()}
 			>
 				<AssigneePicker
-					members={members}
+					projectId={task.project_id}
 					assigneeIds={task.assignee_ids ?? []}
 					canEdit={canEditField}
 					align="end"

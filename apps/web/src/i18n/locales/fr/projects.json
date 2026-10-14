@@ -114,6 +114,7 @@
 			}
 		},
 		"page": {
+			"searchPlaceholder": "Rechercher des agents par nom ou identifiant…",
 			"title": "Agents IA",
 			"subtitle": "Agents autonomes qui travaillent sur des tâches et discutent avec votre équipe",
 			"newAgent": "Nouvel agent",
@@ -1432,6 +1433,7 @@
 			"title": "Description",
 			"writeWithAI": "Rédiger avec l'IA",
 			"writeWithAIDialog": {
+				"searchAgents": "Rechercher des agents…",
 				"title": "Rédiger avec l'IA",
 				"description": "Sélectionnez un agent pour rédiger la description de la tâche.",
 				"noAgents": "Aucun agent configuré pour ce projet.",
@@ -1813,6 +1815,7 @@
 			"error": "Impossible de supprimer la conversation. Veuillez réessayer."
 		},
 		"filters": {
+			"searchAgents": "Rechercher des agents…",
 			"title": "Filtres",
 			"agent": "Agent",
 			"status": "Statut",

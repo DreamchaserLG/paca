@@ -86,6 +86,7 @@ import {
 	updateSkill,
 	verifyCLILogin,
 } from "@/lib/agent-api";
+import { invalidateAgentDirectory } from "@/lib/agent-directory";
 import { ApiErrorCode, getApiErrorCode } from "@/lib/api-error";
 import { environmentQueryOptions } from "@/lib/environment-api";
 import { agentAvatar } from "@/lib/provider-logos";
@@ -331,6 +332,7 @@ function OverviewTab({
 				: updateGlobalAgent(agent.id, payload);
 		},
 		onSuccess: (updated) => {
+			invalidateAgentDirectory(projectId ?? null);
 			qc.setQueryData(
 				(projectId
 					? agentQueryOptions(projectId, agent.id)

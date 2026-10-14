@@ -75,6 +75,7 @@ import {
 	llmModelsQueryOptions,
 	verifyEnvironmentCLILogin,
 } from "@/lib/agent-api";
+import { invalidateAgentDirectory } from "@/lib/agent-directory";
 import { ApiErrorCode, getApiErrorCode } from "@/lib/api-error";
 import { environmentQueryOptions } from "@/lib/environment-api";
 import type { Role } from "@/lib/role-api";
@@ -271,6 +272,7 @@ export function CreateAgentDialog({
 	};
 
 	const invalidateAgentLists = () => {
+		invalidateAgentDirectory(projectId ?? null);
 		if (projectId) {
 			qc.invalidateQueries({
 				queryKey: ["projects", projectId, "agents"],

@@ -48,7 +48,7 @@ func TestDocTree_PagesLevelsInManualOrderWithoutBodies(t *testing.T) {
 			}
 			for _, d := range docs {
 				out = append(out, d.ID)
-				if d.Content != nil && len(d.Content) > 0 {
+				if len(d.Content) > 0 {
 					t.Fatalf("tree listing loaded a body for %s", d.ID)
 				}
 			}

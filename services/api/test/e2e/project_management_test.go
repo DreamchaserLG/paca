@@ -512,10 +512,11 @@ func TestE2EProjectMembers_FullLifecycle(t *testing.T) {
 		assertStatus(t, resp, http.StatusOK)
 		var env2 envelope
 		decodeJSON(t, resp, &env2)
-		members, ok := env2.Data.([]any)
+		page, ok := env2.Data.(map[string]any)
 		if !ok {
-			t.Fatalf("expected members array, got %T", env2.Data)
+			t.Fatalf("expected members page object, got %T", env2.Data)
 		}
+		members, _ := page["items"].([]any)
 		if len(members) < 1 {
 			t.Error("expected at least one member")
 		}

@@ -106,31 +106,51 @@ type MemberFilter struct {
 }
 
 type memberCursor struct {
-	ID string `json:"id"`
+	Key *string `json:"k"`
+	ID  string  `json:"id"`
+}
+
+// SortKey is the name the member list orders by (before lowercasing): the
+// username, else the agent handle, else the display name. Mirrors the SQL
+// COALESCE(u.username, a.handle, ac.name) the repository sorts on.
+func (m *ProjectMember) SortKey() string {
+	switch {
+	case m.Username != "":
+		return m.Username
+	case m.AgentHandle != "":
+		return m.AgentHandle
+	case m.AgentName != "":
+		return m.AgentName
+	}
+	return m.FullName
 }
 
 // EncodeMemberCursor builds an opaque cursor from the last member on a page.
-// Only the membership id is stored: the repository re-derives the sort keys
-// from that row.
+// It carries the sort key and membership id, so it stays valid even if that
+// member's row disappears between page loads.
 func EncodeMemberCursor(m *ProjectMember) string {
-	b, _ := json.Marshal(memberCursor{ID: m.ID.String()})
+	k := m.SortKey()
+	b, _ := json.Marshal(memberCursor{Key: &k, ID: m.ID.String()})
 	return base64.URLEncoding.EncodeToString(b)
 }
 
-// DecodeMemberCursor returns the membership id in a token produced by
-// EncodeMemberCursor. Any failure wraps ErrInvalidMemberCursor.
-func DecodeMemberCursor(s string) (uuid.UUID, error) {
+// DecodeMemberCursor returns the (sort key, membership id) position in a token
+// produced by EncodeMemberCursor. Any failure wraps ErrInvalidMemberCursor.
+func DecodeMemberCursor(s string) (string, uuid.UUID, error) {
 	b, err := base64.URLEncoding.DecodeString(s)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("%w: base64: %v", ErrInvalidMemberCursor, err)
+		return "", uuid.Nil, fmt.Errorf("%w: base64: %v", ErrInvalidMemberCursor, err)
 	}
 	var c memberCursor
 	if err := json.Unmarshal(b, &c); err != nil {
-		return uuid.Nil, fmt.Errorf("%w: json: %v", ErrInvalidMemberCursor, err)
+		return "", uuid.Nil, fmt.Errorf("%w: json: %v", ErrInvalidMemberCursor, err)
+	}
+	if c.Key == nil {
+		return "", uuid.Nil, fmt.Errorf("%w: missing key", ErrInvalidMemberCursor)
 	}
 	id, err := uuid.Parse(c.ID)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("%w: id: %v", ErrInvalidMemberCursor, err)
+		return "", uuid.Nil, fmt.Errorf("%w: id: %v", ErrInvalidMemberCursor, err)
 	}
-	return id, nil
+	return *c.Key, id, nil
 }

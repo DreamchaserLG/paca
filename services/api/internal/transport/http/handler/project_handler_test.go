@@ -784,14 +784,28 @@ func TestListMembers_Paged_PassesFiltersAndReturnsNextCursor(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatal(err)
 	}
-	if resp.Data.TotalCount != 42 {
-		t.Errorf("total_count = %d, want 42", resp.Data.TotalCount)
+	if strings.Contains(w.Body.String(), "total_count") {
+		t.Errorf("total_count must be omitted on a page after the first: %s", w.Body.String())
 	}
 	if len(resp.Data.Items) != 1 || resp.Data.NextCursor == nil {
 		t.Fatalf("response = %s", w.Body.String())
 	}
 	if want := projectdom.EncodeMemberCursor(last); *resp.Data.NextCursor != want {
 		t.Errorf("next_cursor = %q, want %q", *resp.Data.NextCursor, want)
+	}
+}
+
+func TestListMembers_Paged_FirstPageHasTotalCount(t *testing.T) {
+	projID := uuid.New()
+	r := newProjectRouter(&mockProjectSvc{
+		memberTotal: 42,
+		listMembers: func(context.Context, uuid.UUID, int, *string, projectdom.MemberFilter) ([]*projectdom.ProjectMember, bool, error) {
+			return nil, false, nil
+		},
+	})
+	w := do(t, r, http.MethodGet, fmt.Sprintf("/projects/%s/members", projID), nil)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"total_count":42`) {
+		t.Fatalf("got %d: %s", w.Code, w.Body.String())
 	}
 }
 

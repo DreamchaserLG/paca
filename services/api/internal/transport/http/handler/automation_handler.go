@@ -97,10 +97,7 @@ func (h *AutomationHandler) ListAutomations(w http.ResponseWriter, r *http.Reque
 		presenter.Error(w, r, err)
 		return
 	}
-	var cursor *string
-	if raw := r.URL.Query().Get("cursor"); raw != "" {
-		cursor = &raw
-	}
+	cursor := parseCursorParam(r)
 
 	ctx, err := scopedContext(r, h.listScoper, iam.ActionWorkflowsRead, projectID, "workflow")
 	if err != nil {
@@ -472,10 +469,7 @@ func (h *AutomationHandler) ListAutomationRuns(w http.ResponseWriter, r *http.Re
 		presenter.Error(w, r, err)
 		return
 	}
-	var cursor *string
-	if raw := r.URL.Query().Get("cursor"); raw != "" {
-		cursor = &raw
-	}
+	cursor := parseCursorParam(r)
 	runs, hasMore, err := h.svc.ListRuns(r.Context(), projectID, automationID, cursor, pageSize)
 	if err != nil {
 		presenter.Error(w, r, err)

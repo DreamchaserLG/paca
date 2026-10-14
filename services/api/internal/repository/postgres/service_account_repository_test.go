@@ -179,8 +179,8 @@ func TestAPIKeyRepository_ListByAccountID_Paginates(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if total != 4 {
-			t.Fatalf("total = %d, want 4", total)
+		if (cursor == nil && total != 4) || (cursor != nil && total != 0) {
+			t.Fatalf("total = %d (cursor set: %v), want 4 on the first page only", total, cursor != nil)
 		}
 		for _, k := range page {
 			got = append(got, k.ID)

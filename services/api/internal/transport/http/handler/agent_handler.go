@@ -204,19 +204,10 @@ func (h *AgentHandler) resolveMemberID(r *http.Request, projectID uuid.UUID) (uu
 func parseAgentListParams(r *http.Request) (filter agentdom.AgentFilter, cursor *string, pageSize int, err error) {
 	q := r.URL.Query()
 	filter.Search = strings.TrimSpace(q.Get("search"))
-	if raw := q.Get("ids"); raw != "" {
-		ids, perr := parseQueryUUIDs(raw)
-		if perr != nil {
-			return filter, nil, 0, apierr.New(apierr.CodeBadRequest, "invalid ids")
-		}
-		if len(ids) > 100 {
-			return filter, nil, 0, apierr.New(apierr.CodeBadRequest, "ids must contain at most 100 entries")
-		}
-		filter.IDs = ids
+	if filter.IDs, err = parseIDsParam(r); err != nil {
+		return filter, nil, 0, err
 	}
-	if raw := q.Get("cursor"); raw != "" {
-		cursor = &raw
-	}
+	cursor = parseCursorParam(r)
 	pageSize, err = parsePageSize(r, 30, 100)
 	return filter, cursor, pageSize, err
 }

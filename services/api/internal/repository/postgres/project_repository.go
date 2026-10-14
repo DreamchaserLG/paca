@@ -391,22 +391,12 @@ func (r *ProjectRepository) ListMembers(ctx context.Context, projectID uuid.UUID
 	}
 	where, args := memberListWhere(projectID, filter)
 	if cursorAfter != nil {
-		cursorID, err := projectdom.DecodeMemberCursor(*cursorAfter)
+		key, cursorID, err := projectdom.DecodeMemberCursor(*cursorAfter)
 		if err != nil {
 			return nil, false, err
 		}
-		// A member removed between page loads still counts, so the cursor
-		// stays valid; an id that never belonged to this project does not.
-		var exists bool
-		if err := r.db.GetContext(ctx, &exists, `SELECT EXISTS (SELECT 1 FROM project_members WHERE id = $1 AND project_id = $2)`, cursorID.String(), projectID.String()); err != nil {
-			return nil, false, fmt.Errorf("project repo: list members after: cursor lookup: %w", err)
-		}
-		if !exists {
-			return nil, false, fmt.Errorf("%w: unknown member", projectdom.ErrInvalidMemberCursor)
-		}
-		args = append(args, cursorID.String())
-		where += fmt.Sprintf(` AND (`+memberNameSortKey+`, pm.id) > (
-			SELECT `+memberNameSortKey+`, pm.id FROM `+projectMemberFrom+` WHERE pm.id = $%d)`, len(args))
+		args = append(args, key, cursorID.String())
+		where += fmt.Sprintf(` AND (`+memberNameSortKey+`, pm.id) > (LOWER($%d::text), $%d::uuid)`, len(args)-1, len(args))
 	}
 	args = append(args, limit+1)
 

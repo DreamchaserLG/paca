@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -18,7 +17,7 @@ func memberNames(ms []*projectdom.ProjectMember) []string {
 	return out
 }
 
-func TestListMembers_PagesFiltersAndRejectsForeignCursor(t *testing.T) {
+func TestListMembers_PagesAndFilters(t *testing.T) {
 	e := newFlowEnv(t)
 	ctx := context.Background()
 	creator := e.user("creator")
@@ -100,13 +99,5 @@ func TestListMembers_PagesFiltersAndRejectsForeignCursor(t *testing.T) {
 	ms, _, err = e.projs.ListMembers(ctx, p.ID, 10, nil, projectdom.MemberFilter{RoleID: &editor})
 	if err != nil || len(ms) != 5 {
 		t.Fatalf("role editor: %v %v", memberNames(ms), err)
-	}
-
-	// A cursor naming a member of another project is rejected.
-	p2 := e.createProject(creator, "Other")
-	all, _, _ := e.projs.ListMembers(ctx, p2.ID, 1, nil, projectdom.MemberFilter{})
-	foreign := projectdom.EncodeMemberCursor(all[0])
-	if _, _, err := e.projs.ListMembers(ctx, p.ID, 2, &foreign, projectdom.MemberFilter{}); !errors.Is(err, projectdom.ErrInvalidMemberCursor) {
-		t.Fatalf("foreign cursor err = %v", err)
 	}
 }

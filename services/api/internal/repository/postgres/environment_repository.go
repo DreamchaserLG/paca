@@ -307,7 +307,7 @@ const environmentFolderCols = `id, environment_id, path, created_by, created_at,
 
 // ListFolders returns one page of an environment's folders, oldest first (the
 // order they were added), optionally narrowed by path search or a set of ids,
-// plus the number of folders matching the filter in total.
+// plus, on the first page only (no cursor), the number of folders matching the filter in total.
 func (r *EnvironmentRepository) ListFolders(ctx context.Context, environmentID uuid.UUID, filter environmentdom.FolderFilter, cursorAfter *string, limit int) ([]*environmentdom.EnvironmentFolder, bool, int64, error) {
 	if limit <= 0 {
 		limit = 30
@@ -325,8 +325,10 @@ func (r *EnvironmentRepository) ListFolders(ctx context.Context, environmentID u
 		where += ` AND id = ANY(` + sink.addArg(ids) + `::uuid[])`
 	}
 	var total int64
-	if err := r.db.GetContext(ctx, &total, `SELECT COUNT(*) FROM environment_folders WHERE `+where, sink.args...); err != nil {
-		return nil, false, 0, err
+	if cursorAfter == nil { // total_count is a first-page field
+		if err := r.db.GetContext(ctx, &total, `SELECT COUNT(*) FROM environment_folders WHERE `+where, sink.args...); err != nil {
+			return nil, false, 0, err
+		}
 	}
 	if cursorAfter != nil {
 		at, id, err := environmentdom.DecodeCursor(*cursorAfter)
@@ -410,8 +412,10 @@ func (r *EnvironmentRepository) ListSSHKeys(ctx context.Context, environmentID u
 		limit = 30
 	}
 	var total int64
-	if err := r.db.GetContext(ctx, &total, `SELECT COUNT(*) FROM environment_ssh_keys WHERE environment_id = $1`, environmentID.String()); err != nil {
-		return nil, false, 0, err
+	if cursorAfter == nil { // total_count is a first-page field
+		if err := r.db.GetContext(ctx, &total, `SELECT COUNT(*) FROM environment_ssh_keys WHERE environment_id = $1`, environmentID.String()); err != nil {
+			return nil, false, 0, err
+		}
 	}
 	sink := &argList{args: []any{environmentID.String()}}
 	where := `environment_id = $1`
@@ -504,14 +508,16 @@ func (r *EnvironmentRepository) FindSSHKeyByFingerprint(ctx context.Context, env
 const environmentPortForwardCols = `id, environment_id, label, container_port, host_port, created_by, created_at`
 
 // ListPortForwards returns one page of an environment's port forwards, oldest
-// first, and the total number.
+// first, and, on the first page only (no cursor), the total number.
 func (r *EnvironmentRepository) ListPortForwards(ctx context.Context, environmentID uuid.UUID, cursorAfter *string, limit int) ([]*environmentdom.EnvironmentPortForward, bool, int64, error) {
 	if limit <= 0 {
 		limit = 30
 	}
 	var total int64
-	if err := r.db.GetContext(ctx, &total, `SELECT COUNT(*) FROM environment_port_forwards WHERE environment_id = $1`, environmentID.String()); err != nil {
-		return nil, false, 0, err
+	if cursorAfter == nil { // total_count is a first-page field
+		if err := r.db.GetContext(ctx, &total, `SELECT COUNT(*) FROM environment_port_forwards WHERE environment_id = $1`, environmentID.String()); err != nil {
+			return nil, false, 0, err
+		}
 	}
 	sink := &argList{args: []any{environmentID.String()}}
 	where := `environment_id = $1`

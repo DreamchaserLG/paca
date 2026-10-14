@@ -110,10 +110,7 @@ func (h *DocumentHandler) ListFolders(w http.ResponseWriter, r *http.Request) {
 		presenter.Error(w, r, err)
 		return
 	}
-	var cursor *string
-	if raw := q.Get("cursor"); raw != "" {
-		cursor = &raw
-	}
+	cursor := parseCursorParam(r)
 	folders, hasMore, err := h.svc.ListFolders(r.Context(), projectID, parent, cursor, pageSize)
 	if err != nil {
 		presenter.Error(w, r, err)
@@ -278,10 +275,7 @@ func (h *DocumentHandler) ListDocuments(w http.ResponseWriter, r *http.Request) 
 		presenter.Error(w, r, err)
 		return
 	}
-	var cursor *string
-	if raw := q.Get("cursor"); raw != "" {
-		cursor = &raw
-	}
+	cursor := parseCursorParam(r)
 	ctx, err := scopedContext(r, h.listScoper, iam.ActionDocsRead, projectID, "doc")
 	if err != nil {
 		presenter.Error(w, r, err)
@@ -560,10 +554,7 @@ func (h *DocumentHandler) ListSnapshots(w http.ResponseWriter, r *http.Request) 
 		presenter.Error(w, r, err)
 		return
 	}
-	var cursor *string
-	if raw := r.URL.Query().Get("cursor"); raw != "" {
-		cursor = &raw
-	}
+	cursor := parseCursorParam(r)
 	snaps, hasMore, err := h.svc.ListSnapshots(r.Context(), projectID, docID, cursor, pageSize)
 	if err != nil {
 		presenter.Error(w, r, err)
@@ -624,10 +615,7 @@ func (h *DocumentHandler) ListActivities(w http.ResponseWriter, r *http.Request)
 		presenter.Error(w, r, err)
 		return
 	}
-	var cursor *string
-	if raw := r.URL.Query().Get("cursor"); raw != "" {
-		cursor = &raw
-	}
+	cursor := parseCursorParam(r)
 	activities, next, err := h.activitySvc.ListActivities(r.Context(), projectID, docID, cursor, pageSize)
 	if err != nil {
 		presenter.Error(w, r, err)

@@ -87,8 +87,9 @@ func TestEnvironmentLists_PageFilterAndCount(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if total != 5 {
-			t.Fatalf("folder total = %d, want 5", total)
+		// total_count is a first-page field; later pages skip the COUNT.
+		if want := int64(5); (cursor == nil && total != want) || (cursor != nil && total != 0) {
+			t.Fatalf("folder total = %d (cursor set: %v)", total, cursor != nil)
 		}
 		for _, fo := range page {
 			paths = append(paths, fo.Path)

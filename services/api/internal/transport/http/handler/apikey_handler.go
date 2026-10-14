@@ -41,10 +41,7 @@ func listAPIKeys(w http.ResponseWriter, r *http.Request, svc apikeydom.Service, 
 		presenter.Error(w, r, err)
 		return
 	}
-	var cursor *string
-	if raw := r.URL.Query().Get("cursor"); raw != "" {
-		cursor = &raw
-	}
+	cursor := parseCursorParam(r)
 	keys, hasMore, total, err := svc.List(r.Context(), accountID, cursor, pageSize)
 	if err != nil {
 		presenter.Error(w, r, err)
@@ -60,7 +57,7 @@ func listAPIKeys(w http.ResponseWriter, r *http.Request, svc apikeydom.Service, 
 		c := apikeydom.EncodeCursor(last.CreatedAt, last.ID)
 		nextCursor = &c
 	}
-	presenter.OK(w, r, map[string]any{"items": items, "page_size": pageSize, "next_cursor": nextCursor, "total_count": total})
+	presenter.OK(w, r, pageBody(items, pageSize, nextCursor, cursor == nil, total))
 }
 
 // Create handles POST /users/me/api-keys.

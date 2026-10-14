@@ -849,10 +849,7 @@ func (h *TaskHandler) ListAssignedToMe(w http.ResponseWriter, r *http.Request) {
 		presenter.Error(w, r, err)
 		return
 	}
-	var cursor *string
-	if raw := r.URL.Query().Get("cursor"); raw != "" {
-		cursor = &raw
-	}
+	cursor := parseCursorParam(r)
 
 	empty := func() {
 		presenter.OK(w, r, map[string]any{
@@ -1701,10 +1698,7 @@ func (h *TaskHandler) ListTaskActivities(w http.ResponseWriter, r *http.Request)
 		presenter.Error(w, r, err)
 		return
 	}
-	var cursor *string
-	if raw := r.URL.Query().Get("cursor"); raw != "" {
-		cursor = &raw
-	}
+	cursor := parseCursorParam(r)
 	activities, next, err := h.activitySvc.ListActivities(r.Context(), projectID, taskID, cursor, pageSize)
 	if err != nil {
 		presenter.Error(w, r, err)

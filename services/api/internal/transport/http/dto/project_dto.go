@@ -111,6 +111,7 @@ type CursorProjectMembersResponse struct {
 	Items      []ProjectMemberResponse `json:"items"`
 	PageSize   int                     `json:"page_size"`
 	NextCursor *string                 `json:"next_cursor"`
-	// TotalCount is how many members match the filters across all pages.
-	TotalCount int64 `json:"total_count"`
+	// TotalCount is how many members match the filters across all pages. It
+	// is set on the first page only (no cursor) and omitted afterwards.
+	TotalCount *int64 `json:"total_count,omitempty"`
 }

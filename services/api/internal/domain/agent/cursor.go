@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -78,13 +77,14 @@ type agentCursor struct {
 }
 
 // EncodeAgentCursor builds the cursor for resuming the name-ordered agent
-// list after a.
+// list after a. The name is stored as-is: the query lowercases both sides with
+// the database's LOWER, so Go and Postgres case folding can never disagree.
 func EncodeAgentCursor(a *Agent) string {
-	b, _ := json.Marshal(agentCursor{Name: strings.ToLower(a.Name), ID: a.ID.String()})
+	b, _ := json.Marshal(agentCursor{Name: a.Name, ID: a.ID.String()})
 	return base64.URLEncoding.EncodeToString(b)
 }
 
-// DecodeAgentCursor returns the (lowercased name, id) position in a token
+// DecodeAgentCursor returns the (name, id) position in a token
 // produced by EncodeAgentCursor; any failure wraps ErrInvalidCursor.
 func DecodeAgentCursor(s string) (name string, id uuid.UUID, err error) {
 	b, err := base64.URLEncoding.DecodeString(s)

@@ -274,7 +274,7 @@ func agentCursorSQL(cursorAfter *string, sink *argList) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return ` AND (LOWER(ac.name), a.id) > (` + sink.addArg(name) + `, ` + sink.addArg(id.String()) + `::uuid)`, nil
+	return ` AND (LOWER(ac.name), a.id) > (LOWER(` + sink.addArg(name) + `::text), ` + sink.addArg(id.String()) + `::uuid)`, nil
 }
 
 // ListAgents returns one page of the agents visible in the given project: its

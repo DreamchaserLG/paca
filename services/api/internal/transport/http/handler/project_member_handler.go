@@ -76,32 +76,28 @@ func (h *ProjectHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
 		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid member_type"))
 		return
 	}
-	if raw := q.Get("ids"); raw != "" {
-		ids, err := parseQueryUUIDs(raw)
-		if err != nil {
-			presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid ids"))
-			return
-		}
-		if len(ids) > 100 {
-			presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "ids must contain at most 100 entries"))
-			return
-		}
-		filter.AccountIDs = ids
+	ids, err := parseIDsParam(r)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
 	}
-	var cursor *string
-	if raw := q.Get("cursor"); raw != "" {
-		cursor = &raw
-	}
+	filter.AccountIDs = ids
+	cursor := parseCursorParam(r)
 
 	members, hasMore, err := h.svc.ListMembers(r.Context(), id, pageSize, cursor, filter)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
 	}
-	total, err := h.svc.CountMembers(r.Context(), id, filter)
-	if err != nil {
-		presenter.Error(w, r, err)
-		return
+	// total_count is a first-page field: later pages skip the COUNT.
+	var total *int64
+	if cursor == nil {
+		n, err := h.svc.CountMembers(r.Context(), id, filter)
+		if err != nil {
+			presenter.Error(w, r, err)
+			return
+		}
+		total = &n
 	}
 	items := make([]dto.ProjectMemberResponse, 0, len(members))
 	for _, m := range members {

@@ -102,25 +102,31 @@ func (r *APIKeyRepository) FindByHash(ctx context.Context, keyHash string) (*api
 }
 
 // ListByAccountID returns one page of the account's non-revoked API keys,
-// newest first (created_at DESC, id DESC).
+// newest first (created_at DESC, id DESC). The total is returned on the
+// first page (no cursor) only.
 func (r *APIKeyRepository) ListByAccountID(ctx context.Context, accountID uuid.UUID, cursorAfter *string, limit int) ([]*apikeydom.APIKey, bool, int, error) {
+	if limit <= 0 {
+		limit = 30
+	}
+	// The total is a first-page field: later pages skip the COUNT.
 	var total int
-	if err := r.db.GetContext(ctx, &total, `SELECT COUNT(*) FROM `+apiKeyFrom+` WHERE k.account_id = $1 AND k.revoked_at IS NULL`, accountID.String()); err != nil {
-		return nil, false, 0, fmt.Errorf("api key repo: count: %w", err)
+	if cursorAfter == nil {
+		if err := r.db.GetContext(ctx, &total, `SELECT COUNT(*) FROM `+apiKeyFrom+` WHERE k.account_id = $1 AND k.revoked_at IS NULL`, accountID.String()); err != nil {
+			return nil, false, 0, fmt.Errorf("api key repo: count: %w", err)
+		}
 	}
 	q := `SELECT ` + apiKeyCols + ` FROM ` + apiKeyFrom + ` WHERE k.account_id = $1 AND k.revoked_at IS NULL`
-	args := []any{accountID.String()}
+	sink := &argList{args: []any{accountID.String()}}
 	if cursorAfter != nil {
 		at, id, err := apikeydom.DecodeCursor(*cursorAfter)
 		if err != nil {
 			return nil, false, 0, err
 		}
-		q += ` AND (k.created_at, k.id) < ($2, $3::uuid)`
-		args = append(args, at, id.String())
+		q += ` AND (k.created_at, k.id) < (` + sink.addArg(at) + `, ` + sink.addArg(id.String()) + `::uuid)`
 	}
-	q += fmt.Sprintf(` ORDER BY k.created_at DESC, k.id DESC LIMIT %d`, limit+1)
+	q += ` ORDER BY k.created_at DESC, k.id DESC LIMIT ` + sink.addArg(limit+1)
 	var recs []apiKeyRecord
-	if err := r.db.SelectContext(ctx, &recs, q, args...); err != nil {
+	if err := r.db.SelectContext(ctx, &recs, q, sink.args...); err != nil {
 		return nil, false, 0, fmt.Errorf("api key repo: list: %w", err)
 	}
 	hasMore := len(recs) > limit

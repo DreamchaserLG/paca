@@ -66,10 +66,7 @@ func (h *ServiceAccountHandler) List(w http.ResponseWriter, r *http.Request) {
 		presenter.Error(w, r, err)
 		return
 	}
-	var cursor *string
-	if raw := r.URL.Query().Get("cursor"); raw != "" {
-		cursor = &raw
-	}
+	cursor := parseCursorParam(r)
 	accounts, hasMore, err := h.svc.List(r.Context(), accountdom.ServiceAccountFilter{
 		Search: strings.TrimSpace(r.URL.Query().Get("search")),
 	}, cursor, pageSize)

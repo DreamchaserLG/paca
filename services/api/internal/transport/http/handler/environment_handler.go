@@ -107,27 +107,19 @@ func (h *EnvironmentHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
 // parseEnvListParams reads the paging params every environment list takes:
 // page_size (1-100, default 30) and cursor.
 func parseEnvListParams(r *http.Request) (cursor *string, pageSize int, err error) {
-	if raw := r.URL.Query().Get("cursor"); raw != "" {
-		cursor = &raw
-	}
+	cursor = parseCursorParam(r)
 	pageSize, err = parsePageSize(r, 30, 100)
 	return cursor, pageSize, err
 }
 
-// parseEnvIDs reads the optional ids param (up to 100 uuids — a batch lookup).
-func parseEnvIDs(r *http.Request) ([]uuid.UUID, error) {
-	raw := r.URL.Query().Get("ids")
-	if raw == "" {
-		return nil, nil
+// pageBody builds a cursor page response. total_count is a first-page field
+// (the lists skip the COUNT on later pages), so it is included only then.
+func pageBody(items any, pageSize int, nextCursor *string, firstPage bool, total any) map[string]any {
+	body := map[string]any{"items": items, "page_size": pageSize, "next_cursor": nextCursor}
+	if firstPage {
+		body["total_count"] = total
 	}
-	ids, err := parseQueryUUIDs(raw)
-	if err != nil {
-		return nil, apierr.New(apierr.CodeBadRequest, "invalid ids")
-	}
-	if len(ids) > 100 {
-		return nil, apierr.New(apierr.CodeBadRequest, "ids must contain at most 100 entries")
-	}
-	return ids, nil
+	return body
 }
 
 // --- Environments -------------------------------------------------------
@@ -156,7 +148,7 @@ func (h *EnvironmentHandler) ListEnvironments(w http.ResponseWriter, r *http.Req
 		presenter.Error(w, r, err)
 		return
 	}
-	ids, err := parseEnvIDs(r)
+	ids, err := parseIDsParam(r)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
@@ -375,7 +367,7 @@ func (h *EnvironmentHandler) ListFolders(w http.ResponseWriter, r *http.Request)
 		presenter.Error(w, r, err)
 		return
 	}
-	ids, err := parseEnvIDs(r)
+	ids, err := parseIDsParam(r)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
@@ -396,7 +388,7 @@ func (h *EnvironmentHandler) ListFolders(w http.ResponseWriter, r *http.Request)
 		c := environmentdom.EncodeCursor(last.CreatedAt, last.ID)
 		nextCursor = &c
 	}
-	presenter.OK(w, r, map[string]any{"items": resp, "page_size": pageSize, "next_cursor": nextCursor, "total_count": total})
+	presenter.OK(w, r, pageBody(resp, pageSize, nextCursor, cursor == nil, total))
 }
 
 // AddFolder handles POST /projects/:projectId/environments/:environmentId/folders.
@@ -508,7 +500,7 @@ func (h *EnvironmentHandler) ListSSHKeys(w http.ResponseWriter, r *http.Request)
 		c := environmentdom.EncodeCursor(last.CreatedAt, last.ID)
 		nextCursor = &c
 	}
-	presenter.OK(w, r, map[string]any{"items": resp, "page_size": pageSize, "next_cursor": nextCursor, "total_count": total})
+	presenter.OK(w, r, pageBody(resp, pageSize, nextCursor, cursor == nil, total))
 }
 
 // AddSSHKey handles POST /projects/:projectId/environments/:environmentId/ssh-keys.
@@ -598,7 +590,7 @@ func (h *EnvironmentHandler) ListPortForwards(w http.ResponseWriter, r *http.Req
 		c := environmentdom.EncodeCursor(last.CreatedAt, last.ID)
 		nextCursor = &c
 	}
-	presenter.OK(w, r, map[string]any{"items": resp, "page_size": pageSize, "next_cursor": nextCursor, "total_count": total})
+	presenter.OK(w, r, pageBody(resp, pageSize, nextCursor, cursor == nil, total))
 }
 
 // GetPortForward handles GET

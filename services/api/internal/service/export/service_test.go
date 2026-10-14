@@ -135,7 +135,15 @@ type fakeMembers struct {
 	members []*projectdom.ProjectMember
 }
 
-func (f fakeMembers) ListMembers(context.Context, uuid.UUID) ([]*projectdom.ProjectMember, error) {
+func (f fakeMembers) CountMembers(context.Context, uuid.UUID, projectdom.MemberFilter) (int64, error) {
+	return 0, nil
+}
+
+func (f fakeMembers) ListMembers(context.Context, uuid.UUID, int, *string, projectdom.MemberFilter) ([]*projectdom.ProjectMember, bool, error) {
+	return nil, false, nil
+}
+
+func (f fakeMembers) ListAllMembers(context.Context, uuid.UUID) ([]*projectdom.ProjectMember, error) {
 	return f.members, nil
 }
 
@@ -197,11 +205,23 @@ type fakeDocs struct {
 	docs    []*docdom.Document
 }
 
-func (f fakeDocs) ListFolders(context.Context, uuid.UUID) ([]*docdom.DocFolder, error) {
+func (f fakeDocs) ListFolders(context.Context, uuid.UUID, *uuid.UUID, *string, int) ([]*docdom.DocFolder, bool, error) {
+	return nil, false, nil
+}
+
+func (f fakeDocs) FolderPath(context.Context, uuid.UUID, uuid.UUID) ([]*docdom.DocFolder, error) {
+	return nil, nil
+}
+
+func (f fakeDocs) ListAllFolders(context.Context, uuid.UUID) ([]*docdom.DocFolder, error) {
 	return f.folders, nil
 }
-func (f fakeDocs) ListDocuments(context.Context, uuid.UUID, *uuid.UUID, *string, *string, *int) ([]*docdom.Document, bool, error) {
+func (f fakeDocs) ListDocuments(context.Context, uuid.UUID, docdom.DocumentFilter, *string, int) ([]*docdom.Document, bool, error) {
 	return f.docs, false, nil
+}
+
+func (f fakeDocs) ListAllDocuments(context.Context, uuid.UUID) ([]*docdom.Document, error) {
+	return f.docs, nil
 }
 
 // fakeActivity serves entries newest first through the real cursor contract.

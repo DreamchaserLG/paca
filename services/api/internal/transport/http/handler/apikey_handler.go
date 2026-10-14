@@ -30,17 +30,37 @@ func (h *APIKeyHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	keys, err := h.svc.List(r.Context(), userID)
+	listAPIKeys(w, r, h.svc, userID)
+}
+
+// listAPIKeys writes one cursor page of an account's active keys; shared by
+// the self-service and service-account key lists.
+func listAPIKeys(w http.ResponseWriter, r *http.Request, svc apikeydom.Service, accountID uuid.UUID) {
+	pageSize, err := parsePageSize(r, 30, 100)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
 	}
-
-	resp := make([]dto.APIKeyResponse, 0, len(keys))
-	for _, k := range keys {
-		resp = append(resp, dto.APIKeyFromEntity(k))
+	var cursor *string
+	if raw := r.URL.Query().Get("cursor"); raw != "" {
+		cursor = &raw
 	}
-	presenter.OK(w, r, resp)
+	keys, hasMore, total, err := svc.List(r.Context(), accountID, cursor, pageSize)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+	items := make([]dto.APIKeyResponse, 0, len(keys))
+	for _, k := range keys {
+		items = append(items, dto.APIKeyFromEntity(k))
+	}
+	var nextCursor *string
+	if hasMore && len(keys) > 0 {
+		last := keys[len(keys)-1]
+		c := apikeydom.EncodeCursor(last.CreatedAt, last.ID)
+		nextCursor = &c
+	}
+	presenter.OK(w, r, map[string]any{"items": items, "page_size": pageSize, "next_cursor": nextCursor, "total_count": total})
 }
 
 // Create handles POST /users/me/api-keys.

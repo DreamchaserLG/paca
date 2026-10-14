@@ -163,15 +163,6 @@ export async function testProjectJevConfig(
 
 // ── Members ───────────────────────────────────────────────────────────────────
 
-export async function listProjectMembers(
-	projectId: string,
-): Promise<ProjectMember[]> {
-	const { data } = await apiClient.instance.get<
-		SuccessEnvelope<ProjectMember[]>
-	>(`/projects/${projectId}/members`);
-	return data.data;
-}
-
 export async function addProjectMember(
 	projectId: string,
 	payload:
@@ -570,11 +561,102 @@ export const projectQueryOptions = (projectId: string) =>
 		staleTime: 2 * 60 * 1000,
 	});
 
-export const projectMembersQueryOptions = (projectId: string) =>
-	queryOptions({
-		queryKey: ["projects", projectId, "members"],
-		queryFn: () => listProjectMembers(projectId),
+export type ProjectMemberType = "human" | "agent" | "service_account";
+
+export interface ProjectMemberFilters {
+	/** Matches username, name or agent handle (every word must appear). */
+	search?: string;
+	roleId?: string;
+	memberType?: ProjectMemberType;
+}
+
+export interface ProjectMemberPage {
+	items: ProjectMember[];
+	page_size: number;
+	next_cursor: string | null;
+	/** Members matching the filters across all pages. */
+	total_count: number;
+}
+
+export const PROJECT_MEMBERS_PAGE_SIZE = 20;
+/** Most account ids the cursor endpoint accepts in one `ids` lookup. */
+export const PROJECT_MEMBERS_MAX_IDS = 100;
+
+/** One page of a project's members (GET /members), keyset-paginated by cursor and filtered
+ *  server-side. `ids` (account ids, at most PROJECT_MEMBERS_MAX_IDS) narrows
+ *  the result to those accounts — a batch lookup that replaces loading the
+ *  whole team just to resolve a few ids. */
+export async function listProjectMembers(
+	projectId: string,
+	opts: ProjectMemberFilters & {
+		cursor?: string;
+		pageSize?: number;
+		ids?: string[];
+	} = {},
+): Promise<ProjectMemberPage> {
+	const params: Record<string, string | number> = {
+		page_size: opts.pageSize ?? PROJECT_MEMBERS_PAGE_SIZE,
+	};
+	if (opts.cursor) params.cursor = opts.cursor;
+	if (opts.search?.trim()) params.search = opts.search.trim();
+	if (opts.roleId) params.role_id = opts.roleId;
+	if (opts.memberType) params.member_type = opts.memberType;
+	if (opts.ids?.length) params.ids = opts.ids.join(",");
+	const { data } = await apiClient.instance.get<
+		SuccessEnvelope<ProjectMemberPage>
+	>(`/projects/${projectId}/members`, { params });
+	return data.data;
+}
+
+/** Infinite-query version of the member list. Keyed under the plain members
+ *  key, so invalidating ["projects", id, "members"] refreshes it too. */
+export const projectMembersInfiniteQueryOptions = (
+	projectId: string,
+	filters: ProjectMemberFilters = {},
+) =>
+	infiniteQueryOptions({
+		queryKey: ["projects", projectId, "members", "cursor", filters],
+		queryFn: ({ pageParam }: { pageParam: string | undefined }) =>
+			listProjectMembers(projectId, { ...filters, cursor: pageParam }),
+		initialPageParam: undefined as string | undefined,
+		getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
 	});
+
+/** Size of the whole team (no filters), read from total_count of a
+ *  one-row page. */
+export const projectMemberTotalQueryOptions = (projectId: string) =>
+	queryOptions({
+		queryKey: ["projects", projectId, "members", "total"],
+		queryFn: async () =>
+			(await listProjectMembers(projectId, { pageSize: 1 })).total_count,
+		staleTime: 15_000,
+	});
+
+/** Which of `ids` (account ids) are members of the project. */
+export const existingMemberIdsQueryOptions = (
+	projectId: string,
+	ids: string[],
+) =>
+	queryOptions({
+		queryKey: ["projects", projectId, "members", "existing", ids],
+		queryFn: async () => {
+			const page = await listProjectMembers(projectId, {
+				ids,
+				pageSize: PROJECT_MEMBERS_MAX_IDS,
+			});
+			return page.items.flatMap((m) =>
+				[m.user_id, m.agent_id, m.service_account_id].filter(
+					(id): id is string => !!id,
+				),
+			);
+		},
+		staleTime: 15_000,
+	});
+
+/** Key prefix of every cached members query for a project (paged lists,
+ *  totals, id lookups) — invalidate it after members change. */
+export const projectMembersKey = (projectId: string) =>
+	["projects", projectId, "members"] as const;
 
 export const myProjectPermissionsQueryOptions = (projectId: string) =>
 	queryOptions({

@@ -244,81 +244,173 @@ func uuidOrNil(id *uuid.UUID) uuid.UUID {
 // Agents
 // -------------------------------------------------------------------------
 
-// ListAgents returns agents visible in the given project: its own
-// project-scoped agents, plus any global agents currently invited into it
+// defaultAgentPageSize is the page size agent lists use when none is given.
+const defaultAgentPageSize = 30
+
+// agentFilterSQL appends the search and id conditions of f to a query whose
+// agent and account rows are aliased a and ac, adding their arguments to sink.
+func agentFilterSQL(f agentdom.AgentFilter, sink *argList) string {
+	var q string
+	for _, word := range strings.Fields(f.Search) {
+		p := sink.addArg("%" + escapeLike(word) + "%")
+		q += ` AND (LOWER(ac.name) LIKE LOWER(` + p + `) ESCAPE '\' OR LOWER(a.handle) LIKE LOWER(` + p + `) ESCAPE '\' OR LOWER(COALESCE(ac.description, '')) LIKE LOWER(` + p + `) ESCAPE '\')`
+	}
+	if len(f.IDs) > 0 {
+		ids := make([]string, len(f.IDs))
+		for i, id := range f.IDs {
+			ids[i] = id.String()
+		}
+		q += ` AND a.id = ANY(` + sink.addArg(ids) + `::uuid[])`
+	}
+	return q
+}
+
+// agentCursorSQL resumes the (LOWER(name), id) ordering after the cursor.
+func agentCursorSQL(cursorAfter *string, sink *argList) (string, error) {
+	if cursorAfter == nil {
+		return "", nil
+	}
+	name, id, err := agentdom.DecodeAgentCursor(*cursorAfter)
+	if err != nil {
+		return "", err
+	}
+	return ` AND (LOWER(ac.name), a.id) > (` + sink.addArg(name) + `, ` + sink.addArg(id.String()) + `::uuid)`, nil
+}
+
+// ListAgents returns one page of the agents visible in the given project: its
+// own project-scoped agents, plus any global agents currently invited into it
 // (i.e. with an active project_members row there). Filtering through the
 // project_members join rather than agents.project_id directly is what makes
 // invited global agents show up here — a global agent's own project_id is
-// always NULL. For every project-scoped agent (which always has exactly one
-// active project_members row from CreateAgentWithMembership) this returns
-// the identical row set as filtering on a.project_id directly would.
+// always NULL. Pages are ordered by (LOWER(name), id).
 //
-// scope narrows the result to just that AgentScope; the zero value
-// (AgentScope("")) applies no filter and returns both, as described above.
-func (r *AgentRepository) ListAgents(ctx context.Context, projectID uuid.UUID, scope agentdom.AgentScope) ([]*agentdom.Agent, error) {
+// filter.Scope narrows the result to just that AgentScope; the zero value
+// applies no filter and returns both.
+func (r *AgentRepository) ListAgents(ctx context.Context, projectID uuid.UUID, filter agentdom.AgentFilter, cursorAfter *string, limit int) ([]*agentdom.Agent, bool, error) {
+	if limit <= 0 {
+		limit = defaultAgentPageSize
+	}
+	return r.listAgents(ctx, projectID, filter, cursorAfter, &limit)
+}
+
+// ListAllAgents returns every agent visible in the given project, optionally
+// narrowed to one scope. Not exposed over the API.
+func (r *AgentRepository) ListAllAgents(ctx context.Context, projectID uuid.UUID, scope agentdom.AgentScope) ([]*agentdom.Agent, error) {
+	agents, _, err := r.listAgents(ctx, projectID, agentdom.AgentFilter{Scope: scope}, nil, nil)
+	return agents, err
+}
+
+// listAgents is the shared project listing: a nil limit returns every match.
+func (r *AgentRepository) listAgents(ctx context.Context, projectID uuid.UUID, filter agentdom.AgentFilter, cursorAfter *string, limit *int) ([]*agentdom.Agent, bool, error) {
 	query := `
 		SELECT ` + agentSelectCols + `
 		FROM ` + agentFrom + `
 		JOIN project_members pm ON pm.account_id = a.id AND pm.deleted_at IS NULL AND pm.project_id = $1
 		WHERE ac.deleted_at IS NULL`
 	sink := &argList{args: []any{projectID.String()}}
-	if scope != "" {
-		query += " AND (CASE WHEN a.project_id IS NULL THEN 'global' ELSE 'project' END) = " + sink.addArg(string(scope))
+	if filter.Scope != "" {
+		query += " AND (CASE WHEN a.project_id IS NULL THEN 'global' ELSE 'project' END) = " + sink.addArg(string(filter.Scope))
 	}
 	// The caller's IAM scope narrows the query itself, so an agent the caller
 	// may not read never leaves the database.
 	clause, none, err := scopeSQL(ctx, "agent", agentScopeColumns, sink)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if none {
-		return []*agentdom.Agent{}, nil
+		return []*agentdom.Agent{}, false, nil
 	}
 	if clause != "" {
 		query += " AND " + clause
 	}
-
-	var rows []agentRecord
-	err = r.db.SelectContext(ctx, &rows, query, sink.args...)
-	if err != nil {
-		return nil, err
+	query += agentFilterSQL(filter, sink)
+	if limit != nil {
+		cur, err := agentCursorSQL(cursorAfter, sink)
+		if err != nil {
+			return nil, false, err
+		}
+		query += cur
+	}
+	query += ` ORDER BY LOWER(ac.name), a.id`
+	if limit != nil {
+		query += ` LIMIT ` + sink.addArg(*limit+1)
 	}
 
+	var rows []agentRecord
+	if err := r.db.SelectContext(ctx, &rows, query, sink.args...); err != nil {
+		return nil, false, err
+	}
+	hasMore := false
+	if limit != nil && len(rows) > *limit {
+		hasMore = true
+		rows = rows[:*limit]
+	}
 	result := make([]*agentdom.Agent, 0, len(rows))
 	for _, row := range rows {
 		a, err := agentFromReadRow(row)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		result = append(result, a)
 	}
-	return result, nil
+	return result, hasMore, nil
 }
 
-// ListGlobalAgents returns every global-scope agent (agent_scope='global').
-func (r *AgentRepository) ListGlobalAgents(ctx context.Context) ([]*agentdom.Agent, error) {
-	var rows []agentRecord
-	err := r.db.SelectContext(ctx, &rows, `
-		SELECT `+agentSelectColsNoMember+`
-		FROM `+agentFrom+`
-		WHERE a.project_id IS NULL AND ac.deleted_at IS NULL
-		ORDER BY ac.name`)
-	if err != nil {
-		return nil, err
+// ListGlobalAgents returns one page of the global-scope agents (agent_scope =
+// 'global'), ordered by (LOWER(name), id), with their platform roles.
+func (r *AgentRepository) ListGlobalAgents(ctx context.Context, filter agentdom.AgentFilter, cursorAfter *string, limit int) ([]*agentdom.Agent, bool, error) {
+	if limit <= 0 {
+		limit = defaultAgentPageSize
+	}
+	return r.listGlobalAgents(ctx, filter, cursorAfter, &limit)
+}
+
+// ListAllGlobalAgents returns every global-scope agent. Not exposed over the API.
+func (r *AgentRepository) ListAllGlobalAgents(ctx context.Context) ([]*agentdom.Agent, error) {
+	agents, _, err := r.listGlobalAgents(ctx, agentdom.AgentFilter{}, nil, nil)
+	return agents, err
+}
+
+func (r *AgentRepository) listGlobalAgents(ctx context.Context, filter agentdom.AgentFilter, cursorAfter *string, limit *int) ([]*agentdom.Agent, bool, error) {
+	query := `
+		SELECT ` + agentSelectColsNoMember + `
+		FROM ` + agentFrom + `
+		WHERE a.project_id IS NULL AND ac.deleted_at IS NULL`
+	sink := &argList{}
+	query += agentFilterSQL(filter, sink)
+	if limit != nil {
+		cur, err := agentCursorSQL(cursorAfter, sink)
+		if err != nil {
+			return nil, false, err
+		}
+		query += cur
+	}
+	query += ` ORDER BY LOWER(ac.name), a.id`
+	if limit != nil {
+		query += ` LIMIT ` + sink.addArg(*limit+1)
 	}
 
+	var rows []agentRecord
+	if err := r.db.SelectContext(ctx, &rows, query, sink.args...); err != nil {
+		return nil, false, err
+	}
+	hasMore := false
+	if limit != nil && len(rows) > *limit {
+		hasMore = true
+		rows = rows[:*limit]
+	}
 	result := make([]*agentdom.Agent, 0, len(rows))
 	for _, row := range rows {
 		a, err := agentFromReadRow(row)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		result = append(result, a)
 	}
 	if err := r.loadGlobalAgentRoles(ctx, result); err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return result, nil
+	return result, hasMore, nil
 }
 
 // loadGlobalAgentRoles fills Roles on global agents: the platform roles

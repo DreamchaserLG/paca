@@ -112,7 +112,15 @@ func (s *stubProjectSvc) RemoveAvatar(context.Context, uuid.UUID) (*projectdom.P
 	return nil, projectdom.ErrNotFound
 }
 
-func (s *stubProjectSvc) ListMembers(ctx context.Context, projectID uuid.UUID) ([]*projectdom.ProjectMember, error) {
+func (s *stubProjectSvc) CountMembers(context.Context, uuid.UUID, projectdom.MemberFilter) (int64, error) {
+	return 0, nil
+}
+
+func (s *stubProjectSvc) ListMembers(context.Context, uuid.UUID, int, *string, projectdom.MemberFilter) ([]*projectdom.ProjectMember, bool, error) {
+	return nil, false, nil
+}
+
+func (s *stubProjectSvc) ListAllMembers(ctx context.Context, projectID uuid.UUID) ([]*projectdom.ProjectMember, error) {
 	s.listMembersCalls++
 	if s.listMembers != nil {
 		return s.listMembers(ctx, projectID)
@@ -276,8 +284,8 @@ func TestCachedProject_Delete_InvalidatesAllProjectKeys(t *testing.T) {
 	if _, err := svc.GetByID(ctx, projectID); err != nil {
 		t.Fatalf("GetByID: %v", err)
 	}
-	if _, err := svc.ListMembers(ctx, projectID); err != nil {
-		t.Fatalf("ListMembers: %v", err)
+	if _, err := svc.ListAllMembers(ctx, projectID); err != nil {
+		t.Fatalf("ListAllMembers: %v", err)
 	}
 
 	// Delete should evict both.
@@ -289,20 +297,20 @@ func TestCachedProject_Delete_InvalidatesAllProjectKeys(t *testing.T) {
 	if _, err := svc.GetByID(ctx, projectID); err != nil {
 		t.Fatalf("GetByID after Delete: %v", err)
 	}
-	if _, err := svc.ListMembers(ctx, projectID); err != nil {
-		t.Fatalf("ListMembers after Delete: %v", err)
+	if _, err := svc.ListAllMembers(ctx, projectID); err != nil {
+		t.Fatalf("ListAllMembers after Delete: %v", err)
 	}
 
 	if stub.getByIDCalls != 2 {
 		t.Fatalf("GetByID: expected 2 stub calls, got %d", stub.getByIDCalls)
 	}
 	if stub.listMembersCalls != 2 {
-		t.Fatalf("ListMembers: expected 2 stub calls, got %d", stub.listMembersCalls)
+		t.Fatalf("ListAllMembers: expected 2 stub calls, got %d", stub.listMembersCalls)
 	}
 }
 
 // ---------------------------------------------------------------------------
-// ListMembers
+// ListAllMembers
 // ---------------------------------------------------------------------------
 
 func TestCachedProject_ListMembers_CacheHit(t *testing.T) {
@@ -311,11 +319,11 @@ func TestCachedProject_ListMembers_CacheHit(t *testing.T) {
 	stub := &stubProjectSvc{}
 	svc := projectsvc.NewCachedService(stub, newCacheStore(t), projectTTL, discardLogger())
 
-	if _, err := svc.ListMembers(ctx, projectID); err != nil {
-		t.Fatalf("ListMembers (miss): %v", err)
+	if _, err := svc.ListAllMembers(ctx, projectID); err != nil {
+		t.Fatalf("ListAllMembers (miss): %v", err)
 	}
-	if _, err := svc.ListMembers(ctx, projectID); err != nil {
-		t.Fatalf("ListMembers (hit): %v", err)
+	if _, err := svc.ListAllMembers(ctx, projectID); err != nil {
+		t.Fatalf("ListAllMembers (hit): %v", err)
 	}
 	if stub.listMembersCalls != 1 {
 		t.Fatalf("expected 1 stub call, got %d", stub.listMembersCalls)
@@ -328,14 +336,14 @@ func TestCachedProject_AddMember_InvalidatesMembersList(t *testing.T) {
 	stub := &stubProjectSvc{}
 	svc := projectsvc.NewCachedService(stub, newCacheStore(t), projectTTL, discardLogger())
 
-	if _, err := svc.ListMembers(ctx, projectID); err != nil {
-		t.Fatalf("ListMembers: %v", err)
+	if _, err := svc.ListAllMembers(ctx, projectID); err != nil {
+		t.Fatalf("ListAllMembers: %v", err)
 	}
 	if _, err := svc.AddMember(ctx, projectID, projectdom.AddMemberInput{UserID: uuid.New(), RoleIDs: []uuid.UUID{uuid.New()}}); err != nil {
 		t.Fatalf("AddMember: %v", err)
 	}
-	if _, err := svc.ListMembers(ctx, projectID); err != nil {
-		t.Fatalf("ListMembers after AddMember: %v", err)
+	if _, err := svc.ListAllMembers(ctx, projectID); err != nil {
+		t.Fatalf("ListAllMembers after AddMember: %v", err)
 	}
 	if stub.listMembersCalls != 2 {
 		t.Fatalf("expected 2 stub calls, got %d", stub.listMembersCalls)
@@ -348,14 +356,14 @@ func TestCachedProject_RemoveMember_InvalidatesMembersList(t *testing.T) {
 	stub := &stubProjectSvc{}
 	svc := projectsvc.NewCachedService(stub, newCacheStore(t), projectTTL, discardLogger())
 
-	if _, err := svc.ListMembers(ctx, projectID); err != nil {
-		t.Fatalf("ListMembers: %v", err)
+	if _, err := svc.ListAllMembers(ctx, projectID); err != nil {
+		t.Fatalf("ListAllMembers: %v", err)
 	}
 	if err := svc.RemoveMember(ctx, projectID, uuid.New()); err != nil {
 		t.Fatalf("RemoveMember: %v", err)
 	}
-	if _, err := svc.ListMembers(ctx, projectID); err != nil {
-		t.Fatalf("ListMembers after RemoveMember: %v", err)
+	if _, err := svc.ListAllMembers(ctx, projectID); err != nil {
+		t.Fatalf("ListAllMembers after RemoveMember: %v", err)
 	}
 	if stub.listMembersCalls != 2 {
 		t.Fatalf("expected 2 stub calls, got %d", stub.listMembersCalls)

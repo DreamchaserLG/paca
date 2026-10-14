@@ -29,7 +29,6 @@ import {
 	CONVERSATION_RECONCILE_INTERVAL_MS,
 	CONVERSATION_STATUS_COLORS,
 	CONVERSATION_STATUS_LABELS,
-	chattableAgentsQueryOptions,
 	conversationEventWindowKey,
 	conversationQueryOptions,
 	globalConversationQueryOptions,
@@ -44,6 +43,7 @@ import {
 	stopConversation,
 	stopGlobalConversation,
 } from "@/lib/agent-api";
+import { useAgentDirectory } from "@/lib/agent-directory";
 import { isForbiddenError } from "@/lib/api-error";
 import { useContextInjectionStore } from "@/lib/context-injection-store";
 import { cn } from "@/lib/utils";
@@ -227,13 +227,10 @@ export function ConversationView({
 		...agentQueryOptions(projectId ?? "", conversation?.agent_id ?? ""),
 		enabled: !!projectId && !!conversation?.agent_id,
 	});
-	const { data: chattableAgents = [] } = useQuery({
-		...chattableAgentsQueryOptions,
-		enabled: !projectId && !!conversation?.agent_id,
-	});
+	const getGlobalAgent = useAgentDirectory(null);
 	const agent = projectId
 		? projectAgent
-		: chattableAgents.find((a) => a.id === conversation?.agent_id);
+		: getGlobalAgent(conversation?.agent_id);
 	const isACP = agent?.agent_type === "acp";
 	// ACP conversations never spin up a sandbox (the local bridge daemon runs
 	// entirely on the user's own machine — see internal/acpbridge/dispatch.go's

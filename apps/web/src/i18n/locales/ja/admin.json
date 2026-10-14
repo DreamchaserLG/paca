@@ -358,6 +358,7 @@
 		"empty": "まだリリースノートはありません。"
 	},
 	"agents": {
+		"searchPlaceholder": "名前またはハンドルでエージェントを検索…",
 		"header": {
 			"title": "グローバルエージェント",
 			"description": "ホームページや管理ページでチャットし、任意のプロジェクトに招待できるAIエージェントを管理します。",
@@ -476,6 +477,7 @@
 		}
 	},
 	"serviceAccounts": {
+		"searchPlaceholder": "名前または説明で検索…",
 		"header": {
 			"title": "サービスアカウント",
 			"description": "連携・CI・自動化のための、独自の API キーとロールを持つ人以外のアカウントです。",

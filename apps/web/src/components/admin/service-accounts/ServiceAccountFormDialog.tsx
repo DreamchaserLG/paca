@@ -21,7 +21,7 @@ import { serviceAccountAvatar } from "@/lib/provider-logos";
 import {
 	createServiceAccount,
 	type ServiceAccount,
-	serviceAccountsQueryOptions,
+	serviceAccountsKey,
 	updateServiceAccount,
 } from "@/lib/service-account-api";
 
@@ -62,7 +62,7 @@ export function ServiceAccountFormDialog({
 					}),
 		onSuccess: () => {
 			void queryClient.invalidateQueries({
-				queryKey: serviceAccountsQueryOptions.queryKey,
+				queryKey: serviceAccountsKey,
 			});
 			onOpenChange(false);
 		},
@@ -143,7 +143,7 @@ export function ServiceAccountFormDialog({
 							}}
 							onChange={() => {
 								void queryClient.invalidateQueries({
-									queryKey: serviceAccountsQueryOptions.queryKey,
+									queryKey: serviceAccountsKey,
 								});
 							}}
 						/>

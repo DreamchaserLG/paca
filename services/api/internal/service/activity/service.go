@@ -47,10 +47,33 @@ func (s *Service) List(ctx context.Context, f activitydom.ListFilter, limit int)
 	return s.repo.List(ctx, f, limit)
 }
 
-// ListForEntity returns one entity's timeline, oldest first. The caller
-// checks the entity belongs to the project it authorized against.
-func (s *Service) ListForEntity(ctx context.Context, entityType events.EntityType, entityID uuid.UUID) ([]*activitydom.Activity, error) {
-	return s.repo.ListForEntity(ctx, string(entityType), entityID)
+// ListForEntity returns one page of an entity's timeline, newest first,
+// plus the cursor for the next (older) page, or nil on the last page. cursor
+// is the token a previous call returned; an undecodable one wraps
+// activitydom.ErrInvalidCursor. The caller checks the entity belongs to the
+// project it authorized against.
+func (s *Service) ListForEntity(ctx context.Context, entityType events.EntityType, entityID uuid.UUID, cursor *string, limit int) ([]*activitydom.Activity, *string, error) {
+	if limit <= 0 {
+		limit = defaultPageSize
+	}
+	var cur *activitydom.Cursor
+	if cursor != nil {
+		c, err := activitydom.DecodeCursor(*cursor)
+		if err != nil {
+			return nil, nil, err
+		}
+		cur = c
+	}
+	items, more, err := s.repo.ListForEntity(ctx, string(entityType), entityID, cur, limit)
+	if err != nil {
+		return nil, nil, err
+	}
+	var next *string
+	if more && len(items) > 0 {
+		c := activitydom.EncodeCursor(items[len(items)-1])
+		next = &c
+	}
+	return items, next, nil
 }
 
 // --- Entity entries ---------------------------------------------------------

@@ -358,6 +358,7 @@
 		"empty": "暂无发布说明。"
 	},
 	"agents": {
+		"searchPlaceholder": "按名称或标识搜索智能体…",
 		"header": {
 			"title": "全局智能体",
 			"description": "管理可以在主页和管理页面聊天、并可被邀请加入任意项目的 AI 智能体。",
@@ -476,6 +477,7 @@
 		}
 	},
 	"serviceAccounts": {
+		"searchPlaceholder": "按名称或描述搜索…",
 		"header": {
 			"title": "服务账号",
 			"description": "拥有独立 API 密钥和角色的非人类账号，用于集成、CI 和自动化。",

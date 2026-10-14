@@ -19,8 +19,12 @@ type fakeDocRepoForChecker struct {
 	docs map[uuid.UUID]*docdom.Document
 }
 
-func (r *fakeDocRepoForChecker) ListDocuments(context.Context, uuid.UUID, *uuid.UUID, *string, *string, *int) ([]*docdom.Document, bool, error) {
+func (r *fakeDocRepoForChecker) ListDocuments(context.Context, uuid.UUID, docdom.DocumentFilter, *string, int) ([]*docdom.Document, bool, error) {
 	return nil, false, nil
+}
+
+func (r *fakeDocRepoForChecker) ListAllDocuments(context.Context, uuid.UUID) ([]*docdom.Document, error) {
+	return nil, nil
 }
 func (r *fakeDocRepoForChecker) SearchDocuments(context.Context, uuid.UUID, string, int) ([]*docdom.Document, error) {
 	return nil, nil

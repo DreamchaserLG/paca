@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -100,47 +101,59 @@ const environmentCols = `id, project_id, name, slug, ssh_port, ports_pending_res
 // Environments
 // -------------------------------------------------------------------------
 
-// ListEnvironments returns every non-deleted environment in a project,
-// newest first, each with its Folders populated — the conversation
-// composer's folder picker (apps/web's agent-picker.tsx) reads
-// environment.folders straight off this response rather than issuing a
-// separate per-environment folders fetch. One extra query per
-// environment (ListFolders below), not a JOIN — acceptable for how few
-// static environments a project realistically has, and it keeps this
-// method free to reuse ListFolders' own column list/mapping rather than
-// duplicating it.
-func (r *EnvironmentRepository) ListEnvironments(ctx context.Context, projectID uuid.UUID) ([]*environmentdom.Environment, error) {
+// ListEnvironments returns one page of a project's environments, newest
+// first (created_at DESC, id DESC), optionally narrowed by name/slug search or
+// a set of ids. The caller's IAM scope narrows the query itself, ahead of the
+// cursor and LIMIT.
+func (r *EnvironmentRepository) ListEnvironments(ctx context.Context, projectID uuid.UUID, filter environmentdom.EnvironmentFilter, cursorAfter *string, limit int) ([]*environmentdom.Environment, bool, error) {
+	if limit <= 0 {
+		limit = 30
+	}
 	sink := &argList{args: []any{projectID.String()}}
 	clause, none, err := scopeSQL(ctx, "environment", environmentScopeColumns, sink)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if none {
-		return []*environmentdom.Environment{}, nil
+		return []*environmentdom.Environment{}, false, nil
 	}
-	scopeAnd := ""
+	q := `SELECT ` + environmentCols + ` FROM environments WHERE project_id = $1 AND deleted_at IS NULL`
 	if clause != "" {
-		scopeAnd = " AND " + clause
+		q += " AND " + clause
 	}
+	for _, word := range strings.Fields(filter.Search) {
+		p := sink.addArg("%" + escapeLike(word) + "%")
+		q += ` AND (LOWER(name) LIKE LOWER(` + p + `) ESCAPE '\' OR LOWER(slug) LIKE LOWER(` + p + `) ESCAPE '\')`
+	}
+	if len(filter.IDs) > 0 {
+		ids := make([]string, len(filter.IDs))
+		for i, id := range filter.IDs {
+			ids[i] = id.String()
+		}
+		q += ` AND id = ANY(` + sink.addArg(ids) + `::uuid[])`
+	}
+	if cursorAfter != nil {
+		at, id, err := environmentdom.DecodeCursor(*cursorAfter)
+		if err != nil {
+			return nil, false, err
+		}
+		q += ` AND (created_at, id) < (` + sink.addArg(at) + `, ` + sink.addArg(id.String()) + `::uuid)`
+	}
+	q += ` ORDER BY created_at DESC, id DESC LIMIT ` + sink.addArg(limit+1)
+
 	var recs []environmentRecord
-	err = r.db.SelectContext(ctx, &recs, `
-		SELECT `+environmentCols+` FROM environments
-		WHERE project_id = $1 AND deleted_at IS NULL`+scopeAnd+`
-		ORDER BY created_at DESC`, sink.args...)
-	if err != nil {
-		return nil, err
+	if err := r.db.SelectContext(ctx, &recs, q, sink.args...); err != nil {
+		return nil, false, err
+	}
+	hasMore := len(recs) > limit
+	if hasMore {
+		recs = recs[:limit]
 	}
 	result := make([]*environmentdom.Environment, 0, len(recs))
 	for _, rec := range recs {
-		env := environmentFromRecord(rec)
-		folders, err := r.ListFolders(ctx, env.ID)
-		if err != nil {
-			return nil, err
-		}
-		env.Folders = folders
-		result = append(result, env)
+		result = append(result, environmentFromRecord(rec))
 	}
-	return result, nil
+	return result, hasMore, nil
 }
 
 // FindEnvironmentByID returns a single environment by ID, regardless of
@@ -292,23 +305,50 @@ func (r *EnvironmentRepository) SetPortsPendingRestart(ctx context.Context, id u
 
 const environmentFolderCols = `id, environment_id, path, created_by, created_at, updated_at`
 
-// ListFolders returns every folder in an environment, oldest first (the
-// order they were added — mirrors ListMCPServers-style listing elsewhere in
-// this package).
-func (r *EnvironmentRepository) ListFolders(ctx context.Context, environmentID uuid.UUID) ([]*environmentdom.EnvironmentFolder, error) {
+// ListFolders returns one page of an environment's folders, oldest first (the
+// order they were added), optionally narrowed by path search or a set of ids,
+// plus the number of folders matching the filter in total.
+func (r *EnvironmentRepository) ListFolders(ctx context.Context, environmentID uuid.UUID, filter environmentdom.FolderFilter, cursorAfter *string, limit int) ([]*environmentdom.EnvironmentFolder, bool, int64, error) {
+	if limit <= 0 {
+		limit = 30
+	}
+	sink := &argList{args: []any{environmentID.String()}}
+	where := `environment_id = $1`
+	for _, word := range strings.Fields(filter.Search) {
+		where += ` AND LOWER(path) LIKE LOWER(` + sink.addArg("%"+escapeLike(word)+"%") + `) ESCAPE '\'`
+	}
+	if len(filter.IDs) > 0 {
+		ids := make([]string, len(filter.IDs))
+		for i, id := range filter.IDs {
+			ids[i] = id.String()
+		}
+		where += ` AND id = ANY(` + sink.addArg(ids) + `::uuid[])`
+	}
+	var total int64
+	if err := r.db.GetContext(ctx, &total, `SELECT COUNT(*) FROM environment_folders WHERE `+where, sink.args...); err != nil {
+		return nil, false, 0, err
+	}
+	if cursorAfter != nil {
+		at, id, err := environmentdom.DecodeCursor(*cursorAfter)
+		if err != nil {
+			return nil, false, 0, err
+		}
+		where += ` AND (created_at, id) > (` + sink.addArg(at) + `, ` + sink.addArg(id.String()) + `::uuid)`
+	}
 	var recs []environmentFolderRecord
-	err := r.db.SelectContext(ctx, &recs, `
-		SELECT `+environmentFolderCols+` FROM environment_folders
-		WHERE environment_id = $1
-		ORDER BY created_at ASC`, environmentID.String())
-	if err != nil {
-		return nil, err
+	if err := r.db.SelectContext(ctx, &recs, `SELECT `+environmentFolderCols+` FROM environment_folders WHERE `+where+
+		` ORDER BY created_at ASC, id ASC LIMIT `+sink.addArg(limit+1), sink.args...); err != nil {
+		return nil, false, 0, err
+	}
+	hasMore := len(recs) > limit
+	if hasMore {
+		recs = recs[:limit]
 	}
 	result := make([]*environmentdom.EnvironmentFolder, 0, len(recs))
 	for _, rec := range recs {
 		result = append(result, envFolderFromRecord(rec))
 	}
-	return result, nil
+	return result, hasMore, total, nil
 }
 
 // FindFolderByID returns a single folder by ID.
@@ -363,21 +403,39 @@ func (r *EnvironmentRepository) DeleteFolder(ctx context.Context, id uuid.UUID) 
 
 const environmentSSHKeyCols = `id, environment_id, label, public_key, fingerprint, created_by, created_at`
 
-// ListSSHKeys returns every SSH key registered on an environment, oldest first.
-func (r *EnvironmentRepository) ListSSHKeys(ctx context.Context, environmentID uuid.UUID) ([]*environmentdom.EnvironmentSSHKey, error) {
+// ListSSHKeys returns one page of an environment's SSH keys, oldest first, and
+// the total number registered.
+func (r *EnvironmentRepository) ListSSHKeys(ctx context.Context, environmentID uuid.UUID, cursorAfter *string, limit int) ([]*environmentdom.EnvironmentSSHKey, bool, int64, error) {
+	if limit <= 0 {
+		limit = 30
+	}
+	var total int64
+	if err := r.db.GetContext(ctx, &total, `SELECT COUNT(*) FROM environment_ssh_keys WHERE environment_id = $1`, environmentID.String()); err != nil {
+		return nil, false, 0, err
+	}
+	sink := &argList{args: []any{environmentID.String()}}
+	where := `environment_id = $1`
+	if cursorAfter != nil {
+		at, id, err := environmentdom.DecodeCursor(*cursorAfter)
+		if err != nil {
+			return nil, false, 0, err
+		}
+		where += ` AND (created_at, id) > (` + sink.addArg(at) + `, ` + sink.addArg(id.String()) + `::uuid)`
+	}
 	var recs []environmentSSHKeyRecord
-	err := r.db.SelectContext(ctx, &recs, `
-		SELECT `+environmentSSHKeyCols+` FROM environment_ssh_keys
-		WHERE environment_id = $1
-		ORDER BY created_at ASC`, environmentID.String())
-	if err != nil {
-		return nil, err
+	if err := r.db.SelectContext(ctx, &recs, `SELECT `+environmentSSHKeyCols+` FROM environment_ssh_keys WHERE `+where+
+		` ORDER BY created_at ASC, id ASC LIMIT `+sink.addArg(limit+1), sink.args...); err != nil {
+		return nil, false, 0, err
+	}
+	hasMore := len(recs) > limit
+	if hasMore {
+		recs = recs[:limit]
 	}
 	result := make([]*environmentdom.EnvironmentSSHKey, 0, len(recs))
 	for _, rec := range recs {
 		result = append(result, sshKeyFromRecord(rec))
 	}
-	return result, nil
+	return result, hasMore, total, nil
 }
 
 // FindSSHKeyByID returns a single SSH key by ID.
@@ -445,21 +503,39 @@ func (r *EnvironmentRepository) FindSSHKeyByFingerprint(ctx context.Context, env
 
 const environmentPortForwardCols = `id, environment_id, label, container_port, host_port, created_by, created_at`
 
-// ListPortForwards returns every port forward on an environment, oldest first.
-func (r *EnvironmentRepository) ListPortForwards(ctx context.Context, environmentID uuid.UUID) ([]*environmentdom.EnvironmentPortForward, error) {
+// ListPortForwards returns one page of an environment's port forwards, oldest
+// first, and the total number.
+func (r *EnvironmentRepository) ListPortForwards(ctx context.Context, environmentID uuid.UUID, cursorAfter *string, limit int) ([]*environmentdom.EnvironmentPortForward, bool, int64, error) {
+	if limit <= 0 {
+		limit = 30
+	}
+	var total int64
+	if err := r.db.GetContext(ctx, &total, `SELECT COUNT(*) FROM environment_port_forwards WHERE environment_id = $1`, environmentID.String()); err != nil {
+		return nil, false, 0, err
+	}
+	sink := &argList{args: []any{environmentID.String()}}
+	where := `environment_id = $1`
+	if cursorAfter != nil {
+		at, id, err := environmentdom.DecodeCursor(*cursorAfter)
+		if err != nil {
+			return nil, false, 0, err
+		}
+		where += ` AND (created_at, id) > (` + sink.addArg(at) + `, ` + sink.addArg(id.String()) + `::uuid)`
+	}
 	var recs []environmentPortForwardRecord
-	err := r.db.SelectContext(ctx, &recs, `
-		SELECT `+environmentPortForwardCols+` FROM environment_port_forwards
-		WHERE environment_id = $1
-		ORDER BY created_at ASC`, environmentID.String())
-	if err != nil {
-		return nil, err
+	if err := r.db.SelectContext(ctx, &recs, `SELECT `+environmentPortForwardCols+` FROM environment_port_forwards WHERE `+where+
+		` ORDER BY created_at ASC, id ASC LIMIT `+sink.addArg(limit+1), sink.args...); err != nil {
+		return nil, false, 0, err
+	}
+	hasMore := len(recs) > limit
+	if hasMore {
+		recs = recs[:limit]
 	}
 	result := make([]*environmentdom.EnvironmentPortForward, 0, len(recs))
 	for _, rec := range recs {
 		result = append(result, envPortForwardFromRecord(rec))
 	}
-	return result, nil
+	return result, hasMore, total, nil
 }
 
 // FindPortForwardByID returns a single port forward by ID.

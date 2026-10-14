@@ -7,7 +7,9 @@ import (
 
 // Agent errors
 var (
-	ErrAgentNotFound      = errors.New("agent not found")
+	ErrAgentNotFound = errors.New("agent not found")
+	// ErrInvalidCursor is returned when an agent-list cursor cannot be decoded.
+	ErrInvalidCursor      = errors.New("agent: invalid pagination cursor")
 	ErrAgentHandleTaken   = errors.New("agent handle already in use")
 	ErrAgentHandleInvalid = errors.New("agent handle is invalid")
 	ErrAgentNameInvalid   = errors.New("agent name is empty or invalid")

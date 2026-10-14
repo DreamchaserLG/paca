@@ -114,6 +114,7 @@
 			}
 		},
 		"page": {
+			"searchPlaceholder": "이름 또는 핸들로 에이전트 검색…",
 			"title": "AI 에이전트",
 			"subtitle": "작업을 수행하고 팀과 대화하는 자율 에이전트",
 			"newAgent": "새 에이전트",
@@ -1432,6 +1433,7 @@
 			"title": "설명",
 			"writeWithAI": "AI로 작성",
 			"writeWithAIDialog": {
+				"searchAgents": "에이전트 검색…",
 				"title": "AI로 작성",
 				"description": "작업 설명을 작성할 에이전트를 선택하세요.",
 				"noAgents": "이 프로젝트에 구성된 에이전트가 없습니다.",
@@ -1813,6 +1815,7 @@
 			"error": "대화를 삭제하지 못했습니다. 다시 시도해 주세요."
 		},
 		"filters": {
+			"searchAgents": "에이전트 검색…",
 			"title": "필터",
 			"agent": "에이전트",
 			"status": "상태",

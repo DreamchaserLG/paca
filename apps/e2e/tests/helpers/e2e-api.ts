@@ -606,9 +606,25 @@ export async function listGlobalAgents(request: APIRequestContext): Promise<
 		roles?: Array<{ id: string; name: string }>;
 	}>
 > {
-	const response = await request.get(`${API_URL}/admin/agents`);
-	expect(response.ok()).toBeTruthy();
-	return (await response.json()).data.items ?? [];
+	// The list is paginated, so follow its cursor to collect every agent.
+	const all: Array<{
+		id: string;
+		name: string;
+		roles?: Array<{ id: string; name: string }>;
+	}> = [];
+	let cursor: string | null = null;
+	do {
+		const params = new URLSearchParams({ page_size: "100" });
+		if (cursor) params.set("cursor", cursor);
+		const response = await request.get(
+			`${API_URL}/admin/agents?${params.toString()}`,
+		);
+		expect(response.ok()).toBeTruthy();
+		const data = (await response.json()).data;
+		all.push(...(data.items ?? []));
+		cursor = data.next_cursor ?? null;
+	} while (cursor);
+	return all;
 }
 
 export async function cleanupGlobalAgentsByPrefix(
@@ -703,7 +719,10 @@ export async function cleanupGlobalConversationsByAgentPrefix(
 	agentPrefix: string,
 ): Promise<void> {
 	await authRequest(request);
-	const agentsResponse = await request.get(`${API_URL}/agents`);
+	// Narrow server-side by the prefix, which the search matches within names.
+	const agentsResponse = await request.get(
+		`${API_URL}/agents?search=${encodeURIComponent(agentPrefix)}&page_size=100`,
+	);
 	if (!agentsResponse.ok()) return;
 	const agents: Array<{ id: string; name: string }> =
 		(await agentsResponse.json()).data.items ?? [];

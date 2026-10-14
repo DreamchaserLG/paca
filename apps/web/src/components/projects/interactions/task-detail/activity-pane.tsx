@@ -15,8 +15,8 @@ import {
 	updateComment,
 	updateTask,
 } from "@/lib/interaction-api";
+import { useMemberDirectory } from "@/lib/member-directory";
 import {
-	projectMembersQueryOptions,
 	taskStatusesQueryOptions,
 	taskTypesQueryOptions,
 } from "@/lib/project-api";
@@ -41,28 +41,25 @@ export function TaskActivityPane({
 }: TaskActivityPaneProps) {
 	const { t } = useTranslation("projects");
 	const qc = useQueryClient();
-	const { data: membersData } = useQuery(projectMembersQueryOptions(projectId));
+	const getMember = useMemberDirectory(projectId);
 	const { data: sprintsData } = useQuery(sprintsQueryOptions(projectId));
 	const { data: currentUser } = useQuery(currentUserQueryOptions);
 	const { data: statusesData } = useQuery(taskStatusesQueryOptions(projectId));
 	const { data: taskTypesData } = useQuery(taskTypesQueryOptions(projectId));
 
-	const myMemberId = useMemo(() => {
-		if (!currentUser || !membersData) return undefined;
-		return membersData.find((m) => m.user_id === currentUser.id)?.id;
-	}, [currentUser, membersData]);
+	const myMemberId = currentUser ? getMember(currentUser.id)?.id : undefined;
 
 	const nameMaps = useMemo(() => {
-		const members: Record<string, string> = {};
-		for (const m of membersData ?? []) {
-			members[m.id] = m.full_name || m.username;
-		}
+		const members = (id: string) => {
+			const m = getMember(id);
+			return m ? m.full_name || m.username : undefined;
+		};
 		const sprints: Record<string, string> = {};
 		for (const s of sprintsData ?? []) {
 			sprints[s.id] = s.name;
 		}
 		return { members, sprints };
-	}, [membersData, sprintsData]);
+	}, [getMember, sprintsData]);
 
 	const describeActivity = useCallback(
 		(entry: Activity) => {
@@ -288,7 +285,7 @@ export function TaskActivityPane({
 			projectId={projectId}
 			entityId={taskId}
 			queryKey={queryKey}
-			queryFn={() => listTaskActivities(projectId, taskId)}
+			fetchPage={(cursor) => listTaskActivities(projectId, taskId, cursor)}
 			addComment={
 				canEdit ? (blocks) => addComment(projectId, taskId, blocks) : undefined
 			}

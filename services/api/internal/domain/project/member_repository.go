@@ -8,7 +8,14 @@ import (
 
 // MemberRepository defines persistence operations for project members.
 type MemberRepository interface {
-	ListMembers(ctx context.Context, projectID uuid.UUID) ([]*ProjectMember, error)
+	ListAllMembers(ctx context.Context, projectID uuid.UUID) ([]*ProjectMember, error)
+	// ListMembers returns up to limit members ordered by name, starting
+	// after the member cursorAfter (an opaque token from a previous page; nil
+	// for the first page), plus whether more members follow.
+	// CountMembers returns how many active members match filter, ignoring
+	// any cursor.
+	CountMembers(ctx context.Context, projectID uuid.UUID, filter MemberFilter) (int64, error)
+	ListMembers(ctx context.Context, projectID uuid.UUID, limit int, cursorAfter *string, filter MemberFilter) ([]*ProjectMember, bool, error)
 	// CountDistinctAgentsByProjects returns the number of distinct agents
 	// with an active membership across all of projectIDs, in a single query
 	// — used by the home page's workspace stats widget so an invited global

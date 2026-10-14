@@ -30,10 +30,10 @@ import {
 } from "@/lib/custom-field-colors";
 import { formatDate } from "@/lib/format-date";
 import type { Task } from "@/lib/interaction-api";
+import { useMemberDirectory } from "@/lib/member-directory";
 import {
 	type CustomFieldDefinition,
 	findEpicType,
-	type ProjectMember,
 	type TaskStatus,
 	type TaskType,
 } from "@/lib/project-api";
@@ -159,7 +159,6 @@ interface TaskRowProps {
 	taskIdPrefix?: string;
 	statuses: TaskStatus[];
 	taskTypes: TaskType[];
-	members?: ProjectMember[];
 	epics?: Task[];
 	/** Load-more state for the epic picker Popover — omitted when the caller
 	 * doesn't paginate epics (e.g. fewer than one page's worth). */
@@ -184,7 +183,6 @@ export function TaskRow({
 	taskIdPrefix = "",
 	statuses,
 	taskTypes,
-	members = [],
 	epics = [],
 	epicsPagination,
 	customFields = [],
@@ -201,6 +199,7 @@ export function TaskRow({
 	const { t } = useTranslation("projects");
 	const status = statuses.find((s) => s.id === task.status_id);
 	const jevEnabled = useJevEnabled(task.project_id);
+	const getMember = useMemberDirectory(task.project_id);
 	const isAutoAssign = isAutoAssignPending(task);
 	const [isHovered, setIsHovered] = useState(false);
 	const [epicOpen, setEpicOpen] = useState(false);
@@ -431,7 +430,7 @@ export function TaskRow({
 						onKeyDown={(e) => e.stopPropagation()}
 					>
 						<AssigneePicker
-							members={members}
+							projectId={task.project_id}
 							assigneeIds={task.assignee_ids ?? []}
 							isAutoAssign={isAutoAssign}
 							autoEnabled={jevEnabled}
@@ -444,7 +443,7 @@ export function TaskRow({
 
 			case "reporter": {
 				const reporter = task.reporter_id
-					? members.find((m) => m.id === task.reporter_id)
+					? getMember(task.reporter_id)
 					: undefined;
 				return (
 					<div

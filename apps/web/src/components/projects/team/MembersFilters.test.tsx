@@ -40,6 +40,15 @@ describe("MembersFilters", () => {
 		).not.toBeInTheDocument();
 	});
 
+	it("omits counts when they are not known", () => {
+		setup({
+			roles: [{ name: "Admin" }, { name: "Member" }],
+			totalCount: undefined,
+		});
+		expect(screen.getByRole("button", { name: /^All$/ })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: /^Admin$/ })).toBeInTheDocument();
+	});
+
 	it("reports role selection", async () => {
 		const user = userEvent.setup();
 		const props = setup();

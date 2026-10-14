@@ -33,7 +33,16 @@ const existing = {
 
 beforeEach(() => {
 	vi.clearAllMocks();
-	http.get.mockResolvedValue({ data: { data: [existing] } });
+	http.get.mockResolvedValue({
+		data: {
+			data: {
+				items: [existing],
+				page_size: 30,
+				next_cursor: null,
+				total_count: 1,
+			},
+		},
+	});
 });
 
 describe("ServiceAccountKeysTab", () => {

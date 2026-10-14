@@ -1,7 +1,7 @@
 import {
 	type QueryKey,
+	useInfiniteQuery,
 	useMutation,
-	useQuery,
 	useQueryClient,
 } from "@tanstack/react-query";
 import {
@@ -16,7 +16,14 @@ import {
 	Send,
 	Trash2,
 } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import {
+	type ReactNode,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import {
 	blocksToText,
@@ -26,6 +33,7 @@ import {
 } from "@/components/shared/comment-blocknote";
 import { ContentDiffDialog } from "@/components/shared/content-diff";
 import { EntityAvatar } from "@/components/shared/entity-avatar";
+import { LoadMoreSentinel } from "@/components/shared/load-more-sentinel";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -51,11 +59,20 @@ export interface ActivityEntry {
 	updated_at: string;
 }
 
+/** One page of an entity's timeline: newest first, with the cursor for the
+ *  next (older) page, if any. */
+export interface ActivityPage<T> {
+	items: T[];
+	next_cursor?: string | null;
+}
+
 export interface ActivityPaneConfig<T extends ActivityEntry> {
 	projectId: string;
 	entityId: string;
 	queryKey: QueryKey;
-	queryFn: () => Promise<T[]>;
+	/** Loads one page of the timeline; the pane shows the newest page first and
+	 *  pages in older entries on demand. */
+	fetchPage: (cursor?: string) => Promise<ActivityPage<T>>;
 	addComment?: (blocks: unknown[]) => Promise<unknown>;
 	updateComment?: (commentId: string, blocks: unknown[]) => Promise<unknown>;
 	deleteComment?: (commentId: string) => Promise<void>;
@@ -66,7 +83,6 @@ export interface ActivityPaneConfig<T extends ActivityEntry> {
 	isRevertable?: (entry: T) => boolean;
 	describeActivity: (entry: T) => ReactNode;
 	getCommentBlocks: (content: T["content"]) => unknown[] | null;
-	sortAscending?: boolean;
 	nameMaps?: Record<string, Record<string, string>>;
 	currentUserId?: string;
 }
@@ -87,7 +103,7 @@ function readStoredActivityFilter(): ActivityFilter {
 export function ActivityPane<T extends ActivityEntry>({
 	projectId,
 	queryKey,
-	queryFn,
+	fetchPage,
 	addComment,
 	updateComment,
 	deleteComment,
@@ -96,7 +112,6 @@ export function ActivityPane<T extends ActivityEntry>({
 	isRevertable,
 	describeActivity,
 	getCommentBlocks,
-	sortAscending = false,
 	currentUserId,
 }: ActivityPaneConfig<T>) {
 	const { t } = useTranslation("shared");
@@ -109,18 +124,29 @@ export function ActivityPane<T extends ActivityEntry>({
 	);
 	const qc = useQueryClient();
 
-	const { data: activities = [] } = useQuery({
+	const {
+		data,
+		hasNextPage,
+		isFetchingNextPage,
+		isFetchNextPageError,
+		fetchNextPage,
+	} = useInfiniteQuery({
 		queryKey,
-		queryFn,
+		queryFn: ({ pageParam }: { pageParam: string | undefined }) =>
+			fetchPage(pageParam),
+		initialPageParam: undefined as string | undefined,
+		getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
 	});
 
-	const sorted = useMemo(() => {
-		if (!sortAscending) return activities;
-		return [...activities].sort(
-			(a, b) =>
-				new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-		);
-	}, [activities, sortAscending]);
+	// Pages arrive newest first; the pane reads oldest to newest.
+	const sorted = useMemo(
+		() =>
+			(data?.pages.flatMap((p) => p.items) ?? []).sort(
+				(a, b) =>
+					new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+			),
+		[data],
+	);
 
 	const hasNonCommentActivity = useMemo(
 		() => sorted.some((entry) => entry.activity_type !== "comment"),
@@ -141,17 +167,38 @@ export function ActivityPane<T extends ActivityEntry>({
 		}
 	};
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: activities is needed to scroll when new items are added
+	const getViewport = () =>
+		scrollAreaRef.current?.querySelector(
+			'[data-slot="scroll-area-viewport"]',
+		) as HTMLElement | null;
+
+	// Stick to the bottom when the newest entry changes (first load, a new
+	// comment), but leave the reader where they are when older entries are
+	// paged in above.
+	const newestId = sorted[sorted.length - 1]?.id;
+	// biome-ignore lint/correctness/useExhaustiveDependencies: only a change of the newest entry should scroll
 	useEffect(() => {
 		requestAnimationFrame(() => {
-			const viewport = scrollAreaRef.current?.querySelector(
-				'[data-slot="scroll-area-viewport"]',
-			) as HTMLElement;
-			if (viewport) {
-				viewport.scrollTop = viewport.scrollHeight;
-			}
+			const viewport = getViewport();
+			if (viewport) viewport.scrollTop = viewport.scrollHeight;
 		});
-	}, [sorted]);
+	}, [newestId]);
+
+	// Keep the visible entries in place when older ones are prepended.
+	const heightBeforeOlder = useRef<number | null>(null);
+	const loadOlder = () => {
+		heightBeforeOlder.current = getViewport()?.scrollHeight ?? null;
+		void fetchNextPage();
+	};
+	const oldestId = sorted[0]?.id;
+	// biome-ignore lint/correctness/useExhaustiveDependencies: runs when the oldest entry changes
+	useLayoutEffect(() => {
+		const viewport = getViewport();
+		if (viewport && heightBeforeOlder.current !== null) {
+			viewport.scrollTop += viewport.scrollHeight - heightBeforeOlder.current;
+		}
+		heightBeforeOlder.current = null;
+	}, [oldestId]);
 
 	const addMutation = useMutation({
 		mutationFn: (blocks: unknown[]) => {
@@ -222,6 +269,7 @@ export function ActivityPane<T extends ActivityEntry>({
 					{visible.length > 0 && (
 						<span className="ml-auto rounded-full bg-muted/60 px-2 py-0.5 text-xs font-bold text-muted-foreground/70 tabular-nums">
 							{visible.length}
+							{hasNextPage ? "+" : ""}
 						</span>
 					)}
 				</div>
@@ -265,6 +313,13 @@ export function ActivityPane<T extends ActivityEntry>({
 				className="lg:flex-1 lg:min-h-0 px-4 py-4"
 			>
 				<div className="space-y-3">
+					<LoadMoreSentinel
+						compact
+						hasMore={!!hasNextPage}
+						isLoadingMore={isFetchingNextPage}
+						isError={isFetchNextPageError}
+						onLoadMore={loadOlder}
+					/>
 					{sorted.length === 0 && (
 						<div className="flex flex-col items-center py-8 text-muted-foreground/40">
 							<MessageSquare className="size-6 mb-2" />

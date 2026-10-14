@@ -14,16 +14,33 @@ import (
 	"github.com/Paca-AI/api/internal/events"
 )
 
-// ListMembers returns all members of the given project.
-func (s *Service) ListMembers(ctx context.Context, projectID uuid.UUID) ([]*projectdom.ProjectMember, error) {
+// ListAllMembers returns all members of the given project.
+func (s *Service) ListAllMembers(ctx context.Context, projectID uuid.UUID) ([]*projectdom.ProjectMember, error) {
 	if _, err := s.repo.FindByID(ctx, projectID); err != nil {
 		return nil, err
 	}
-	return s.repo.ListMembers(ctx, projectID)
+	return s.repo.ListAllMembers(ctx, projectID)
+}
+
+// CountMembers returns how many of the project's members match filter.
+func (s *Service) CountMembers(ctx context.Context, projectID uuid.UUID, filter projectdom.MemberFilter) (int64, error) {
+	if _, err := s.repo.FindByID(ctx, projectID); err != nil {
+		return 0, err
+	}
+	return s.repo.CountMembers(ctx, projectID, filter)
+}
+
+// ListMembers returns a keyset-paginated, filtered page of the project's
+// members; see projectdom.MemberRepository.ListMembers.
+func (s *Service) ListMembers(ctx context.Context, projectID uuid.UUID, limit int, cursorAfter *string, filter projectdom.MemberFilter) ([]*projectdom.ProjectMember, bool, error) {
+	if _, err := s.repo.FindByID(ctx, projectID); err != nil {
+		return nil, false, err
+	}
+	return s.repo.ListMembers(ctx, projectID, limit, cursorAfter, filter)
 }
 
 // CountDistinctAgentsByProjects returns the distinct agent member count
-// across projectIDs. Unlike ListMembers, this skips the per-project
+// across projectIDs. Unlike ListAllMembers, this skips the per-project
 // FindByID existence check — it's a cross-project aggregate over a caller-
 // supplied ID set (e.g. every project a user can access), not a lookup
 // scoped to one project the caller is expected to already know exists.

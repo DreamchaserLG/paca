@@ -40,7 +40,9 @@ type mockProjectSvc struct {
 	create                  func(ctx context.Context, in projectdom.CreateProjectInput) (*projectdom.Project, error)
 	update                  func(ctx context.Context, id uuid.UUID, in projectdom.UpdateProjectInput) (*projectdom.Project, error)
 	delete                  func(ctx context.Context, id uuid.UUID) error
-	listMembers             func(ctx context.Context, projectID uuid.UUID) ([]*projectdom.ProjectMember, error)
+	listAllMembers          func(ctx context.Context, projectID uuid.UUID) ([]*projectdom.ProjectMember, error)
+	memberTotal             int64
+	listMembers             func(ctx context.Context, projectID uuid.UUID, limit int, cursor *string, filter projectdom.MemberFilter) ([]*projectdom.ProjectMember, bool, error)
 	countDistinctAgents     func(ctx context.Context, projectIDs []uuid.UUID) (int64, error)
 	addMember               func(ctx context.Context, projectID uuid.UUID, in projectdom.AddMemberInput) (*projectdom.ProjectMember, error)
 	removeMember            func(ctx context.Context, projectID, userID uuid.UUID) error
@@ -100,9 +102,20 @@ func (m *mockProjectSvc) RemoveAvatar(context.Context, uuid.UUID) (*projectdom.P
 	return nil, projectdom.ErrNotFound
 }
 
-func (m *mockProjectSvc) ListMembers(ctx context.Context, projectID uuid.UUID) ([]*projectdom.ProjectMember, error) {
+func (m *mockProjectSvc) CountMembers(context.Context, uuid.UUID, projectdom.MemberFilter) (int64, error) {
+	return m.memberTotal, nil
+}
+
+func (m *mockProjectSvc) ListMembers(ctx context.Context, projectID uuid.UUID, limit int, cursor *string, filter projectdom.MemberFilter) ([]*projectdom.ProjectMember, bool, error) {
 	if m.listMembers != nil {
-		return m.listMembers(ctx, projectID)
+		return m.listMembers(ctx, projectID, limit, cursor, filter)
+	}
+	return nil, false, nil
+}
+
+func (m *mockProjectSvc) ListAllMembers(ctx context.Context, projectID uuid.UUID) ([]*projectdom.ProjectMember, error) {
+	if m.listAllMembers != nil {
+		return m.listAllMembers(ctx, projectID)
 	}
 	return []*projectdom.ProjectMember{}, nil
 }
@@ -676,10 +689,10 @@ func TestListMembers_Success(t *testing.T) {
 	projID := uuid.New()
 	memberID := uuid.New()
 	r := newProjectRouter(&mockProjectSvc{
-		listMembers: func(_ context.Context, _ uuid.UUID) ([]*projectdom.ProjectMember, error) {
+		listMembers: func(context.Context, uuid.UUID, int, *string, projectdom.MemberFilter) ([]*projectdom.ProjectMember, bool, error) {
 			return []*projectdom.ProjectMember{
 				{ID: memberID, ProjectID: projID, UserID: uuid.New()},
-			}, nil
+			}, false, nil
 		},
 	})
 
@@ -694,11 +707,11 @@ func TestListMembers_Success(t *testing.T) {
 func TestListMembers_ShowsRolesAsAList(t *testing.T) {
 	projID, roleID := uuid.New(), uuid.New()
 	r := newProjectRouter(&mockProjectSvc{
-		listMembers: func(context.Context, uuid.UUID) ([]*projectdom.ProjectMember, error) {
+		listMembers: func(context.Context, uuid.UUID, int, *string, projectdom.MemberFilter) ([]*projectdom.ProjectMember, bool, error) {
 			return []*projectdom.ProjectMember{
 				{ID: uuid.New(), ProjectID: projID, UserID: uuid.New(), Roles: []roledom.Summary{{ID: roleID, Name: "Editor"}}},
 				{ID: uuid.New(), ProjectID: projID, UserID: uuid.New()},
-			}, nil
+			}, false, nil
 		},
 	})
 
@@ -706,12 +719,15 @@ func TestListMembers_ShowsRolesAsAList(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
-	var resp struct {
-		Data []map[string]any `json:"data"`
+	var envelope struct {
+		Data struct {
+			Items []map[string]any `json:"items"`
+		} `json:"data"`
 	}
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {
 		t.Fatal(err)
 	}
+	resp := struct{ Data []map[string]any }{Data: envelope.Data.Items}
 	if len(resp.Data) != 2 {
 		t.Fatalf("members = %v", resp.Data)
 	}
@@ -731,6 +747,91 @@ func TestListMembers_ShowsRolesAsAList(t *testing.T) {
 	}
 }
 
+func TestListMembers_Paged_PassesFiltersAndReturnsNextCursor(t *testing.T) {
+	projID, roleID, accID := uuid.New(), uuid.New(), uuid.New()
+	var gotLimit int
+	var gotCursor *string
+	var gotFilter projectdom.MemberFilter
+	last := &projectdom.ProjectMember{ID: uuid.New(), ProjectID: projID, UserID: uuid.New()}
+	r := newProjectRouter(&mockProjectSvc{
+		memberTotal: 42,
+		listMembers: func(_ context.Context, _ uuid.UUID, limit int, cursor *string, f projectdom.MemberFilter) ([]*projectdom.ProjectMember, bool, error) {
+			gotLimit, gotCursor, gotFilter = limit, cursor, f
+			return []*projectdom.ProjectMember{last}, true, nil
+		},
+	})
+
+	path := fmt.Sprintf("/projects/%s/members?page_size=5&cursor=abc&search=%%20ann%%20&role_id=%s&member_type=agent&ids=%s", projID, roleID, accID)
+	w := do(t, r, http.MethodGet, path, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if gotLimit != 5 || gotCursor == nil || *gotCursor != "abc" {
+		t.Errorf("limit/cursor = %d/%v", gotLimit, gotCursor)
+	}
+	if gotFilter.Search != "ann" || gotFilter.MemberType != "agent" ||
+		gotFilter.RoleID == nil || *gotFilter.RoleID != roleID ||
+		len(gotFilter.AccountIDs) != 1 || gotFilter.AccountIDs[0] != accID {
+		t.Errorf("filter = %+v", gotFilter)
+	}
+	var resp struct {
+		Data struct {
+			Items      []map[string]any `json:"items"`
+			NextCursor *string          `json:"next_cursor"`
+			TotalCount int64            `json:"total_count"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Data.TotalCount != 42 {
+		t.Errorf("total_count = %d, want 42", resp.Data.TotalCount)
+	}
+	if len(resp.Data.Items) != 1 || resp.Data.NextCursor == nil {
+		t.Fatalf("response = %s", w.Body.String())
+	}
+	if want := projectdom.EncodeMemberCursor(last); *resp.Data.NextCursor != want {
+		t.Errorf("next_cursor = %q, want %q", *resp.Data.NextCursor, want)
+	}
+}
+
+func TestListMembers_Paged_LastPageHasNoCursor(t *testing.T) {
+	projID := uuid.New()
+	r := newProjectRouter(&mockProjectSvc{
+		listMembers: func(context.Context, uuid.UUID, int, *string, projectdom.MemberFilter) ([]*projectdom.ProjectMember, bool, error) {
+			return []*projectdom.ProjectMember{{ID: uuid.New(), ProjectID: projID}}, false, nil
+		},
+	})
+	w := do(t, r, http.MethodGet, fmt.Sprintf("/projects/%s/members", projID), nil)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"next_cursor":null`) {
+		t.Fatalf("got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestListMembers_Paged_RejectsBadInput(t *testing.T) {
+	projID := uuid.New()
+	r := newProjectRouter(&mockProjectSvc{})
+	for _, q := range []string{"role_id=nope", "member_type=robot", "ids=nope", "page_size=0", "page_size=101"} {
+		w := do(t, r, http.MethodGet, fmt.Sprintf("/projects/%s/members?%s", projID, q), nil)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("%s: expected 400, got %d", q, w.Code)
+		}
+	}
+}
+
+func TestListMembers_Paged_InvalidCursorIs400(t *testing.T) {
+	projID := uuid.New()
+	r := newProjectRouter(&mockProjectSvc{
+		listMembers: func(context.Context, uuid.UUID, int, *string, projectdom.MemberFilter) ([]*projectdom.ProjectMember, bool, error) {
+			return nil, false, projectdom.ErrInvalidMemberCursor
+		},
+	})
+	w := do(t, r, http.MethodGet, fmt.Sprintf("/projects/%s/members?cursor=x", projID), nil)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+}
+
 func TestListMembers_BadProjectID(t *testing.T) {
 	r := newProjectRouter(&mockProjectSvc{})
 
@@ -743,8 +844,8 @@ func TestListMembers_BadProjectID(t *testing.T) {
 func TestListMembers_ProjectNotFound(t *testing.T) {
 	projID := uuid.New()
 	r := newProjectRouter(&mockProjectSvc{
-		listMembers: func(_ context.Context, _ uuid.UUID) ([]*projectdom.ProjectMember, error) {
-			return nil, projectdom.ErrNotFound
+		listMembers: func(context.Context, uuid.UUID, int, *string, projectdom.MemberFilter) ([]*projectdom.ProjectMember, bool, error) {
+			return nil, false, projectdom.ErrNotFound
 		},
 	})
 

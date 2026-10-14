@@ -104,3 +104,13 @@ type ProjectJevConfigResponse struct {
 type TestJevConfigResponse struct {
 	Success bool `json:"success"`
 }
+
+// CursorProjectMembersResponse is a keyset-paginated page of project members.
+// NextCursor is nil when this is the last page.
+type CursorProjectMembersResponse struct {
+	Items      []ProjectMemberResponse `json:"items"`
+	PageSize   int                     `json:"page_size"`
+	NextCursor *string                 `json:"next_cursor"`
+	// TotalCount is how many members match the filters across all pages.
+	TotalCount int64 `json:"total_count"`
+}

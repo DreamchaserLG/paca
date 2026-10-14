@@ -73,7 +73,7 @@ type mockAgentRepo struct {
 	findAgentByID                        func(ctx context.Context, id uuid.UUID) (*agentdom.Agent, error)
 	findVisibleAgentInProject            func(ctx context.Context, projectID, agentID uuid.UUID) (*agentdom.Agent, error)
 	findAgentByHandle                    func(ctx context.Context, projectID uuid.UUID, handle string) (*agentdom.Agent, error)
-	listAgents                           func(ctx context.Context, projectID uuid.UUID, scope agentdom.AgentScope) ([]*agentdom.Agent, error)
+	listAgents                           func(ctx context.Context, projectID uuid.UUID, filter agentdom.AgentFilter, cursor *string, limit int) ([]*agentdom.Agent, bool, error)
 	createAgent                          func(ctx context.Context, agent *agentdom.Agent) error
 	createAgentWithMembership            func(ctx context.Context, agent *agentdom.Agent, memberID, projectID, projectRoleID uuid.UUID) error
 	updateAgent                          func(ctx context.Context, agent *agentdom.Agent) error
@@ -115,7 +115,7 @@ type mockAgentRepo struct {
 	findChatSessionByID                  func(ctx context.Context, id uuid.UUID) (*agentdom.AgentChatSession, error)
 	createChatSession                    func(ctx context.Context, session *agentdom.AgentChatSession) error
 	updateChatSession                    func(ctx context.Context, session *agentdom.AgentChatSession) error
-	listGlobalAgents                     func(ctx context.Context) ([]*agentdom.Agent, error)
+	listGlobalAgents                     func(ctx context.Context, filter agentdom.AgentFilter, cursor *string, limit int) ([]*agentdom.Agent, bool, error)
 	findGlobalAgentByHandle              func(ctx context.Context, handle string) (*agentdom.Agent, error)
 	createGlobalAgent                    func(ctx context.Context, agent *agentdom.Agent) error
 	softDeleteGlobalAgentCascade         func(ctx context.Context, agentID uuid.UUID) error
@@ -129,10 +129,18 @@ type mockAgentRepo struct {
 	deletePendingTriggerByConvID         func(ctx context.Context, conversationID uuid.UUID) (bool, error)
 }
 
-func (m *mockAgentRepo) ListAgents(ctx context.Context, projectID uuid.UUID, scope agentdom.AgentScope) ([]*agentdom.Agent, error) {
+func (m *mockAgentRepo) ListAgents(ctx context.Context, projectID uuid.UUID, filter agentdom.AgentFilter, cursor *string, limit int) ([]*agentdom.Agent, bool, error) {
 	if m.listAgents != nil {
-		return m.listAgents(ctx, projectID, scope)
+		return m.listAgents(ctx, projectID, filter, cursor, limit)
 	}
+	return nil, false, nil
+}
+
+func (m *mockAgentRepo) ListAllAgents(context.Context, uuid.UUID, agentdom.AgentScope) ([]*agentdom.Agent, error) {
+	return nil, nil
+}
+
+func (m *mockAgentRepo) ListAllGlobalAgents(context.Context) ([]*agentdom.Agent, error) {
 	return nil, nil
 }
 
@@ -213,11 +221,11 @@ func (m *mockAgentRepo) SoftDeleteAgentWithMembership(ctx context.Context, proje
 	return nil
 }
 
-func (m *mockAgentRepo) ListGlobalAgents(ctx context.Context) ([]*agentdom.Agent, error) {
+func (m *mockAgentRepo) ListGlobalAgents(ctx context.Context, filter agentdom.AgentFilter, cursor *string, limit int) ([]*agentdom.Agent, bool, error) {
 	if m.listGlobalAgents != nil {
-		return m.listGlobalAgents(ctx)
+		return m.listGlobalAgents(ctx, filter, cursor, limit)
 	}
-	return nil, nil
+	return nil, false, nil
 }
 
 func (m *mockAgentRepo) FindGlobalAgentByHandle(ctx context.Context, handle string) (*agentdom.Agent, error) {
@@ -705,21 +713,21 @@ func TestListAgents_Success(t *testing.T) {
 	}
 
 	repo := &mockAgentRepo{
-		listAgents: func(_ context.Context, pid uuid.UUID, scope agentdom.AgentScope) ([]*agentdom.Agent, error) {
+		listAgents: func(_ context.Context, pid uuid.UUID, filter agentdom.AgentFilter, _ *string, _ int) ([]*agentdom.Agent, bool, error) {
 			if pid != projectID {
 				t.Fatalf("expected projectID %v, got %v", projectID, pid)
 			}
-			if scope != "" {
-				t.Fatalf("expected no scope filter, got %q", scope)
+			if filter.Scope != "" {
+				t.Fatalf("expected no scope filter, got %q", filter.Scope)
 			}
-			return []*agentdom.Agent{agent1, agent2}, nil
+			return []*agentdom.Agent{agent1, agent2}, false, nil
 		},
 	}
 	projRepo := &mockProjectRepo{}
 	pluginRepo := &mockPluginRepo{}
 	svc := New(repo, projRepo, nil, pluginRepo)
 
-	result, err := svc.ListAgents(context.Background(), projectID, "")
+	result, _, err := svc.ListAgents(context.Background(), projectID, agentdom.AgentFilter{}, nil, 30)
 
 	assert.NoError(t, err)
 	assert.Len(t, result, 2)
@@ -729,14 +737,14 @@ func TestListAgents_ScopeFilterPassedThrough(t *testing.T) {
 	projectID := uuid.New()
 	var gotScope agentdom.AgentScope
 	repo := &mockAgentRepo{
-		listAgents: func(_ context.Context, _ uuid.UUID, scope agentdom.AgentScope) ([]*agentdom.Agent, error) {
-			gotScope = scope
-			return nil, nil
+		listAgents: func(_ context.Context, _ uuid.UUID, filter agentdom.AgentFilter, _ *string, _ int) ([]*agentdom.Agent, bool, error) {
+			gotScope = filter.Scope
+			return nil, false, nil
 		},
 	}
 	svc := New(repo, &mockProjectRepo{}, nil, &mockPluginRepo{})
 
-	_, err := svc.ListAgents(context.Background(), projectID, agentdom.AgentScopeProject)
+	_, _, err := svc.ListAgents(context.Background(), projectID, agentdom.AgentFilter{Scope: agentdom.AgentScopeProject}, nil, 30)
 
 	assert.NoError(t, err)
 	assert.Equal(t, agentdom.AgentScopeProject, gotScope)
@@ -4582,10 +4590,11 @@ type fakeEnvironmentService struct {
 	getEnvironment func(ctx context.Context, projectID, environmentID uuid.UUID) (*environmentdom.Environment, error)
 	verifyCLIAuth  func(ctx context.Context, projectID, environmentID uuid.UUID, cliProvider string) (bool, error)
 	resolveWorkdir func(ctx context.Context, projectID uuid.UUID, environmentID, folderID *uuid.UUID) (*environmentdom.Environment, *environmentdom.EnvironmentFolder, error)
+	listFolders    func(ctx context.Context, projectID, environmentID uuid.UUID, filter environmentdom.FolderFilter) ([]*environmentdom.EnvironmentFolder, bool, int64, error)
 }
 
-func (f *fakeEnvironmentService) ListEnvironments(context.Context, uuid.UUID) ([]*environmentdom.Environment, error) {
-	return nil, nil
+func (f *fakeEnvironmentService) ListEnvironments(context.Context, uuid.UUID, environmentdom.EnvironmentFilter, *string, int) ([]*environmentdom.Environment, bool, error) {
+	return nil, false, nil
 }
 
 func (f *fakeEnvironmentService) GetEnvironment(ctx context.Context, projectID, environmentID uuid.UUID) (*environmentdom.Environment, error) {
@@ -4630,8 +4639,11 @@ func (f *fakeEnvironmentService) ResolveConversationWorkdir(ctx context.Context,
 	return nil, nil, nil
 }
 
-func (f *fakeEnvironmentService) ListFolders(context.Context, uuid.UUID, uuid.UUID) ([]*environmentdom.EnvironmentFolder, error) {
-	return nil, nil
+func (f *fakeEnvironmentService) ListFolders(ctx context.Context, projectID, environmentID uuid.UUID, filter environmentdom.FolderFilter, _ *string, _ int) ([]*environmentdom.EnvironmentFolder, bool, int64, error) {
+	if f.listFolders != nil {
+		return f.listFolders(ctx, projectID, environmentID, filter)
+	}
+	return nil, false, 0, nil
 }
 
 func (f *fakeEnvironmentService) AddFolder(context.Context, uuid.UUID, uuid.UUID, environmentdom.AddFolderInput) (*environmentdom.EnvironmentFolder, error) {
@@ -4653,8 +4665,8 @@ func (f *fakeEnvironmentService) VerifyCLIAuth(ctx context.Context, projectID, e
 	return false, nil
 }
 
-func (f *fakeEnvironmentService) ListSSHKeys(context.Context, uuid.UUID, uuid.UUID) ([]*environmentdom.EnvironmentSSHKey, error) {
-	return nil, nil
+func (f *fakeEnvironmentService) ListSSHKeys(context.Context, uuid.UUID, uuid.UUID, *string, int) ([]*environmentdom.EnvironmentSSHKey, bool, int64, error) {
+	return nil, false, 0, nil
 }
 
 func (f *fakeEnvironmentService) AddSSHKey(context.Context, uuid.UUID, uuid.UUID, environmentdom.AddSSHKeyInput) (*environmentdom.EnvironmentSSHKey, error) {
@@ -4665,8 +4677,8 @@ func (f *fakeEnvironmentService) DeleteSSHKey(context.Context, uuid.UUID, uuid.U
 	return nil
 }
 
-func (f *fakeEnvironmentService) ListPortForwards(context.Context, uuid.UUID, uuid.UUID) ([]*environmentdom.EnvironmentPortForward, error) {
-	return nil, nil
+func (f *fakeEnvironmentService) ListPortForwards(context.Context, uuid.UUID, uuid.UUID, *string, int) ([]*environmentdom.EnvironmentPortForward, bool, int64, error) {
+	return nil, false, 0, nil
 }
 
 func (f *fakeEnvironmentService) GetPortForward(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*environmentdom.EnvironmentPortForward, error) {

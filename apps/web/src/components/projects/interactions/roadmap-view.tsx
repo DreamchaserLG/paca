@@ -47,6 +47,7 @@ interface RoadmapViewProps {
 	statuses: TaskStatus[];
 	taskTypes: TaskType[];
 	members?: ProjectMember[];
+	reporters?: ProjectMember[];
 	sprints?: Sprint[];
 	customFields?: CustomFieldDefinition[];
 	columnBy?: string;
@@ -92,6 +93,7 @@ export function RoadmapView({
 	statuses,
 	taskTypes,
 	members = [],
+	reporters,
 	sprints = [],
 	customFields = [],
 	columnBy = "status",
@@ -167,8 +169,8 @@ export function RoadmapView({
 	const now = useMemo(() => Date.now(), []);
 
 	const viewCtx = useMemo(
-		() => ({ statuses, taskTypes, members, customFields, sprints }),
-		[statuses, taskTypes, members, customFields, sprints],
+		() => ({ statuses, taskTypes, members, reporters, customFields, sprints }),
+		[statuses, taskTypes, members, reporters, customFields, sprints],
 	);
 
 	// Drop targets must respect the view's status filter (as Board/List do),

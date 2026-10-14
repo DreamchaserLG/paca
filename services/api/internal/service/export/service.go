@@ -448,11 +448,11 @@ func (s *Service) writeTaskActivity(ctx context.Context, out io.Writer, projectI
 
 // writeDocs adds each document as a Markdown file under docs/.
 func (s *Service) writeDocs(ctx context.Context, entry func(string) (io.Writer, error), projectID uuid.UUID) error {
-	folders, err := s.docs.ListFolders(ctx, projectID)
+	folders, err := s.docs.ListAllFolders(ctx, projectID)
 	if err != nil {
 		return fmt.Errorf("list doc folders: %w", err)
 	}
-	docs, _, err := s.docs.ListDocuments(ctx, projectID, nil, nil, nil, nil)
+	docs, err := s.docs.ListAllDocuments(ctx, projectID)
 	if err != nil {
 		return fmt.Errorf("list docs: %w", err)
 	}
@@ -509,7 +509,7 @@ func (s *Service) loadLookups(ctx context.Context, project *projectdom.Project) 
 	if err != nil {
 		return nil, fmt.Errorf("list sprints: %w", err)
 	}
-	members, err := s.members.ListMembers(ctx, project.ID)
+	members, err := s.members.ListAllMembers(ctx, project.ID)
 	if err != nil {
 		return nil, fmt.Errorf("list members: %w", err)
 	}

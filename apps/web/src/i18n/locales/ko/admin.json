@@ -358,6 +358,7 @@
 		"empty": "아직 릴리스 노트가 없습니다."
 	},
 	"agents": {
+		"searchPlaceholder": "이름 또는 핸들로 에이전트 검색…",
 		"header": {
 			"title": "전역 에이전트",
 			"description": "홈페이지와 관리 페이지에서 채팅하고 어떤 프로젝트에도 초대할 수 있는 AI 에이전트를 관리합니다.",
@@ -476,6 +477,7 @@
 		}
 	},
 	"serviceAccounts": {
+		"searchPlaceholder": "이름 또는 설명으로 검색…",
 		"header": {
 			"title": "서비스 계정",
 			"description": "통합, CI, 자동화를 위한 고유한 API 키와 역할을 가진 비인간 계정입니다.",

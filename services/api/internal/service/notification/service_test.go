@@ -186,7 +186,15 @@ func (r *fakeMemberRepo) FindMemberByActor(ctx context.Context, projectID, actor
 	return r.FindMemberByUserProject(ctx, actorID, projectID)
 }
 
-func (r *fakeMemberRepo) ListMembers(_ context.Context, projectID uuid.UUID) ([]*projectdom.ProjectMember, error) {
+func (r *fakeMemberRepo) CountMembers(context.Context, uuid.UUID, projectdom.MemberFilter) (int64, error) {
+	return 0, nil
+}
+
+func (r *fakeMemberRepo) ListMembers(context.Context, uuid.UUID, int, *string, projectdom.MemberFilter) ([]*projectdom.ProjectMember, bool, error) {
+	return nil, false, nil
+}
+
+func (r *fakeMemberRepo) ListAllMembers(_ context.Context, projectID uuid.UUID) ([]*projectdom.ProjectMember, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.byProj[projectID], nil
@@ -956,7 +964,7 @@ func TestNotifyMentioned_MembersListErrorSkipsSilently(t *testing.T) {
 		ActorUserID:   uuid.New(),
 	})
 	if err != nil {
-		t.Fatalf("expected nil error when ListMembers returns empty, got %v", err)
+		t.Fatalf("expected nil error when ListAllMembers returns empty, got %v", err)
 	}
 	if len(repo.data) != 0 {
 		t.Errorf("expected 0 notifications when project has no members, got %d", len(repo.data))

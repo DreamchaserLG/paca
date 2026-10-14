@@ -53,9 +53,25 @@ type mockAgentSvc struct {
 	generateGlobalACPBridgeToken  func(ctx context.Context, agentID uuid.UUID) (string, error)
 	generateGlobalAgentMCPKey     func(ctx context.Context, agentID uuid.UUID) (string, error)
 	verifyCLILogin                func(ctx context.Context, projectID, agentID uuid.UUID) (bool, error)
+
+	// recorded by ListAgents / ListGlobalAgents
+	listFilter       agentdom.AgentFilter
+	listCursor       *string
+	listLimit        int
+	listAgentsResult []*agentdom.Agent
+	listAgentsMore   bool
 }
 
-func (m *mockAgentSvc) ListAgents(_ context.Context, _ uuid.UUID, _ agentdom.AgentScope) ([]*agentdom.Agent, error) {
+func (m *mockAgentSvc) ListAgents(_ context.Context, _ uuid.UUID, filter agentdom.AgentFilter, cursor *string, limit int) ([]*agentdom.Agent, bool, error) {
+	m.listFilter, m.listCursor, m.listLimit = filter, cursor, limit
+	return m.listAgentsResult, m.listAgentsMore, nil
+}
+
+func (m *mockAgentSvc) ListAllAgents(context.Context, uuid.UUID, agentdom.AgentScope) ([]*agentdom.Agent, error) {
+	return nil, nil
+}
+
+func (m *mockAgentSvc) ListAllGlobalAgents(context.Context) ([]*agentdom.Agent, error) {
 	return nil, nil
 }
 func (m *mockAgentSvc) GetAgent(ctx context.Context, projectID, agentID uuid.UUID) (*agentdom.Agent, error) {
@@ -186,8 +202,9 @@ func (m *mockAgentSvc) ListChatMessages(_ context.Context, _, _ uuid.UUID, _, _ 
 
 // --- Global agents / global chat (see agentdom.Service) --------------------
 
-func (m *mockAgentSvc) ListGlobalAgents(_ context.Context) ([]*agentdom.Agent, error) {
-	return nil, nil
+func (m *mockAgentSvc) ListGlobalAgents(_ context.Context, filter agentdom.AgentFilter, cursor *string, limit int) ([]*agentdom.Agent, bool, error) {
+	m.listFilter, m.listCursor, m.listLimit = filter, cursor, limit
+	return m.listAgentsResult, m.listAgentsMore, nil
 }
 func (m *mockAgentSvc) GetGlobalAgent(ctx context.Context, agentID uuid.UUID) (*agentdom.Agent, error) {
 	if m.getGlobalAgent != nil {
@@ -325,7 +342,9 @@ func newAgentRouterWithClaims(svc agentdom.Service) chi.Router {
 func newAgentRouter(svc agentdom.Service) chi.Router {
 	h := handler.NewAgentHandler(svc, "", "", "")
 	r := chi.NewRouter()
+	r.Get("/agents", h.ListGlobalAgents)
 	r.Route("/projects/{projectId}", func(r chi.Router) {
+		r.Get("/agents", h.ListAgents)
 		r.Post("/agents", h.CreateAgent)
 		r.Route("/agents/{agentId}", func(r chi.Router) {
 			r.Post("/mcp-servers", h.AddMCPServer)
@@ -404,8 +423,16 @@ type fakeMemberRepo struct {
 	findByAgent       func(ctx context.Context, projectID, agentID uuid.UUID) (*projectdom.ProjectMember, error)
 }
 
-func (f *fakeMemberRepo) ListMembers(context.Context, uuid.UUID) ([]*projectdom.ProjectMember, error) {
-	panic("fakeMemberRepo: ListMembers not used by resolveMemberID tests")
+func (f *fakeMemberRepo) CountMembers(context.Context, uuid.UUID, projectdom.MemberFilter) (int64, error) {
+	return 0, nil
+}
+
+func (f *fakeMemberRepo) ListMembers(context.Context, uuid.UUID, int, *string, projectdom.MemberFilter) ([]*projectdom.ProjectMember, bool, error) {
+	return nil, false, nil
+}
+
+func (f *fakeMemberRepo) ListAllMembers(context.Context, uuid.UUID) ([]*projectdom.ProjectMember, error) {
+	panic("fakeMemberRepo: ListAllMembers not used by resolveMemberID tests")
 }
 func (f *fakeMemberRepo) CountDistinctAgentsByProjects(context.Context, []uuid.UUID) (int64, error) {
 	panic("fakeMemberRepo: CountDistinctAgentsByProjects not used by resolveMemberID tests")
@@ -1533,5 +1560,48 @@ func TestSendChatMessage_PassesURLAgentAndMapsForeignSessionToNotFound(t *testin
 	}
 	if w := doAgentRequest(t, r, http.MethodPost, path(sessionAgent), map[string]any{"message": "hi"}); w.Code >= 400 {
 		t.Fatalf("own agent: got %d (%s)", w.Code, w.Body.String())
+	}
+}
+
+func TestListAgents_PagedWithFiltersAndNextCursor(t *testing.T) {
+	last := &agentdom.Agent{ID: uuid.New(), Name: "Zed"}
+	svc := &mockAgentSvc{listAgentsResult: []*agentdom.Agent{last}, listAgentsMore: true}
+	r := newAgentRouter(svc)
+	id := uuid.New()
+
+	w := doAgentRequest(t, r, http.MethodGet, "/projects/"+uuid.NewString()+"/agents?scope=global&search=%20zed%20&ids="+id.String()+"&page_size=7&cursor=abc", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("got %d: %s", w.Code, w.Body.String())
+	}
+	if svc.listLimit != 7 || svc.listCursor == nil || *svc.listCursor != "abc" ||
+		svc.listFilter.Scope != agentdom.AgentScopeGlobal || svc.listFilter.Search != "zed" ||
+		len(svc.listFilter.IDs) != 1 || svc.listFilter.IDs[0] != id {
+		t.Fatalf("call = limit %d cursor %v filter %+v", svc.listLimit, svc.listCursor, svc.listFilter)
+	}
+	if !strings.Contains(w.Body.String(), agentdom.EncodeAgentCursor(last)) {
+		t.Fatalf("missing next_cursor: %s", w.Body.String())
+	}
+
+	svc.listLimit = 0
+	doAgentRequest(t, r, http.MethodGet, "/projects/"+uuid.NewString()+"/agents", nil)
+	if svc.listLimit != 30 {
+		t.Fatalf("default page size = %d, want 30", svc.listLimit)
+	}
+	for _, q := range []string{"scope=other", "ids=nope", "page_size=0", "page_size=101"} {
+		if w := doAgentRequest(t, r, http.MethodGet, "/projects/"+uuid.NewString()+"/agents?"+q, nil); w.Code != http.StatusBadRequest {
+			t.Errorf("%s: want 400, got %d", q, w.Code)
+		}
+	}
+}
+
+func TestListGlobalAgents_IsPaginated(t *testing.T) {
+	svc := &mockAgentSvc{listAgentsResult: []*agentdom.Agent{{ID: uuid.New(), Name: "A"}}}
+	r := newAgentRouter(svc)
+	w := doAgentRequest(t, r, http.MethodGet, "/agents?search=a&page_size=5", nil)
+	if w.Code != http.StatusOK || svc.listLimit != 5 || svc.listFilter.Search != "a" {
+		t.Fatalf("got %d limit=%d filter=%+v", w.Code, svc.listLimit, svc.listFilter)
+	}
+	if !strings.Contains(w.Body.String(), `"next_cursor":null`) {
+		t.Fatalf("last page must report next_cursor null: %s", w.Body.String())
 	}
 }

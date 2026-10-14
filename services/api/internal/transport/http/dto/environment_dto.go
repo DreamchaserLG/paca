@@ -44,10 +44,9 @@ type EnvironmentResponse struct {
 	// had its full port-mapping set applied — see
 	// environmentdom.Environment.PortsPendingRestart's doc comment. The
 	// frontend uses this to show a "restart required" prompt.
-	PortsPendingRestart bool                        `json:"ports_pending_restart"`
-	CreatedAt           time.Time                   `json:"created_at"`
-	UpdatedAt           time.Time                   `json:"updated_at"`
-	Folders             []EnvironmentFolderResponse `json:"folders,omitempty"`
+	PortsPendingRestart bool      `json:"ports_pending_restart"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
 }
 
 // CreateEnvironmentRequest is the body for POST
@@ -95,12 +94,6 @@ func EnvironmentFromEntity(e *environmentdom.Environment) EnvironmentResponse {
 		PortsPendingRestart: e.PortsPendingRestart,
 		CreatedAt:           e.CreatedAt,
 		UpdatedAt:           e.UpdatedAt,
-	}
-	if len(e.Folders) > 0 {
-		resp.Folders = make([]EnvironmentFolderResponse, 0, len(e.Folders))
-		for _, f := range e.Folders {
-			resp.Folders = append(resp.Folders, EnvironmentFolderFromEntity(f))
-		}
 	}
 	return resp
 }

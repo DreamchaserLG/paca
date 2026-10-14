@@ -489,11 +489,15 @@ test.describe("An agent is judged by its own roles", () => {
 		const viewer = await projectRoleIdByName(request, projectId, "Viewer");
 		const adminRole = await projectRoleIdByName(request, projectId, "Admin");
 
+		// The listing is paginated; narrow it to agent members so the agent is on
+		// the first page however large the team is.
 		const members = (
 			await (
-				await request.get(`${API_URL}/projects/${projectId}/members`)
+				await request.get(
+					`${API_URL}/projects/${projectId}/members?member_type=agent&page_size=100`,
+				)
 			).json()
-		).data as Array<{ id: string; agent_id?: string }>;
+		).data.items as Array<{ id: string; agent_id?: string }>;
 		const agentMember = members.find((m) => m.agent_id === agent.id);
 		expect(agentMember, "the agent is a member of its project").toBeTruthy();
 		const memberId = agentMember?.id ?? "";

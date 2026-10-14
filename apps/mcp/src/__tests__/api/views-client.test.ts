@@ -404,7 +404,9 @@ describe("PacaAPIViewsClient", () => {
 			return {
 				ok: true,
 				status: 200,
-				headers: { get: (k: string) => (k.toLowerCase() === "etag" ? etag : null) },
+				headers: {
+					get: (k: string) => (k.toLowerCase() === "etag" ? etag : null),
+				},
 				text: async () => "",
 				json: async () => ({}),
 			};

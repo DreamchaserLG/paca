@@ -1,5 +1,6 @@
 {
 	"agents": {
+		"searchPlaceholder": "Search agents by name or handle…",
 		"header": {
 			"title": "Global Agents",
 			"description": "Manage AI agents that chat on the home page and admin pages, and can be invited into any project.",
@@ -476,6 +477,7 @@
 		}
 	},
 	"serviceAccounts": {
+		"searchPlaceholder": "Search by name or description…",
 		"header": {
 			"title": "Service Accounts",
 			"description": "Non-human accounts with their own API keys and roles, for integrations, CI and automation.",

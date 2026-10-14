@@ -34,9 +34,14 @@ func New(repo docdom.Repository, memberRepo memberLookup) *Service {
 
 // --- Folder Service ---------------------------------------------------------
 
-// ListFolders returns all folders for a project.
-func (s *Service) ListFolders(ctx context.Context, projectID uuid.UUID) ([]*docdom.DocFolder, error) {
-	return s.repo.ListFolders(ctx, projectID)
+// ListFolders returns one cursor-paginated level of the folder tree.
+func (s *Service) ListFolders(ctx context.Context, projectID uuid.UUID, parentID *uuid.UUID, cursorAfter *string, limit int) ([]*docdom.DocFolder, bool, error) {
+	return s.repo.ListFolders(ctx, projectID, parentID, cursorAfter, limit)
+}
+
+// FolderPath returns the folders from the root down to folderID.
+func (s *Service) FolderPath(ctx context.Context, projectID, folderID uuid.UUID) ([]*docdom.DocFolder, error) {
+	return s.repo.FolderPath(ctx, projectID, folderID)
 }
 
 // CreateFolder creates a new folder.
@@ -142,9 +147,9 @@ func (s *Service) DeleteFolder(ctx context.Context, id uuid.UUID, projectID uuid
 
 // --- Document Service -------------------------------------------------------
 
-// ListDocuments returns non-deleted documents for a project.
-func (s *Service) ListDocuments(ctx context.Context, projectID uuid.UUID, folderID *uuid.UUID, search *string, cursor *string, limit *int) ([]*docdom.Document, bool, error) {
-	return s.repo.ListDocuments(ctx, projectID, folderID, search, cursor, limit)
+// ListDocuments returns one cursor-paginated page of a project's documents.
+func (s *Service) ListDocuments(ctx context.Context, projectID uuid.UUID, filter docdom.DocumentFilter, cursorAfter *string, limit int) ([]*docdom.Document, bool, error) {
+	return s.repo.ListDocuments(ctx, projectID, filter, cursorAfter, limit)
 }
 
 // SearchDocuments finds documents whose title or body contains query.
@@ -311,16 +316,16 @@ func (s *Service) DeleteDocument(ctx context.Context, projectID, id uuid.UUID) e
 
 // --- Snapshot Service -------------------------------------------------------
 
-// ListSnapshots returns snapshots for a document, newest first.
-func (s *Service) ListSnapshots(ctx context.Context, projectID, documentID uuid.UUID) ([]*docdom.DocSnapshot, error) {
+// ListSnapshots returns one page of a document's snapshots, newest first.
+func (s *Service) ListSnapshots(ctx context.Context, projectID, documentID uuid.UUID, cursorAfter *string, limit int) ([]*docdom.DocSnapshot, bool, error) {
 	d, err := s.repo.FindDocumentByID(ctx, documentID)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if d.ProjectID != projectID {
-		return nil, docdom.ErrDocNotFound
+		return nil, false, docdom.ErrDocNotFound
 	}
-	return s.repo.ListSnapshots(ctx, documentID)
+	return s.repo.ListSnapshots(ctx, documentID, cursorAfter, limit)
 }
 
 // GetSnapshot returns a single snapshot.

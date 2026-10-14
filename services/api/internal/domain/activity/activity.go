@@ -131,9 +131,10 @@ type Repository interface {
 	// List returns up to limit entries matching f newest first, and whether
 	// more exist beyond them.
 	List(ctx context.Context, f ListFilter, limit int) ([]*Activity, bool, error)
-	// ListForEntity returns one entity's non-deleted entries, oldest first —
-	// the timeline on a task or doc detail page.
-	ListForEntity(ctx context.Context, entityType string, entityID uuid.UUID) ([]*Activity, error)
+	// ListForEntity returns up to limit of one entity's non-deleted
+	// entries NEWEST first, starting after cursor (nil = the newest), and
+	// whether older entries remain.
+	ListForEntity(ctx context.Context, entityType string, entityID uuid.UUID, cursor *Cursor, limit int) ([]*Activity, bool, error)
 	// FindByID returns one entry, including a soft-deleted one, or
 	// ErrNotFound.
 	FindByID(ctx context.Context, id uuid.UUID) (*Activity, error)

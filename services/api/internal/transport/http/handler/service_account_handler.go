@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -52,18 +53,40 @@ func serviceAccountID(r *http.Request) (uuid.UUID, error) {
 	return id, nil
 }
 
-// List handles GET /admin/service-accounts.
+// List handles GET /admin/service-accounts — one cursor-paginated page of
+// service accounts ordered by name:
+//   - page_size=<1-100>  (default 30)
+//   - cursor=<opaque>    from the previous page's next_cursor
+//   - search=<text>      every word must appear in the name or description
+//
+// Responds with {"items": [...], "page_size": n, "next_cursor": ...}.
 func (h *ServiceAccountHandler) List(w http.ResponseWriter, r *http.Request) {
-	accounts, err := h.svc.List(r.Context())
+	pageSize, err := parsePageSize(r, 30, 100)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
 	}
-	out := make([]dto.ServiceAccountResponse, len(accounts))
-	for i, a := range accounts {
-		out[i] = h.response(r.Context(), a)
+	var cursor *string
+	if raw := r.URL.Query().Get("cursor"); raw != "" {
+		cursor = &raw
 	}
-	presenter.OK(w, r, out)
+	accounts, hasMore, err := h.svc.List(r.Context(), accountdom.ServiceAccountFilter{
+		Search: strings.TrimSpace(r.URL.Query().Get("search")),
+	}, cursor, pageSize)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+	items := make([]dto.ServiceAccountResponse, len(accounts))
+	for i, a := range accounts {
+		items[i] = h.response(r.Context(), a)
+	}
+	var nextCursor *string
+	if hasMore && len(accounts) > 0 {
+		c := accountdom.EncodeServiceAccountCursor(accounts[len(accounts)-1])
+		nextCursor = &c
+	}
+	presenter.OK(w, r, map[string]any{"items": items, "page_size": pageSize, "next_cursor": nextCursor})
 }
 
 // Create handles POST /admin/service-accounts.
@@ -143,16 +166,7 @@ func (h *ServiceAccountHandler) ListAPIKeys(w http.ResponseWriter, r *http.Reque
 		presenter.Error(w, r, err)
 		return
 	}
-	keys, err := h.keys.List(r.Context(), id)
-	if err != nil {
-		presenter.Error(w, r, err)
-		return
-	}
-	resp := make([]dto.APIKeyResponse, 0, len(keys))
-	for _, k := range keys {
-		resp = append(resp, dto.APIKeyFromEntity(k))
-	}
-	presenter.OK(w, r, resp)
+	listAPIKeys(w, r, h.keys, id)
 }
 
 // CreateAPIKey handles POST /admin/service-accounts/{serviceAccountId}/api-keys.

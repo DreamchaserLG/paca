@@ -76,7 +76,6 @@ interface PropertiesPanelProps {
 	reporter: ProjectMember | undefined;
 	statuses?: TaskStatus[];
 	taskTypes?: TaskType[];
-	members?: ProjectMember[];
 	sprints?: Sprint[];
 	projectId?: string;
 	initialCustomFields?: CustomFieldDef[];
@@ -111,7 +110,6 @@ export function PropertiesPanel({
 	reporter,
 	statuses = [],
 	taskTypes = [],
-	members = [],
 	sprints = [],
 	projectId,
 	initialCustomFields = [],
@@ -219,7 +217,7 @@ export function PropertiesPanel({
 
 				<FieldRow label={t("taskDetail.properties.assignees")}>
 					<AssigneePicker
-						members={members}
+						projectId={task.project_id}
 						assigneeIds={task.assignee_ids ?? []}
 						isAutoAssign={isAutoAssign}
 						autoEnabled={jevEnabled}

@@ -706,9 +706,11 @@ test.describe("Denying one agent and one environment narrows the lists", () => {
 		(
 			(
 				await (
-					await api.get(`${API_URL}/projects/${projectId}/environments`)
+					await api.get(
+						`${API_URL}/projects/${projectId}/environments?page_size=100`,
+					)
 				).json()
-			).data.environments as Array<{ id: string }>
+			).data.items as Array<{ id: string }>
 		)
 			.map((e) => e.id)
 			.sort();

@@ -1,6 +1,7 @@
 import { Check, Search } from "lucide-react";
 import { Fragment, type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { LoadMoreSentinel } from "@/components/shared/load-more-sentinel";
 import { filterSearchableItems } from "./helpers";
 
 /** Lists with fewer entries than this render without a search box. */
@@ -19,6 +20,18 @@ export interface SearchableListItem {
 	content: ReactNode;
 }
 
+/** Server-driven search and paging for a list too large to hold whole: the
+ *  caller owns the query text and fetches matching items page by page, so the
+ *  list neither filters locally nor hides the search box. */
+export interface RemoteSearch {
+	query: string;
+	onQueryChange: (query: string) => void;
+	hasMore: boolean;
+	isLoadingMore: boolean;
+	isError?: boolean;
+	onLoadMore: () => void;
+}
+
 /** Search box above a height-capped scrolling list, shared by every picker in
  * the task panel. `pinned` rows (e.g. "Unassigned", "Auto") live inside the
  * scroll area so the search box stays the first focusable element; they are
@@ -27,16 +40,22 @@ export function SearchableList({
 	items,
 	pinned,
 	emptyLabel,
+	remote,
 }: {
 	items: SearchableListItem[];
 	pinned?: ReactNode;
 	emptyLabel?: string;
+	remote?: RemoteSearch;
 }) {
 	const { t } = useTranslation("projects");
-	const [query, setQuery] = useState("");
-	const searchable = items.length >= SEARCH_THRESHOLD;
+	const [localQuery, setLocalQuery] = useState("");
+	const query = remote ? remote.query : localQuery;
+	const setQuery = remote ? remote.onQueryChange : setLocalQuery;
+	const searchable = remote ? true : items.length >= SEARCH_THRESHOLD;
 	const searching = searchable && query.trim() !== "";
-	const visible = searching ? filterSearchableItems(items, query) : items;
+	// With remote search the items already are the matches.
+	const visible =
+		searching && !remote ? filterSearchableItems(items, query) : items;
 
 	return (
 		<div>
@@ -87,6 +106,14 @@ export function SearchableList({
 						</button>
 					</Fragment>
 				))}
+				{remote && (
+					<LoadMoreSentinel
+						hasMore={remote.hasMore}
+						isLoadingMore={remote.isLoadingMore}
+						isError={remote.isError}
+						onLoadMore={remote.onLoadMore}
+					/>
+				)}
 				{searching && visible.length === 0 && (
 					<p className="px-3 py-3 text-center text-xs text-muted-foreground/60">
 						{emptyLabel ?? t("taskDetail.searchableList.noResults")}

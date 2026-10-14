@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { Task } from "@/lib/interaction-api";
+import { getMemberDirectory } from "@/lib/member-directory";
 import type { ProjectMember, TaskStatus, TaskType } from "@/lib/project-api";
 import { TaskCard } from "./task-card";
 
@@ -88,6 +89,8 @@ describe("TaskCard", () => {
 			full_name: "Test 2",
 			username: "test2",
 		} as ProjectMember;
+		// Assignees are resolved by id through the member directory.
+		getMemberDirectory("proj-1").seed([member]);
 		const renderCard = (assigneeIds: string[]) =>
 			render(
 				<TaskCard
@@ -97,7 +100,6 @@ describe("TaskCard", () => {
 					})}
 					statuses={NO_STATUSES}
 					taskTypes={NO_TYPES}
-					members={[member]}
 					visibleFields={["assignee"]}
 				/>,
 				{ wrapper },

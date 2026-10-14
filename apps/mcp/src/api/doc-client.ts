@@ -9,10 +9,14 @@ import type {
 	UpdateFolderInput,
 } from "../types/index.js";
 import { formatApiRequestError, markdownToBlocknote } from "../utils/index.js";
+import { fetchAllPages, MAX_LISTED_ITEMS, withPaging } from "./paginate.js";
 
 /**
  * Extended API client for Document features.
  */
+/** Most timeline entries a tool call collects (the newest ones). */
+const MAX_ACTIVITY_ITEMS = 500;
+
 export class PacaAPIDocClient {
 	private config: PacaConfig;
 
@@ -90,13 +94,37 @@ export class PacaAPIDocClient {
 	// ==================== Document Folders ====================
 
 	async listFolders(projectId: string): Promise<DocumentFolder[]> {
-		const response = await this.get(
-			`/api/v1/projects/${projectId}/docs/folders`,
-		);
-		if (Array.isArray(response)) {
-			return response;
+		// The API lists one level of the tree per call, so walk it level by level.
+		const all: DocumentFolder[] = [];
+		let parents: (string | null)[] = [null];
+		while (parents.length > 0 && all.length < MAX_LISTED_ITEMS) {
+			const next: string[] = [];
+			for (let i = 0; i < parents.length; i += 8) {
+				const levels = await Promise.all(
+					parents
+						.slice(i, i + 8)
+						.map((parent) =>
+							fetchAllPages<DocumentFolder>((cursor) =>
+								this.get(
+									withPaging(
+										`/api/v1/projects/${projectId}/docs/folders?parent_id=${parent ?? "null"}`,
+										cursor,
+										200,
+									),
+								),
+							),
+						),
+				);
+				for (const folders of levels) {
+					for (const f of folders) {
+						all.push(f);
+						next.push(f.id);
+					}
+				}
+			}
+			parents = next;
 		}
-		return response.items || response.folders || response.data || [];
+		return all;
 	}
 
 	async createFolder(
@@ -127,13 +155,17 @@ export class PacaAPIDocClient {
 		projectId: string,
 		docId: string,
 	): Promise<DocumentSnapshot[]> {
-		const response = await this.get(
-			`/api/v1/projects/${projectId}/docs/${docId}/snapshots`,
+		// Newest first; list items carry no body (getSnapshot returns it).
+		return fetchAllPages(
+			(cursor) =>
+				this.get(
+					withPaging(
+						`/api/v1/projects/${projectId}/docs/${docId}/snapshots`,
+						cursor,
+					),
+				),
+			MAX_ACTIVITY_ITEMS,
 		);
-		if (Array.isArray(response)) {
-			return response;
-		}
-		return response.items || response.snapshots || response.data || [];
 	}
 
 	async getSnapshot(
@@ -152,13 +184,18 @@ export class PacaAPIDocClient {
 		projectId: string,
 		docId: string,
 	): Promise<DocumentActivity[]> {
-		const response = await this.get(
-			`/api/v1/projects/${projectId}/docs/${docId}/activities`,
+		// The API pages newest first; callers read the timeline oldest first.
+		const newestFirst = await fetchAllPages<DocumentActivity>(
+			(cursor) =>
+				this.get(
+					withPaging(
+						`/api/v1/projects/${projectId}/docs/${docId}/activities`,
+						cursor,
+					),
+				),
+			MAX_ACTIVITY_ITEMS,
 		);
-		if (Array.isArray(response)) {
-			return response;
-		}
-		return response.items || response.activities || response.data || [];
+		return newestFirst.reverse();
 	}
 
 	// ==================== Document Comments ====================

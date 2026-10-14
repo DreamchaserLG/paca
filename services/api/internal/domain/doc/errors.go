@@ -8,6 +8,10 @@ var (
 	ErrDocNotFound     = errors.New("document: not found")
 	ErrDocTitleInvalid = errors.New("document: title is empty or invalid")
 
+	// ErrInvalidCursor is returned when a client-supplied tree-listing cursor
+	// cannot be decoded.
+	ErrInvalidCursor = errors.New("doc: invalid pagination cursor")
+
 	// Folder errors.
 	ErrFolderNotFound     = errors.New("doc folder: not found")
 	ErrFolderNameInvalid  = errors.New("doc folder: name is empty or invalid")

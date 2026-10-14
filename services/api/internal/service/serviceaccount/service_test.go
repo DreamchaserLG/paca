@@ -32,7 +32,9 @@ func (r *fakeRepo) FindByID(_ context.Context, id uuid.UUID) (*accountdom.Accoun
 	c := *a
 	return &c, nil
 }
-func (r *fakeRepo) List(context.Context) ([]*accountdom.Account, error) { return nil, nil }
+func (r *fakeRepo) List(context.Context, accountdom.ServiceAccountFilter, *string, int) ([]*accountdom.Account, bool, error) {
+	return nil, false, nil
+}
 func (r *fakeRepo) Update(_ context.Context, a *accountdom.Account) error {
 	c := *a
 	r.byID[a.ID] = &c

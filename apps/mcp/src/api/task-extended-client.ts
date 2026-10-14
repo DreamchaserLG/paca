@@ -8,6 +8,7 @@ import type {
 	UpdateCommentInput,
 } from "../types/index.js";
 import { formatApiRequestError, markdownToBlocknote } from "../utils/index.js";
+import { fetchAllPages, withPaging } from "./paginate.js";
 
 /**
  * Extended API client for task activities and comments.
@@ -92,13 +93,18 @@ export class PacaAPITaskExtendedClient {
 		projectId: string,
 		taskId: string,
 	): Promise<TaskActivity[]> {
-		const response = await this.get(
-			`/api/v1/projects/${projectId}/tasks/${taskId}/activities`,
+		// The API pages newest first; callers read the timeline oldest first.
+		const newestFirst = await fetchAllPages<TaskActivity>(
+			(cursor) =>
+				this.get(
+					withPaging(
+						`/api/v1/projects/${projectId}/tasks/${taskId}/activities`,
+						cursor,
+					),
+				),
+			500,
 		);
-		if (Array.isArray(response)) {
-			return response;
-		}
-		return response.items || response.activities || response.data || [];
+		return newestFirst.reverse();
 	}
 
 	// ==================== Task Comments ====================
@@ -181,11 +187,9 @@ export class PacaAPITaskExtendedClient {
 	}
 
 	async listProjectMembers(projectId: string): Promise<any[]> {
-		const response = await this.get(`/api/v1/projects/${projectId}/members`);
-		if (Array.isArray(response)) {
-			return response;
-		}
-		return response.items || response.members || response.data || [];
+		return fetchAllPages((cursor) =>
+			this.get(withPaging(`/api/v1/projects/${projectId}/members`, cursor)),
+		);
 	}
 
 	// ==================== Task Links ====================

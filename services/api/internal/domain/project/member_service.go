@@ -29,7 +29,13 @@ type AddMemberInput struct {
 
 // MemberService defines member management use cases.
 type MemberService interface {
-	ListMembers(ctx context.Context, projectID uuid.UUID) ([]*ProjectMember, error)
+	ListAllMembers(ctx context.Context, projectID uuid.UUID) ([]*ProjectMember, error)
+	// CountMembers returns how many members match filter — see
+	// MemberRepository.CountMembers.
+	CountMembers(ctx context.Context, projectID uuid.UUID, filter MemberFilter) (int64, error)
+	// ListMembers is the keyset-paginated, filterable variant of
+	// ListMembers — see MemberRepository.ListMembers.
+	ListMembers(ctx context.Context, projectID uuid.UUID, limit int, cursorAfter *string, filter MemberFilter) ([]*ProjectMember, bool, error)
 	// CountDistinctAgentsByProjects returns the distinct agent member count
 	// across projectIDs — see MemberRepository.CountDistinctAgentsByProjects.
 	CountDistinctAgentsByProjects(ctx context.Context, projectIDs []uuid.UUID) (int64, error)

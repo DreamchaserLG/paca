@@ -10,7 +10,6 @@ import { useProjectPermissions } from "@/hooks/use-project-permissions";
 import { isForbiddenError } from "@/lib/api-error";
 import { taskQueryOptions } from "@/lib/interaction-api";
 import {
-	projectMembersQueryOptions,
 	projectQueryOptions,
 	taskStatusesQueryOptions,
 	taskTypesQueryOptions,
@@ -109,9 +108,6 @@ function TaskDetailPage() {
 		taskStatusesQueryOptions(projectId),
 	);
 	const { data: taskTypes = [] } = useQuery(taskTypesQueryOptions(projectId));
-	const { data: members = [] } = useQuery(
-		projectMembersQueryOptions(projectId),
-	);
 	const {
 		data: task = null,
 		isLoading,
@@ -177,7 +173,6 @@ function TaskDetailPage() {
 					onOpenChange={() => {}}
 					statuses={taskStatuses}
 					taskTypes={taskTypes}
-					members={members}
 					projectName={project?.name}
 					projectId={projectId}
 					mode="page"

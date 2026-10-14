@@ -623,6 +623,7 @@ func New(deps Deps) http.Handler {
 				// Tasks
 				r.Route("/tasks", func(r chi.Router) {
 					r.With(require.Project(iam.ActionTasksRead)).Get("/", deps.Task.ListTasks)
+					r.With(require.Project(iam.ActionTasksRead)).Get("/count", deps.Task.CountTasks)
 					r.With(require.Project(iam.ActionTasksWrite), require.TaskCreate()).Post("/", deps.Task.CreateTask)
 					r.With(require.TaskByNumber(iam.ActionTasksRead)).Get("/by-number/{taskNumber}", deps.Task.GetTaskByNumber)
 					r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksRead)).Get("/{taskId}", deps.Task.GetTask)
@@ -675,6 +676,7 @@ func New(deps Deps) http.Handler {
 					// Folders
 					r.Route("/folders", func(r chi.Router) {
 						r.With(require.Project(iam.ActionDocsRead)).Get("/", deps.Document.ListFolders)
+						r.With(require.Project(iam.ActionDocsRead)).Get("/{folderId}/path", deps.Document.GetFolderPath)
 						r.With(require.Project(iam.ActionDocsWrite)).Post("/", deps.Document.CreateFolder)
 						r.With(require.Project(iam.ActionDocsWrite)).Patch("/{folderId}", deps.Document.UpdateFolder)
 						r.With(require.Project(iam.ActionDocsWrite)).Delete("/{folderId}", deps.Document.DeleteFolder)

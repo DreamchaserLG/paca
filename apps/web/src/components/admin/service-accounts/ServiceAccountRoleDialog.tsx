@@ -13,7 +13,7 @@ import { platformRolesQueryOptions } from "@/lib/role-api";
 import {
 	replaceServiceAccountRoles,
 	type ServiceAccount,
-	serviceAccountsQueryOptions,
+	serviceAccountsKey,
 } from "@/lib/service-account-api";
 
 interface ServiceAccountRoleDialogProps {
@@ -55,7 +55,7 @@ export function ServiceAccountRoleDialog({
 			// The roles shown on the list and on the detail page come from the
 			// account itself, so refresh those with the account's own role set.
 			void queryClient.invalidateQueries({
-				queryKey: serviceAccountsQueryOptions.queryKey,
+				queryKey: serviceAccountsKey,
 			});
 			onOpenChange(false);
 		},

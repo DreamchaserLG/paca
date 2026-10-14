@@ -4,7 +4,9 @@ import "errors"
 
 // Environment errors
 var (
-	ErrEnvironmentNotFound    = errors.New("environment not found")
+	ErrEnvironmentNotFound = errors.New("environment not found")
+	// ErrInvalidCursor is returned when a list cursor cannot be decoded.
+	ErrInvalidCursor          = errors.New("environment: invalid pagination cursor")
 	ErrEnvironmentSlugTaken   = errors.New("environment slug already in use in this project")
 	ErrEnvironmentNameInvalid = errors.New("environment name is empty or invalid")
 	// ErrEnvironmentNotRunning is returned when an operation that requires a

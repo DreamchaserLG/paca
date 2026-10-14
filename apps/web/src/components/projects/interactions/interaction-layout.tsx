@@ -90,7 +90,6 @@ import { usePluginRegistry } from "@/lib/plugins/registry";
 import {
 	customFieldsQueryOptions,
 	findEpicType,
-	projectMembersQueryOptions,
 	projectQueryOptions,
 	taskStatusesQueryOptions,
 	taskTypesQueryOptions,
@@ -114,6 +113,7 @@ import {
 	getDefaultPageSize,
 	getTaskColumnKeys,
 	keepPreviousDataOnPageSizeChangeOnly,
+	peopleFromTasks,
 	resolveSelectedTask,
 	shouldClearColumnExtras,
 	type TaskFieldUpdate,
@@ -596,10 +596,6 @@ export function InteractionLayout({
 		}
 	});
 
-	const { data: members = [] } = useQuery(
-		projectMembersQueryOptions(projectId),
-	);
-
 	const { data: sprints = [] } = useQuery(sprintsQueryOptions(projectId));
 
 	// Fetch Epic tasks for display in the epic field on task cards/rows.
@@ -637,9 +633,11 @@ export function InteractionLayout({
 		let assignee_ids: string[] | undefined;
 		let assignee_null: true | undefined;
 		if (activeViewConfig?.filters?.assignees) {
+			// The filter lists the chosen people explicitly (an "all" config
+			// means no assignee filter), so there is no member list to expand.
 			const resolved = resolveFilterConfig(
 				activeViewConfig.filters.assignees,
-				members.map((m) => m.id),
+				[],
 			);
 			const hasUnassigned = resolved.includes(UNASSIGNED_FILTER_ID);
 			const memberIds = resolved.filter((id) => id !== UNASSIGNED_FILTER_ID);
@@ -741,24 +739,24 @@ export function InteractionLayout({
 		activeViewConfig?.filters,
 		customFields,
 		defaultPageTaskTypeIds,
-		members,
 		sprints,
 		sprintId,
 		statuses,
 		taskTypes,
 	]);
+	const columnBy = activeViewConfig?.column_by ?? "status";
+
+	// Column defs used to fetch tasks per column never depend on people (grouping
+	// by assignee/reporter loads one filtered list and groups it client-side;
+	// see peopleFromTasks below).
 	const viewCtx: ViewContext = useMemo(
-		() => ({ statuses, taskTypes, members, customFields, sprints }),
-		[statuses, taskTypes, members, customFields, sprints],
+		() => ({ statuses, taskTypes, members: [], customFields, sprints }),
+		[statuses, taskTypes, customFields, sprints],
 	);
 
 	// ── Per-column pagination ─────────────────────────────────────────────────
-	const columnBy = activeViewConfig?.column_by ?? "status";
 	const isColumnBySupported =
-		columnBy === "status" ||
-		columnBy === "sprint" ||
-		columnBy === "assignee" ||
-		columnBy === "type";
+		columnBy === "status" || columnBy === "sprint" || columnBy === "type";
 
 	const fetchColumnDefs = useMemo(() => {
 		if (!isColumnBySupported) return [];
@@ -1198,6 +1196,14 @@ export function InteractionLayout({
 		fallbackQuery.data,
 		globalExtraTasks,
 	]);
+
+	// "Group by assignee/reporter" offers a column per person who has tasks in
+	// the loaded view — taken from the people the task list embeds — instead of
+	// one per project member.
+	const { assignees: members, reporters } = useMemo(
+		() => peopleFromTasks(tasks),
+		[tasks],
+	);
 
 	// Epics referenced by tasks currently on screen but not yet among the
 	// paginated epicTasks pages (the picker loads 20 at a time — a task's
@@ -2045,7 +2051,6 @@ export function InteractionLayout({
 							tasks: tasks,
 							statuses,
 							taskTypes,
-							members,
 							canCreate,
 							canEdit,
 							searchQuery,
@@ -2070,6 +2075,7 @@ export function InteractionLayout({
 						statuses={statuses}
 						taskTypes={creatableTaskTypes}
 						members={members}
+						reporters={reporters}
 						customFields={customFields}
 						sprints={sprints}
 						epics={displayEpics}
@@ -2106,6 +2112,7 @@ export function InteractionLayout({
 						statuses={statuses}
 						taskTypes={creatableTaskTypes}
 						members={members}
+						reporters={reporters}
 						sprints={sprints}
 						customFields={customFields}
 						columnBy={columnBy}
@@ -2127,6 +2134,7 @@ export function InteractionLayout({
 						statuses={statuses}
 						taskTypes={creatableTaskTypes}
 						members={members}
+						reporters={reporters}
 						customFields={customFields}
 						epics={displayEpics}
 						epicsPagination={epicsPagination}
@@ -2195,7 +2203,6 @@ export function InteractionLayout({
 				projectId={projectId}
 				statuses={statuses}
 				taskTypes={taskTypes}
-				members={members}
 				canEdit={canEdit}
 			/>
 

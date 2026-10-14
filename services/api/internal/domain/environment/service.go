@@ -16,7 +16,9 @@ type Service interface {
 
 // EnvironmentService defines environment CRUD and lifecycle use cases.
 type EnvironmentService interface {
-	ListEnvironments(ctx context.Context, projectID uuid.UUID) ([]*Environment, error)
+	// ListEnvironments returns one cursor-paginated page of a project's
+	// environments — see EnvironmentRepository.ListEnvironments.
+	ListEnvironments(ctx context.Context, projectID uuid.UUID, filter EnvironmentFilter, cursorAfter *string, limit int) ([]*Environment, bool, error)
 	GetEnvironment(ctx context.Context, projectID, environmentID uuid.UUID) (*Environment, error)
 	// CreateEnvironment writes the environment row (status StatusCreating),
 	// asks agent-runner to provision its backing container/Pod and volume,
@@ -64,7 +66,9 @@ type EnvironmentService interface {
 
 // FolderService defines folder CRUD use cases.
 type FolderService interface {
-	ListFolders(ctx context.Context, projectID, environmentID uuid.UUID) ([]*EnvironmentFolder, error)
+	// ListFolders returns one cursor-paginated page of an environment's
+	// folders — see FolderRepository.ListFolders.
+	ListFolders(ctx context.Context, projectID, environmentID uuid.UUID, filter FolderFilter, cursorAfter *string, limit int) ([]*EnvironmentFolder, bool, int64, error)
 	// AddFolder creates the folder row and asks agent-runner to mkdir it
 	// into place inside the environment's container.
 	AddFolder(ctx context.Context, projectID, environmentID uuid.UUID, in AddFolderInput) (*EnvironmentFolder, error)
@@ -92,7 +96,7 @@ type FolderService interface {
 // environment_ssh_keys — no agent-runner round-trip, since nothing
 // consumes these keys until the Phase 3 bastion exists.
 type SSHKeyService interface {
-	ListSSHKeys(ctx context.Context, projectID, environmentID uuid.UUID) ([]*EnvironmentSSHKey, error)
+	ListSSHKeys(ctx context.Context, projectID, environmentID uuid.UUID, cursorAfter *string, limit int) ([]*EnvironmentSSHKey, bool, int64, error)
 	AddSSHKey(ctx context.Context, projectID, environmentID uuid.UUID, in AddSSHKeyInput) (*EnvironmentSSHKey, error)
 	DeleteSSHKey(ctx context.Context, projectID, environmentID, keyID uuid.UUID) error
 }
@@ -102,7 +106,7 @@ type SSHKeyService interface {
 // Environment.SSHPort's doc comment), one row per container port they want
 // reachable from outside.
 type PortForwardService interface {
-	ListPortForwards(ctx context.Context, projectID, environmentID uuid.UUID) ([]*EnvironmentPortForward, error)
+	ListPortForwards(ctx context.Context, projectID, environmentID uuid.UUID, cursorAfter *string, limit int) ([]*EnvironmentPortForward, bool, int64, error)
 	// GetPortForward returns a single port forward, verifying it belongs to
 	// environmentID which belongs to projectID — mirrors GetEnvironment's
 	// own ownership-check convention. Backs the web app's port-forward

@@ -28,7 +28,7 @@ import {
 	deleteAgent,
 	deleteGlobalAgent,
 	globalAcpBridgeStatusQueryOptions,
-	globalAgentsQueryOptions,
+	globalAgentsKey,
 } from "@/lib/agent-api";
 import { agentAvatar } from "@/lib/provider-logos";
 import { cn } from "@/lib/utils";
@@ -65,7 +65,7 @@ export function AgentCard({
 			if (projectId) {
 				qc.invalidateQueries({ queryKey: ["projects", projectId, "agents"] });
 			} else {
-				qc.invalidateQueries({ queryKey: globalAgentsQueryOptions.queryKey });
+				qc.invalidateQueries({ queryKey: globalAgentsKey });
 				qc.invalidateQueries({ queryKey: ["global-agents", "chattable"] });
 			}
 			setConfirmDelete(false);

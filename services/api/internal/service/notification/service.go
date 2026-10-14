@@ -37,7 +37,7 @@ type memberLookup interface {
 	// FindMemberByActor resolves an actor to a project member: the agent's
 	// member record when agentID is non-nil, otherwise the human user's.
 	FindMemberByActor(ctx context.Context, projectID, actorID uuid.UUID, agentID *uuid.UUID) (*projectdom.ProjectMember, error)
-	ListMembers(ctx context.Context, projectID uuid.UUID) ([]*projectdom.ProjectMember, error)
+	ListAllMembers(ctx context.Context, projectID uuid.UUID) ([]*projectdom.ProjectMember, error)
 }
 
 // taskLookup resolves a task's title for the entity_title field of the
@@ -266,7 +266,7 @@ func (s *Svc) NotifyMentioned(ctx context.Context, in notificationdom.NotifyMent
 			return nil
 		}
 
-		members, err := s.memberRepo.ListMembers(ctx, in.ProjectID)
+		members, err := s.memberRepo.ListAllMembers(ctx, in.ProjectID)
 		if err != nil {
 			return nil // best-effort
 		}

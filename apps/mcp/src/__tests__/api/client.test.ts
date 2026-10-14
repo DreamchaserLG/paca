@@ -107,9 +107,6 @@ describe("PacaAPIClient – request headers", () => {
 			(options.headers as Record<string, string>)["X-Agent-ID"],
 		).toBeUndefined();
 	});
-
-
-
 });
 
 // ---------------------------------------------------------------------------
@@ -510,7 +507,7 @@ describe("PacaAPIClient – listDocuments", () => {
 		vi.stubGlobal("fetch", mockFetchOk([]));
 		await makeClient().listDocuments("proj-1");
 		expect((fetch as any).mock.calls[0][0]).toBe(
-			"http://api.test/api/v1/projects/proj-1/docs",
+			"http://api.test/api/v1/projects/proj-1/docs?page_size=100",
 		);
 	});
 

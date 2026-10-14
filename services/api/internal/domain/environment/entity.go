@@ -113,8 +113,6 @@ type Environment struct {
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 	DeletedAt           *time.Time
-
-	Folders []*EnvironmentFolder
 }
 
 // EnvironmentFolder is one working directory inside an Environment — what

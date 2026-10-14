@@ -35,7 +35,8 @@ import {
 	type Project,
 	type ProjectListResult,
 	type ProjectMember,
-	projectMembersQueryOptions,
+	projectMembersInfiniteQueryOptions,
+	projectMembersKey,
 	projectQueryOptions,
 	projectsInfiniteQueryOptions,
 	projectsLookupInfiniteQueryOptions,
@@ -175,11 +176,34 @@ describe("project-api", () => {
 	// ── Members ────────────────────────────────────────────────────────────────
 
 	describe("members", () => {
-		it("listProjectMembers fetches members for a project and unwraps", async () => {
-			mockGet.mockResolvedValue(ok([mockMember]));
+		it("listProjectMembers requests one filtered page and unwraps it", async () => {
+			const page = {
+				items: [mockMember],
+				page_size: 20,
+				next_cursor: "c2",
+				total_count: 41,
+			};
+			mockGet.mockResolvedValue(ok(page));
 
-			await expect(listProjectMembers("p1")).resolves.toEqual([mockMember]);
-			expect(mockGet).toHaveBeenCalledWith("/projects/p1/members");
+			await expect(
+				listProjectMembers("p1", {
+					search: "  ann ",
+					roleId: "r1",
+					memberType: "agent",
+					cursor: "c1",
+					ids: ["a", "b"],
+				}),
+			).resolves.toEqual(page);
+			expect(mockGet).toHaveBeenCalledWith("/projects/p1/members", {
+				params: {
+					page_size: 20,
+					cursor: "c1",
+					search: "ann",
+					role_id: "r1",
+					member_type: "agent",
+					ids: "a,b",
+				},
+			});
 		});
 
 		it("addProjectMember posts payload and unwraps the created member", async () => {
@@ -290,10 +314,13 @@ describe("project-api", () => {
 			expect(opts.staleTime).toBe(2 * 60 * 1000);
 		});
 
-		it("projectMembersQueryOptions exposes correct key and fn", () => {
-			const opts = projectMembersQueryOptions("p1");
-			expect(opts.queryKey).toEqual(["projects", "p1", "members"]);
-			expect(typeof opts.queryFn).toBe("function");
+		it("projectMembersKey is the prefix of every members query", () => {
+			expect(projectMembersKey("p1")).toEqual(["projects", "p1", "members"]);
+			expect(
+				projectMembersInfiniteQueryOptions("p1", {
+					search: "x",
+				}).queryKey.slice(0, 3),
+			).toEqual(["projects", "p1", "members"]);
 		});
 
 		it("taskTypesQueryOptions exposes correct key and fn", () => {

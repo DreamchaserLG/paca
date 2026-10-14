@@ -319,18 +319,53 @@ export interface AgentChatSession {
 
 // ── Agents ────────────────────────────────────────────────────────────────────
 
-// scope narrows the result to just that AgentScope server-side (e.g.
-// "project" to hide global agents invited into this project as members) —
-// omit it to get everything the project can act through, as the @mention
-// picker and task assignment do. See services/api's AgentHandler.ListAgents.
+export const AGENTS_PAGE_SIZE = 30;
+/** Most agent ids one `ids` lookup may carry. */
+export const AGENTS_MAX_IDS = 100;
+
+export interface AgentPage {
+	items: Agent[];
+	page_size: number;
+	next_cursor: string | null;
+}
+
+export interface AgentListOptions {
+	/** Words that must all appear in the agent's name, handle or description. */
+	search?: string;
+	/** Only these agents (at most AGENTS_MAX_IDS) — a batch lookup. */
+	ids?: string[];
+	cursor?: string;
+	pageSize?: number;
+}
+
+function agentListParams(
+	opts: AgentListOptions,
+): Record<string, string | number> {
+	const params: Record<string, string | number> = {
+		page_size: opts.pageSize ?? AGENTS_PAGE_SIZE,
+	};
+	if (opts.search?.trim()) params.search = opts.search.trim();
+	if (opts.ids?.length) params.ids = opts.ids.join(",");
+	if (opts.cursor) params.cursor = opts.cursor;
+	return params;
+}
+
+// One page of the agents visible in a project, ordered by name. scope narrows
+// the result to just that AgentScope server-side (e.g. "project" to hide
+// global agents invited into this project as members) — omit it to get
+// everything the project can act through, as the @mention picker and task
+// assignment do. See services/api's AgentHandler.ListAgents.
 export async function listAgents(
 	projectId: string,
-	scope?: AgentScope,
-): Promise<Agent[]> {
-	const { data } = await apiClient.instance.get<
-		SuccessEnvelope<{ items: Agent[] }>
-	>(`/projects/${projectId}/agents`, { params: scope ? { scope } : undefined });
-	return data.data.items;
+	opts: AgentListOptions & { scope?: AgentScope } = {},
+): Promise<AgentPage> {
+	const params = agentListParams(opts);
+	if (opts.scope) params.scope = opts.scope;
+	const { data } = await apiClient.instance.get<SuccessEnvelope<AgentPage>>(
+		`/projects/${projectId}/agents`,
+		{ params },
+	);
+	return data.data;
 }
 
 export async function getAgent(
@@ -417,12 +452,15 @@ export async function updateAgent(
 // projects via project-api.ts's addProjectMember (agent_id branch), the same
 // action used to add a human member.
 
-export async function listGlobalAgents(): Promise<Agent[]> {
-	const { data } =
-		await apiClient.instance.get<SuccessEnvelope<{ items: Agent[] }>>(
-			"/admin/agents",
-		);
-	return data.data.items;
+/** One page of the global agents, ordered by name (admin, permission-gated). */
+export async function listGlobalAgents(
+	opts: AgentListOptions = {},
+): Promise<AgentPage> {
+	const { data } = await apiClient.instance.get<SuccessEnvelope<AgentPage>>(
+		"/admin/agents",
+		{ params: agentListParams(opts) },
+	);
+	return data.data;
 }
 
 export async function getGlobalAgent(agentId: string): Promise<Agent> {
@@ -510,12 +548,14 @@ export async function deleteGlobalAgent(agentId: string): Promise<void> {
 
 // Any authenticated human may browse global agents (to chat with one) —
 // unlike listGlobalAgents (/admin/agents) above, this isn't permission-gated.
-export async function listChattableAgents(): Promise<Agent[]> {
-	const { data } =
-		await apiClient.instance.get<SuccessEnvelope<{ items: Agent[] }>>(
-			"/agents",
-		);
-	return data.data.items;
+export async function listChattableAgents(
+	opts: AgentListOptions = {},
+): Promise<AgentPage> {
+	const { data } = await apiClient.instance.get<SuccessEnvelope<AgentPage>>(
+		"/agents",
+		{ params: agentListParams(opts) },
+	);
+	return data.data;
 }
 
 // ── Global Chat ───────────────────────────────────────────────────────────────
@@ -1512,26 +1552,25 @@ export async function sendChatMessage(
 
 // ── Query Options ─────────────────────────────────────────────────────────────
 
-export const agentsQueryOptions = (projectId: string) =>
-	queryOptions({
-		queryKey: ["projects", projectId, "agents"],
-		queryFn: () => listAgents(projectId),
-	});
-
-// projectScopedAgentsQueryOptions is agentsQueryOptions' sibling for the
-// project Agents management page, which lists project-owned agents only —
-// scope=project server-side-filters out global agents invited into the
-// project as members, which agentsQueryOptions' other callers (agent-picker,
-// conversations) still want included. A separate function/key rather than
-// an optional param on agentsQueryOptions, so its queryKey shape doesn't
-// widen into a union type that'd break call sites like
-// conversations-layout.tsx's `projectId ? agentsQueryOptions(projectId) :
-// chattableAgentsQueryOptions` ternary (both branches must share one
-// queryKey type for useQuery to type-check).
-export const projectScopedAgentsQueryOptions = (projectId: string) =>
-	queryOptions({
-		queryKey: ["projects", projectId, "agents", "project"] as const,
-		queryFn: () => listAgents(projectId, "project"),
+/** Infinite query over a project's agents (project-owned plus invited global
+ *  agents; pass scope "project" for project-owned only), ordered by name. Keyed
+ *  under ["projects", id, "agents"], so invalidating that prefix refreshes it. */
+export const agentsInfiniteQueryOptions = (
+	projectId: string,
+	opts: { scope?: AgentScope; search?: string } = {},
+) =>
+	infiniteQueryOptions({
+		queryKey: [
+			"projects",
+			projectId,
+			"agents",
+			"list",
+			{ scope: opts.scope ?? null, search: opts.search ?? "" },
+		] as const,
+		queryFn: ({ pageParam }: { pageParam: string | undefined }) =>
+			listAgents(projectId, { ...opts, cursor: pageParam }),
+		initialPageParam: undefined as string | undefined,
+		getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
 	});
 
 export const agentQueryOptions = (projectId: string, agentId: string) =>
@@ -1676,15 +1715,27 @@ export const chatSessionsQueryOptions = (projectId: string, agentId: string) =>
 // namespaces — deliberately not nested under ["projects", ...] since a
 // global agent/conversation has no projectId to key off.
 
-export const globalAgentsQueryOptions = queryOptions({
-	queryKey: ["global-agents"],
-	queryFn: listGlobalAgents,
-});
+/** Key prefix of every cached global-agent query (lists, chattable lists and
+ *  single agents) — invalidate it after a global agent changes. */
+export const globalAgentsKey = ["global-agents"] as const;
 
-export const chattableAgentsQueryOptions = queryOptions({
-	queryKey: ["global-agents", "chattable"],
-	queryFn: listChattableAgents,
-});
+export const globalAgentsInfiniteQueryOptions = (search = "") =>
+	infiniteQueryOptions({
+		queryKey: [...globalAgentsKey, "list", search] as const,
+		queryFn: ({ pageParam }: { pageParam: string | undefined }) =>
+			listGlobalAgents({ search, cursor: pageParam }),
+		initialPageParam: undefined as string | undefined,
+		getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
+	});
+
+export const chattableAgentsInfiniteQueryOptions = (search = "") =>
+	infiniteQueryOptions({
+		queryKey: [...globalAgentsKey, "chattable", search] as const,
+		queryFn: ({ pageParam }: { pageParam: string | undefined }) =>
+			listChattableAgents({ search, cursor: pageParam }),
+		initialPageParam: undefined as string | undefined,
+		getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
+	});
 
 export const globalAgentQueryOptions = (agentId: string) =>
 	queryOptions({

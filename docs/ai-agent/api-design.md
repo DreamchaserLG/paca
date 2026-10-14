@@ -15,11 +15,13 @@ Every agent has an `agent_type` of either `llm` or `acp` (default `llm` when omi
 
 ### `GET /api/v1/projects/:projectId/agents`
 
-List all agents in a project.
+List the agents visible in a project, ordered by name and cursor-paginated: the project's own agents plus any global agents invited into it. Query: `page_size` (1-100, default 30), `cursor` (the previous page's `next_cursor`), `search` (every word must appear in the name, handle or description), `ids` (up to 100 agent ids — a batch lookup), and `scope` (`project` or `global`) to keep only one kind. The same pagination applies to `GET /api/v1/admin/agents` and `GET /api/v1/agents` (the global agents).
 
 **Response:**
 ```json
 {
+  "page_size": 30,
+  "next_cursor": null,
   "items": [
     {
       "id": "uuid",

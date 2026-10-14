@@ -13,6 +13,7 @@ import (
 	agentdom "github.com/Paca-AI/api/internal/domain/agent"
 	annotationdom "github.com/Paca-AI/api/internal/domain/annotation"
 	docdom "github.com/Paca-AI/api/internal/domain/doc"
+	environmentdom "github.com/Paca-AI/api/internal/domain/environment"
 	sprintdom "github.com/Paca-AI/api/internal/domain/sprint"
 	taskdom "github.com/Paca-AI/api/internal/domain/task"
 	"github.com/Paca-AI/api/internal/platform/authz/iam"
@@ -174,7 +175,7 @@ func TestScopedDocListUsesAncestorFolders(t *testing.T) {
 	var got []string
 	var cursor *string
 	for i := 0; i < 5; i++ {
-		docs, more, err := repo.ListDocuments(ctx, f.p, nil, nil, cursor, &limit)
+		docs, more, err := repo.ListDocuments(ctx, f.p, docdom.DocumentFilter{}, cursor, limit)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -184,7 +185,7 @@ func TestScopedDocListUsesAncestorFolders(t *testing.T) {
 		if !more {
 			break
 		}
-		c := docdom.EncodeDocumentCursor(docs[len(docs)-1])
+		c := docdom.EncodeDocumentTreeCursor(docs[len(docs)-1])
 		cursor = &c
 	}
 	if fmt.Sprint(sorted(got)) != fmt.Sprint(sorted([]string{inABC.String(), inSub.String()})) {
@@ -210,11 +211,11 @@ func TestScopedAgentEnvironmentSprintLists(t *testing.T) {
 		{"effect":"Allow","actions":["environments:read"],"resources":["project/*/environment/*"],"conditions":{"StringEquals":{"environment.type":"docker"}}},
 		{"effect":"Allow","actions":["sprints:read"],"resources":["project/*/sprint/` + s2.String() + `"]}]}`)
 
-	agents, err := NewAgentRepository(f.db).ListAgents(f.ctx("agents:read", "agent"), f.p, "")
+	agents, _, err := NewAgentRepository(f.db).ListAgents(f.ctx("agents:read", "agent"), f.p, agentdom.AgentFilter{}, nil, 50)
 	if err != nil || len(agents) != 1 || agents[0].ID != a1 {
 		t.Fatalf("agents = %v (%v), want only a1", agents, err)
 	}
-	envs, err := NewEnvironmentRepository(f.db).ListEnvironments(f.ctx("environments:read", "environment"), f.p)
+	envs, _, err := NewEnvironmentRepository(f.db).ListEnvironments(f.ctx("environments:read", "environment"), f.p, environmentdom.EnvironmentFilter{}, nil, 50)
 	if err != nil || len(envs) != 1 || envs[0].ID != e1 {
 		t.Fatalf("environments = %v (%v), want only the docker one", envs, err)
 	}
@@ -278,7 +279,7 @@ func TestScopedViewWorkflowConversationLists(t *testing.T) {
 	if err != nil || len(views) != 1 || views[0].ID != v1 {
 		t.Fatalf("views = %v (%v), want only v1", views, err)
 	}
-	autos, _, err := NewAutomationRepository(f.db).ListAutomations(f.ctx("workflows:read", "workflow"), f.p, nil, nil, nil, nil)
+	autos, _, err := NewAutomationRepository(f.db).ListAutomations(f.ctx("workflows:read", "workflow"), f.p, nil, nil, nil, 50)
 	if err != nil || len(autos) != 1 || autos[0].ID != a1 {
 		t.Fatalf("automations = %v (%v), want only a1", autos, err)
 	}

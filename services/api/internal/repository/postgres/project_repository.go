@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -316,8 +317,8 @@ const projectMemberFrom = `project_members pm
 		LEFT JOIN users u ON u.id = pm.account_id
 		LEFT JOIN agents a ON a.id = pm.account_id`
 
-// ListMembers returns all active (non-deleted) members of a project enriched with user and role info.
-func (r *ProjectRepository) ListMembers(ctx context.Context, projectID uuid.UUID) ([]*projectdom.ProjectMember, error) {
+// ListAllMembers returns all active (non-deleted) members of a project enriched with user and role info.
+func (r *ProjectRepository) ListAllMembers(ctx context.Context, projectID uuid.UUID) ([]*projectdom.ProjectMember, error) {
 	var rows []projectMemberReadRow
 	if err := r.db.SelectContext(ctx, &rows, `
 		SELECT `+projectMemberCols+`
@@ -335,6 +336,103 @@ func (r *ProjectRepository) ListMembers(ctx context.Context, projectID uuid.UUID
 		return nil, err
 	}
 	return members, nil
+}
+
+const memberNameSortKey = `LOWER(COALESCE(u.username, a.handle, ac.name))`
+
+// memberListWhere builds the WHERE clause (and args, numbered from $1) for a
+// project's member list.
+func memberListWhere(projectID uuid.UUID, filter projectdom.MemberFilter) (string, []any) {
+	args := []any{projectID.String()}
+	where := `pm.project_id = $1 AND pm.deleted_at IS NULL`
+	if filter.RoleID != nil {
+		args = append(args, filter.RoleID.String())
+		where += fmt.Sprintf(` AND EXISTS (
+			SELECT 1 FROM role_attachments ra
+			WHERE ra.project_id = pm.project_id AND ra.account_id = pm.account_id
+			  AND ra.role_id = $%d::uuid)`, len(args))
+	}
+	if filter.MemberType != "" {
+		args = append(args, filter.MemberType)
+		where += fmt.Sprintf(` AND (CASE ac.kind WHEN 'user' THEN 'human' ELSE ac.kind END) = $%d`, len(args))
+	}
+	if len(filter.AccountIDs) > 0 {
+		ids := make([]string, 0, len(filter.AccountIDs))
+		for _, id := range filter.AccountIDs {
+			ids = append(ids, id.String())
+		}
+		args = append(args, ids)
+		where += fmt.Sprintf(` AND (pm.account_id = ANY($%[1]d::uuid[]) OR pm.id = ANY($%[1]d::uuid[]))`, len(args))
+	}
+	for _, word := range strings.Fields(filter.Search) {
+		args = append(args, "%"+escapeLike(word)+"%")
+		n := len(args)
+		where += fmt.Sprintf(` AND (LOWER(COALESCE(u.username, '')) LIKE LOWER($%[1]d) ESCAPE '\' OR LOWER(ac.name) LIKE LOWER($%[1]d) ESCAPE '\' OR LOWER(COALESCE(a.handle, '')) LIKE LOWER($%[1]d) ESCAPE '\')`, n)
+	}
+	return where, args
+}
+
+// CountMembers returns the number of active members of the project matching filter.
+func (r *ProjectRepository) CountMembers(ctx context.Context, projectID uuid.UUID, filter projectdom.MemberFilter) (int64, error) {
+	where, args := memberListWhere(projectID, filter)
+	var n int64
+	if err := r.db.GetContext(ctx, &n, `SELECT COUNT(*) FROM `+projectMemberFrom+` WHERE `+where, args...); err != nil {
+		return 0, fmt.Errorf("project repo: count members: %w", err)
+	}
+	return n, nil
+}
+
+// ListMembers returns up to limit members ordered by name after the
+// member named by cursorAfter, and whether more follow. Filtering happens in
+// the query, before the page is cut.
+func (r *ProjectRepository) ListMembers(ctx context.Context, projectID uuid.UUID, limit int, cursorAfter *string, filter projectdom.MemberFilter) ([]*projectdom.ProjectMember, bool, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	where, args := memberListWhere(projectID, filter)
+	if cursorAfter != nil {
+		cursorID, err := projectdom.DecodeMemberCursor(*cursorAfter)
+		if err != nil {
+			return nil, false, err
+		}
+		// A member removed between page loads still counts, so the cursor
+		// stays valid; an id that never belonged to this project does not.
+		var exists bool
+		if err := r.db.GetContext(ctx, &exists, `SELECT EXISTS (SELECT 1 FROM project_members WHERE id = $1 AND project_id = $2)`, cursorID.String(), projectID.String()); err != nil {
+			return nil, false, fmt.Errorf("project repo: list members after: cursor lookup: %w", err)
+		}
+		if !exists {
+			return nil, false, fmt.Errorf("%w: unknown member", projectdom.ErrInvalidMemberCursor)
+		}
+		args = append(args, cursorID.String())
+		where += fmt.Sprintf(` AND (`+memberNameSortKey+`, pm.id) > (
+			SELECT `+memberNameSortKey+`, pm.id FROM `+projectMemberFrom+` WHERE pm.id = $%d)`, len(args))
+	}
+	args = append(args, limit+1)
+
+	var rows []projectMemberReadRow
+	if err := r.db.SelectContext(ctx, &rows, `
+		SELECT `+projectMemberCols+`
+		FROM `+projectMemberFrom+`
+		WHERE `+where+fmt.Sprintf(`
+		ORDER BY `+memberNameSortKey+`, pm.id
+		LIMIT $%d`, len(args)), args...); err != nil {
+		return nil, false, fmt.Errorf("project repo: list members after: %w", err)
+	}
+	hasMore := len(rows) > limit
+	if hasMore {
+		rows = rows[:limit]
+	}
+	members := make([]*projectdom.ProjectMember, 0, len(rows))
+	for i := range rows {
+		members = append(members, toMemberEntity(&rows[i]))
+	}
+	if !filter.SkipRoles {
+		if err := r.loadMemberRoles(ctx, projectID, members); err != nil {
+			return nil, false, err
+		}
+	}
+	return members, hasMore, nil
 }
 
 // loadMemberRoles fills in Roles on members of one project: for each member,
@@ -386,7 +484,7 @@ func (r *ProjectRepository) memberWithRoles(ctx context.Context, m *projectdom.P
 
 // CountDistinctAgentsByProjects returns the number of distinct agents with
 // an active membership across all of projectIDs, in a single query — the
-// cross-project equivalent of calling ListMembers once per project and
+// cross-project equivalent of calling ListAllMembers once per project and
 // deduping agent_id in application code.
 func (r *ProjectRepository) CountDistinctAgentsByProjects(ctx context.Context, projectIDs []uuid.UUID) (int64, error) {
 	if len(projectIDs) == 0 {

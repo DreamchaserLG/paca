@@ -1,6 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
-import { useCallback, useMemo } from "react";
-import { projectMembersQueryOptions } from "@/lib/project-api";
+import { useCallback } from "react";
+import { useMemberDirectory } from "@/lib/member-directory";
 import { type AvatarIdentity, memberAvatar } from "@/lib/provider-logos";
 
 interface ActorRef {
@@ -17,24 +16,16 @@ interface ActorRef {
  * Feeds (activity logs, comment threads) only carry an actor's name and
  * uploaded avatar, not whether the actor is a human, an agent or a service
  * account — and so can't pick the right default avatar. This resolves the
- * actor against the project's (already cached) member list; an actor that
- * isn't a member any more falls back to a plain human identity.
+ * actor against the project's members, looked up by id on demand (see
+ * member-directory) rather than from a full team list; an actor that isn't a
+ * member any more — or isn't resolved yet — falls back to a plain human
+ * identity.
  */
 export function useActorAvatar(projectId: string) {
-	const { data: members = [] } = useQuery(
-		projectMembersQueryOptions(projectId),
-	);
-	const byId = useMemo(() => {
-		const map = new Map<string, (typeof members)[number]>();
-		for (const m of members) {
-			map.set(m.id, m);
-			if (m.user_id) map.set(m.user_id, m);
-		}
-		return map;
-	}, [members]);
+	const getMember = useMemberDirectory(projectId);
 	return useCallback(
 		(actor: ActorRef): AvatarIdentity => {
-			const member = actor.id ? byId.get(actor.id) : undefined;
+			const member = getMember(actor.id);
 			if (member) return memberAvatar(member);
 			return {
 				name: actor.name || actor.username || "",
@@ -42,6 +33,6 @@ export function useActorAvatar(projectId: string) {
 				avatarUrl: actor.avatarUrl,
 			};
 		},
-		[byId],
+		[getMember],
 	);
 }

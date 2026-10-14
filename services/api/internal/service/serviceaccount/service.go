@@ -80,8 +80,8 @@ func (s *Service) Get(ctx context.Context, id uuid.UUID) (*accountdom.Account, e
 }
 
 // List implements accountdom.ServiceAccountService.
-func (s *Service) List(ctx context.Context) ([]*accountdom.Account, error) {
-	return s.repo.List(ctx)
+func (s *Service) List(ctx context.Context, filter accountdom.ServiceAccountFilter, cursorAfter *string, limit int) ([]*accountdom.Account, bool, error) {
+	return s.repo.List(ctx, filter, cursorAfter, limit)
 }
 
 // Update implements accountdom.ServiceAccountService.

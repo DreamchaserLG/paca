@@ -31,7 +31,7 @@ import { serviceAccountAvatar } from "@/lib/provider-logos";
 import {
 	type ServiceAccount,
 	serviceAccountQueryOptions,
-	serviceAccountsQueryOptions,
+	serviceAccountsKey,
 	updateServiceAccount,
 } from "@/lib/service-account-api";
 
@@ -92,7 +92,7 @@ function OverviewTab({
 				updated,
 			);
 			void queryClient.invalidateQueries({
-				queryKey: serviceAccountsQueryOptions.queryKey,
+				queryKey: serviceAccountsKey,
 			});
 			setName(updated.name);
 			setDescription(updated.description);
@@ -341,7 +341,7 @@ export function ServiceAccountDetailView({ accountId }: { accountId: string }) {
 							);
 							// The list, and the project member pickers, show the avatar too.
 							void qc.invalidateQueries({
-								queryKey: serviceAccountsQueryOptions.queryKey,
+								queryKey: serviceAccountsKey,
 							});
 							void qc.invalidateQueries({
 								predicate: (query) =>

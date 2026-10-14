@@ -144,7 +144,7 @@ In the **Auth** column, actions joined by `+` are all required, and the action a
 | `GET` | `/api/v1/projects/:projectId/exports` | Access token (fresh) + `project:export` | List the project's recent exports, newest first. |
 | `GET` | `/api/v1/projects/:projectId/exports/:exportId` | Access token (fresh) + `project:export` | Get one export's status and file metadata. |
 | `GET` | `/api/v1/projects/:projectId/exports/:exportId/download` | Access token (fresh) + `project:export` | Get a short-lived presigned URL for a completed export's zip. `409 PROJECT_EXPORT_NOT_READY` until it is `completed`; `410 PROJECT_EXPORT_EXPIRED` after the retention window. |
-| `GET` | `/api/v1/projects/:projectId/members` | Access token (fresh) + `project.members:read` | List project members. |
+| `GET` | `/api/v1/projects/:projectId/members` | Access token (fresh) + `project.members:read` | List project members, cursor-paginated: `{items, page_size, next_cursor, total_count}`. Query: `page_size` (1-100, default 20), `cursor`, `search` (every word must match username, name or handle), `role_id`, `member_type` (`human`, `agent`, `service_account`), `ids` (up to 100 membership or account ids — a batch lookup). |
 | `POST` | `/api/v1/projects/:projectId/members` | Access token (fresh) + `project.members:write` | Add a user (`user_id`) or invite a global agent (`agent_id`) to a project with `role_ids` (at least one, else `400 ROLE_REQUIRED`; each role must be one the caller could grant). |
 | `PATCH` | `/api/v1/projects/:projectId/members/:memberId` | Access token (fresh) + `project.members:write` | Update a member's `description`. Roles are changed with `PUT .../roles`. |
 | `DELETE` | `/api/v1/projects/:projectId/members/:memberId` | Access token (fresh) + `project.members:write` | Remove a member from a project. |
@@ -182,7 +182,7 @@ In the **Auth** column, actions joined by `+` are all required, and the action a
 | `GET` | `/api/v1/projects/:projectId/views/:viewId/task-positions` | Access token (fresh) + `tasks:read` | List manual task ordering positions within a view. |
 | `PUT` | `/api/v1/projects/:projectId/views/:viewId/task-positions/:taskId` | Access token (fresh) + `tasks:write` | Set or update the manual position of a task within a view. |
 | `PUT` | `/api/v1/projects/:projectId/views/:viewId/task-positions` | Access token (fresh) + `tasks:write` | Bulk-upsert manual positions of multiple tasks within a view. |
-| `GET` | `/api/v1/projects/:projectId/tasks` | Access token (fresh) + `tasks:read` | List tasks through one shared endpoint. Supported filters include `sprint_id`, `sprint_ids`, `status_id`, `status_ids`, `assignee_id`, `assignee_ids`, `task_type_ids`, and `parent_task_id`. `sprint_id=null` is still supported for unscheduled-only backlog queries. Timeline pages should use `task_type_ids` to request Epic tasks, and manual ordering should be read from `/views/:viewId/task-positions`. |
+| `GET` | `/api/v1/projects/:projectId/tasks` | Access token (fresh) + `tasks:read` | List tasks through one shared endpoint. Supported filters include `sprint_id`, `sprint_ids`, `status_id`, `status_ids`, `assignee_id`, `assignee_ids`, `task_type_ids`, and `parent_task_id`. `sprint_id=null` is still supported for unscheduled-only backlog queries. Timeline pages should use `task_type_ids` to request Epic tasks, and manual ordering should be read from `/views/:viewId/task-positions`. `include=assignees,reporter` embeds the people behind `assignee_ids` / `reporter_id` in each task as `assignees` / `reporter` (identity only: names, avatar, kind — no roles). `GET /tasks/count` takes the same filters and returns `{"total_count": n}`. |
 | `POST` | `/api/v1/projects/:projectId/tasks` | Access token (fresh) + `tasks:write` | Create a task. |
 | `GET` | `/api/v1/projects/:projectId/tasks/:taskId` | Access token (fresh) + `tasks:read` | Get task detail. |
 | `PATCH` | `/api/v1/projects/:projectId/tasks/:taskId` | Access token (fresh) + `tasks:write` | Update a task. |
@@ -1264,6 +1264,7 @@ Query parameters:
 | `status_id` | – | Filter to tasks with a specific status |
 | `assignee_id` | – | Filter to tasks assigned to a specific user |
 | `view_id` | – | UUID of a view; enriches each task with its manual position in that view |
+| `include` | – | `assignees`, `reporter` or both (comma-separated): embed the people behind `assignee_ids` / `reporter_id` in each task as `assignees` / `reporter` |
 | `exclude_system_types` | `false` | When `true`, omit tasks whose type has `is_system = true` (Epic, Subtask) |
 
 Success response data (without `view_id`):

@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
 	Check,
@@ -19,6 +24,7 @@ import {
 	EnvironmentStatusRing,
 	useEnvironmentUsage,
 } from "@/components/projects/environments/environment-status-ring";
+import { LoadMoreSentinel } from "@/components/shared/load-more-sentinel";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
 	Dialog,
@@ -39,7 +45,7 @@ import {
 	type Environment,
 	environmentConfigQueryOptions,
 	environmentQueryOptions,
-	environmentSSHKeysQueryOptions,
+	environmentSSHKeysInfiniteQueryOptions,
 	startEnvironment,
 } from "@/lib/environment-api";
 
@@ -138,8 +144,10 @@ function AddSSHKeyDialog({
 			}),
 		onSuccess: () => {
 			qc.invalidateQueries({
-				queryKey: environmentSSHKeysQueryOptions(projectId, environmentId)
-					.queryKey,
+				queryKey: environmentSSHKeysInfiniteQueryOptions(
+					projectId,
+					environmentId,
+				).queryKey,
 			});
 			onOpenChange(false);
 			setLabel("");
@@ -245,11 +253,13 @@ function SSHKeysManager({
 }) {
 	const { t } = useTranslation("projects");
 	const qc = useQueryClient();
-	const { data: keys = [] } = useQuery({
-		...environmentSSHKeysQueryOptions(projectId, environmentId),
-	});
+	const keysQuery = useInfiniteQuery(
+		environmentSSHKeysInfiniteQueryOptions(projectId, environmentId),
+	);
+	const keys = keysQuery.data?.pages.flatMap((p) => p.items) ?? [];
+	const keyCount = keysQuery.data?.pages[0]?.total_count ?? keys.length;
 	const [addOpen, setAddOpen] = useState(false);
-	const keysKey = environmentSSHKeysQueryOptions(
+	const keysKey = environmentSSHKeysInfiniteQueryOptions(
 		projectId,
 		environmentId,
 	).queryKey;
@@ -264,7 +274,7 @@ function SSHKeysManager({
 		<div className="space-y-3">
 			<div className="flex items-center justify-between">
 				<p className="text-sm text-muted-foreground">
-					{t("environments.detail.sshKeys.count", { count: keys.length })}
+					{t("environments.detail.sshKeys.count", { count: keyCount })}
 				</p>
 				{canConnect && (
 					<Button size="sm" variant="outline" onClick={() => setAddOpen(true)}>
@@ -320,6 +330,12 @@ function SSHKeysManager({
 							)}
 						</div>
 					))}
+					<LoadMoreSentinel
+						hasMore={keysQuery.hasNextPage}
+						isLoadingMore={keysQuery.isFetchingNextPage}
+						isError={keysQuery.isFetchNextPageError}
+						onLoadMore={() => void keysQuery.fetchNextPage()}
+					/>
 				</div>
 			)}
 

@@ -10,6 +10,7 @@ import (
 
 	"github.com/Paca-AI/api/internal/apierr"
 	accountdom "github.com/Paca-AI/api/internal/domain/account"
+	activitydom "github.com/Paca-AI/api/internal/domain/activity"
 	agentdom "github.com/Paca-AI/api/internal/domain/agent"
 	annotationdom "github.com/Paca-AI/api/internal/domain/annotation"
 	apikeydom "github.com/Paca-AI/api/internal/domain/apikey"
@@ -208,6 +209,8 @@ func statusAndCodeFor(err error) (int, apierr.Code) {
 		return http.StatusBadRequest, apierr.CodeBadRequest
 	case errors.Is(err, settingsdom.ErrBrandNameTooLong):
 		return http.StatusBadRequest, apierr.CodeBadRequest
+	case errors.Is(err, projectdom.ErrInvalidMemberCursor):
+		return http.StatusBadRequest, apierr.CodeBadRequest
 	case errors.Is(err, projectdom.ErrMemberNotFound):
 		return http.StatusNotFound, apierr.CodeProjectMemberNotFound
 	case errors.Is(err, projectdom.ErrMemberAlreadyAdded):
@@ -327,6 +330,20 @@ func statusAndCodeFor(err error) (int, apierr.Code) {
 		return http.StatusConflict, apierr.CodeTaskLinkDuplicate
 	case errors.Is(err, taskdom.ErrTaskLinkCrossProject):
 		return http.StatusBadRequest, apierr.CodeTaskLinkCrossProject
+	case errors.Is(err, environmentdom.ErrInvalidCursor):
+		return http.StatusBadRequest, apierr.CodeBadRequest
+	case errors.Is(err, agentdom.ErrInvalidCursor):
+		return http.StatusBadRequest, apierr.CodeBadRequest
+	case errors.Is(err, apikeydom.ErrInvalidCursor):
+		return http.StatusBadRequest, apierr.CodeBadRequest
+	case errors.Is(err, accountdom.ErrInvalidCursor):
+		return http.StatusBadRequest, apierr.CodeBadRequest
+	case errors.Is(err, automationdom.ErrInvalidCursor):
+		return http.StatusBadRequest, apierr.CodeBadRequest
+	case errors.Is(err, activitydom.ErrInvalidCursor):
+		return http.StatusBadRequest, apierr.CodeBadRequest
+	case errors.Is(err, docdom.ErrInvalidCursor):
+		return http.StatusBadRequest, apierr.CodeBadRequest
 	case errors.Is(err, docdom.ErrDocNotFound):
 		return http.StatusNotFound, apierr.CodeDocNotFound
 	case errors.Is(err, docdom.ErrDocTitleInvalid):

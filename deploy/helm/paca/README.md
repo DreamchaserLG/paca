@@ -177,6 +177,7 @@ added.
 | `agentRunner.sandbox.backend` | `kubernetes` (one Job per conversation) or `docker` (needs a mounted Docker socket — most managed clusters don't have one) | `kubernetes` |
 | `agentRunner.sandbox.image.repository` / `.tag` | | `ghcr.io/paca-ai/paca-agent-server-goose` / `latest` |
 | `agentRunner.sandbox.namespace` | Namespace sandbox Jobs/Pods run in. Empty defaults to this release's own namespace — see the deployment guide's RBAC section before changing this | `""` |
+| `agentRunner.sandbox.podReadyTimeout` | Positive Go duration for Kubernetes Pod-IP startup, including node provisioning (`SANDBOX_POD_READY_TIMEOUT`); separate from HTTP readiness | `5m` |
 | `agentRunner.sandbox.cpuLimit` / `.memoryLimit` | Requests == limits on every sandbox Pod's primary container | `2` / `4Gi` |
 | `agentRunner.sandbox.imagePullSecrets` | Needed when `sandbox.image` is pulled from a private registry | `[]` |
 
@@ -203,3 +204,23 @@ added.
 ## Source Code
 
 * <https://github.com/Paca-AI/paca>
+
+### Sandbox startup on autoscaled clusters
+
+The Kubernetes backend waits up to five minutes for a sandbox Pod IP so a new
+node can be provisioned when existing nodes lack capacity. Set
+`agentRunner.sandbox.podReadyTimeout` (for example `6m`) to adjust this budget;
+`60s` restores the previous wait. Invalid or non-positive durations fail runner
+startup. Docker is unaffected. The same budget applies to conversation Jobs and
+static environment Pods.
+
+Caller cancellation and earlier deadlines still win. Static environment commands
+have a separate ten-minute API reply deadline and an eleven-minute runner
+operation deadline. Leave room within those budgets for agent-server HTTP
+readiness (up to two minutes) and optional DinD readiness (up to 90 seconds).
+With DinD, those waits leave at most six minutes and 30 seconds for the Pod-IP
+wait before allowing for other work. Keep the setting below that ceiling: `6m`
+leaves 30 seconds for other startup work and reply delivery. Increasing the
+Pod-IP setting does not increase these outer deadlines. Deploy
+the updated API and agent-runner together to use the longer static-environment
+reply budget.

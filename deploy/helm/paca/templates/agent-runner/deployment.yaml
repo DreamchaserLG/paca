@@ -80,6 +80,8 @@ spec:
             # error this comment is here to prevent.
             - name: SANDBOX_NAMESPACE
               value: {{ include "paca.sandboxNamespace" . | quote }}
+            - name: SANDBOX_POD_READY_TIMEOUT
+              value: {{ .Values.agentRunner.sandbox.podReadyTimeout | quote }}
             - name: SANDBOX_CPU_LIMIT
               value: {{ .Values.agentRunner.sandbox.cpuLimit | quote }}
             - name: SANDBOX_MEMORY_LIMIT

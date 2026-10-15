@@ -110,6 +110,10 @@ type Settings struct {
 	SandboxCPULimit    string
 	SandboxMemoryLimit string
 
+	// SandboxPodReadyTimeout is a positive Go duration from SANDBOX_POD_READY_TIMEOUT.
+	// Zero (unset) uses the Kubernetes backend default of five minutes.
+	SandboxPodReadyTimeout time.Duration
+
 	// SandboxImagePullSecrets names Secrets already present in
 	// SandboxNamespace, attached to every sandbox Pod — needed when
 	// AgentServerImage is pulled from a private registry. Only read when
@@ -251,6 +255,13 @@ func Load() (Settings, error) {
 		// PortPoolStart/PortPoolSize above already default when unset —
 		// nothing further to validate for this backend.
 	case "kubernetes":
+		if raw := os.Getenv("SANDBOX_POD_READY_TIMEOUT"); raw != "" {
+			timeout, err := time.ParseDuration(raw)
+			if err != nil || timeout <= 0 {
+				return Settings{}, fmt.Errorf("config: SANDBOX_POD_READY_TIMEOUT must be a positive Go duration (e.g. 5m), got %q", raw)
+			}
+			s.SandboxPodReadyTimeout = timeout
+		}
 		if s.SandboxNamespace == "" {
 			return Settings{}, fmt.Errorf(
 				"config: SANDBOX_NAMESPACE is required when SANDBOX_BACKEND=kubernetes " +

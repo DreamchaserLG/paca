@@ -56,8 +56,8 @@ const aiAgentHTTPTimeout = 30 * time.Second
 // create (ExecuteCreate), plain start (ExecuteStart), and restart-ports
 // (restartEnvironmentPorts, reached both from ExecuteStart's
 // PortsPendingRestart branch and from RestartEnvironment). The kubernetes
-// backend's own documented worst case for that work is podReadyTimeout
-// (60s) + readyTimeout (120s) + dindReadyTimeout (90s, DockerEnabled
+// backend's own documented worst case for that work is the default Pod-IP wait
+// (300s) + readyTimeout (120s) + dindReadyTimeout (90s, DockerEnabled
 // only) — see internal/sandbox/k8s/manager.go, sandbox/sandbox.go, and
 // internal/sandbox/k8s/dind.go — well past aiAgentHTTPTimeout's budget,
 // which is sized for this service's other, fast calls (stop/delete/
@@ -76,7 +76,7 @@ const aiAgentHTTPTimeout = 30 * time.Second
 // environment already running) agent-runner's own
 // RestartEnvironmentPorts never touches the Pod and returns almost
 // immediately — this ceiling only matters as a worst-case bound.
-const aiAgentProvisionHTTPTimeout = 5 * time.Minute
+const aiAgentProvisionHTTPTimeout = 10 * time.Minute
 
 // maxSlugAttempts bounds the collision-retry loop below so a pathological
 // run of collisions can't spin forever.

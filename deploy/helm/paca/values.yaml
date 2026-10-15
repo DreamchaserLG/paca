@@ -383,6 +383,9 @@ agentRunner:
     # matches the docker backend's own hardcoded 2 CPU / 4GiB.
     cpuLimit: "2"
     memoryLimit: "4Gi"
+    # Kubernetes only: positive Go duration to wait for a Pod IP, including
+    # node provisioning. Separate from agent-server HTTP readiness.
+    podReadyTimeout: "5m"
     # Secrets (already present in `namespace` above, type
     # kubernetes.io/dockerconfigjson) to attach to every sandbox Pod —
     # needed when sandbox.image is pulled from a private registry.

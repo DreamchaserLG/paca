@@ -209,7 +209,7 @@ added.
 
 The Kubernetes backend waits up to five minutes for a sandbox Pod IP so a new
 node can be provisioned when existing nodes lack capacity. Set
-`agentRunner.sandbox.podReadyTimeout` (for example `7m`) to adjust this budget;
+`agentRunner.sandbox.podReadyTimeout` (for example `6m`) to adjust this budget;
 `60s` restores the previous wait. Invalid or non-positive durations fail runner
 startup. Docker is unaffected. The same budget applies to conversation Jobs and
 static environment Pods.
@@ -217,7 +217,10 @@ static environment Pods.
 Caller cancellation and earlier deadlines still win. Static environment commands
 have a separate ten-minute API reply deadline and an eleven-minute runner
 operation deadline. Leave room within those budgets for agent-server HTTP
-readiness (up to two minutes) and optional DinD readiness (up to 90 seconds);
-increasing the Pod-IP setting does not increase these outer deadlines. Deploy
+readiness (up to two minutes) and optional DinD readiness (up to 90 seconds).
+With DinD, those waits leave at most six minutes and 30 seconds for the Pod-IP
+wait before allowing for other work. Keep the setting below that ceiling: `6m`
+leaves 30 seconds for other startup work and reply delivery. Increasing the
+Pod-IP setting does not increase these outer deadlines. Deploy
 the updated API and agent-runner together to use the longer static-environment
 reply budget.

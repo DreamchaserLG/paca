@@ -369,7 +369,7 @@ func (m *Manager) Start(ctx context.Context, cfg sandbox.Config) (*sandbox.Handl
 		return nil, fmt.Errorf("%w (%s)", err, diag)
 	}
 
-	baseURL, err := sandbox.WaitForReady(ctx, []string{fmt.Sprintf("http://%s:%d", podIP, sandbox.GooseServePort)}, secretKey)
+	baseURL, err := sandbox.WaitForReady(ctx, []string{sandbox.GooseURL(podIP, sandbox.GooseServePort)}, secretKey)
 	if err != nil {
 		diag := m.diagnoseUnready(context.Background(), name)
 		cleanup()

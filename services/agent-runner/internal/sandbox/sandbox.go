@@ -11,7 +11,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -166,12 +168,41 @@ type Handle struct {
 	SecretKey string
 }
 
+// GooseURL returns the http URL goose serve answers on at host:port,
+// with the host passed through net.JoinHostPort so IPv6 literals are
+// bracketed ("fd42:42:42::1f5" → "http://[fd42:42:42::1f5]:3284"). The
+// bracketing is load-bearing, not cosmetic: an unbracketed IPv6 literal
+// with a port ("http://fd42:42:42::1f5:3284") fails url.Parse outright on
+// current Go (multiple colons in an unbracketed http(s) host are invalid —
+// see golang/go#75223), which used to cascade into a process-killing nil
+// deref in WaitForReady before it checked the request-build error.
+// Observed live: every conversation cold start SIGSEGVed the agent-runner
+// on an IPv6-only k3s cluster, where every Pod IP is an IPv6 literal.
+//
+// Shared by both backends' candidate-URL construction (docker and
+// kubernetes) so neither can regress to hand-rolled Sprintf("%s:%d")
+// address building.
+func GooseURL(host string, port int) string {
+	return fmt.Sprintf("http://%s", net.JoinHostPort(host, strconv.Itoa(port)))
+}
+
 // WaitForReady polls every candidate base URL's /status endpoint each tick
 // and returns the first one to answer with a non-5xx response. Trying
 // every candidate on every tick (rather than exhausting one before moving
 // to the next) means a candidate that's simply unreachable (instant
 // connection-refused/no-route) costs at most one fast failed dial per
 // tick, not a share of the overall timeout budget.
+//
+// A candidate whose URL fails to parse is reported as an error immediately
+// rather than skipped or waited out: a malformed URL can never self-heal,
+// and a malformed candidate is always a caller-side construction bug, so
+// the caller wants the real cause, not "none became ready after 2m".
+// Handling this error here is load-bearing: an earlier version discarded
+// it (`req, _ :=`) and then dereferenced the nil *http.Request, which
+// SIGSEGVed the whole agent-runner process — and a Go panic in any
+// goroutine takes every in-flight conversation and queued trigger down
+// with it (observed live; see GooseURL's doc comment for the input that
+// triggered it).
 //
 // Shared between backends — internal/sandbox/docker and
 // internal/sandbox/k8s both drive the exact same readiness polling against
@@ -184,7 +215,10 @@ func WaitForReady(ctx context.Context, candidates []string, secretKey string) (s
 	httpClient := &http.Client{Timeout: 2 * time.Second}
 	for time.Now().Before(deadline) {
 		for _, baseURL := range candidates {
-			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/status", nil)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/status", nil)
+			if err != nil {
+				return "", fmt.Errorf("sandbox: invalid candidate address %q: %w", baseURL, err)
+			}
 			req.Header.Set("X-Secret-Key", secretKey)
 			resp, err := httpClient.Do(req)
 			if err == nil {

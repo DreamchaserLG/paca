@@ -423,7 +423,7 @@ func (m *Manager) CreateEnvironment(ctx context.Context, cfg sandbox.Environment
 		return nil, fmt.Errorf("%w (%s)", err, diag)
 	}
 
-	baseURL, err := sandbox.WaitForReady(ctx, []string{fmt.Sprintf("http://%s:%d", podIP, sandbox.GooseServePort)}, cfg.SecretKey)
+	baseURL, err := sandbox.WaitForReady(ctx, []string{sandbox.GooseURL(podIP, sandbox.GooseServePort)}, cfg.SecretKey)
 	if err != nil {
 		diag := m.diagnoseUnreadyEnvironment(context.Background(), name)
 		cleanup()
@@ -461,7 +461,7 @@ func (m *Manager) RestartEnvironmentPorts(ctx context.Context, backendRef, volum
 		diag := m.diagnoseUnreadyEnvironment(context.Background(), backendRef)
 		return nil, fmt.Errorf("%w (%s)", err, diag)
 	}
-	baseURL, err := sandbox.WaitForReady(ctx, []string{fmt.Sprintf("http://%s:%d", podIP, sandbox.GooseServePort)}, cfg.SecretKey)
+	baseURL, err := sandbox.WaitForReady(ctx, []string{sandbox.GooseURL(podIP, sandbox.GooseServePort)}, cfg.SecretKey)
 	if err != nil {
 		diag := m.diagnoseUnreadyEnvironment(context.Background(), backendRef)
 		return nil, fmt.Errorf("%w (%s)", err, diag)
@@ -758,7 +758,7 @@ func (m *Manager) recreateGoneEnvironmentDeployment(ctx context.Context, cfg san
 		return nil, fmt.Errorf("%w (%s)", err, diag)
 	}
 
-	baseURL, err := sandbox.WaitForReady(ctx, []string{fmt.Sprintf("http://%s:%d", podIP, sandbox.GooseServePort)}, cfg.SecretKey)
+	baseURL, err := sandbox.WaitForReady(ctx, []string{sandbox.GooseURL(podIP, sandbox.GooseServePort)}, cfg.SecretKey)
 	if err != nil {
 		diag := m.diagnoseUnreadyEnvironment(context.Background(), name)
 		cleanup()
@@ -832,7 +832,7 @@ func (m *Manager) StartEnvironment(ctx context.Context, backendRef string, cfg s
 		return nil, fmt.Errorf("%w (%s)", err, diag)
 	}
 
-	baseURL, err := sandbox.WaitForReady(ctx, []string{fmt.Sprintf("http://%s:%d", podIP, sandbox.GooseServePort)}, cfg.SecretKey)
+	baseURL, err := sandbox.WaitForReady(ctx, []string{sandbox.GooseURL(podIP, sandbox.GooseServePort)}, cfg.SecretKey)
 	if err != nil {
 		diag := m.diagnoseUnreadyEnvironment(context.Background(), backendRef)
 		return nil, fmt.Errorf("%w (%s)", err, diag)

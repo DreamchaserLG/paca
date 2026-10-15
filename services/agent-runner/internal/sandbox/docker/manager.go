@@ -395,7 +395,7 @@ func (m *Manager) Start(ctx context.Context, cfg sandbox.Config) (*sandbox.Handl
 			cleanup()
 			return nil, err
 		}
-		candidates = []string{fmt.Sprintf("http://%s:%d", ip, sandbox.GooseServePort)}
+		candidates = []string{sandbox.GooseURL(ip, sandbox.GooseServePort)}
 	} else {
 		// Two candidate addresses, tried every poll tick, first one to
 		// answer wins:
@@ -434,7 +434,7 @@ func (m *Manager) Start(ctx context.Context, cfg sandbox.Config) (*sandbox.Handl
 		// which literal IP shows up in the candidate list. localhost above
 		// remains a guaranteed-reachable fallback regardless either way.
 		if ip, err := m.containerIP(ctx, created.ID, ""); err == nil {
-			candidates = append([]string{fmt.Sprintf("http://%s:%d", ip, sandbox.GooseServePort)}, candidates...)
+			candidates = append([]string{sandbox.GooseURL(ip, sandbox.GooseServePort)}, candidates...)
 		}
 	}
 

@@ -1122,11 +1122,11 @@ func (m *Manager) waitForEnvironmentReady(ctx context.Context, containerID, secr
 		if err != nil {
 			return "", err
 		}
-		candidates = []string{fmt.Sprintf("http://%s:%d", ip, sandbox.GooseServePort)}
+		candidates = []string{sandbox.GooseURL(ip, sandbox.GooseServePort)}
 	} else {
 		candidates = []string{fmt.Sprintf("http://localhost:%d", hostPort)}
 		if ip, err := m.containerIP(ctx, containerID, ""); err == nil {
-			candidates = append([]string{fmt.Sprintf("http://%s:%d", ip, sandbox.GooseServePort)}, candidates...)
+			candidates = append([]string{sandbox.GooseURL(ip, sandbox.GooseServePort)}, candidates...)
 		}
 	}
 	return sandbox.WaitForReady(ctx, candidates, secretKey)

@@ -187,6 +187,7 @@ The three internal endpoints require `X-Internal-Token` matching `INTERNAL_API_K
 | `PORT_POOL_START` / `PORT_POOL_SIZE` | | Container port pool. Default: `10000` / `100` |
 | `WORKER_CONCURRENCY` | | Trigger goroutines in flight at once. Default: `5` |
 | `CHAT_SANDBOX_IDLE_TIMEOUT_MINUTES` | | Idle timeout before the reaper tears down a paused chat sandbox. Default: `3` |
+| `SANDBOX_POD_READY_TIMEOUT` | | Kubernetes only: positive Go duration for a sandbox Pod to obtain an IP, including node provisioning. Default: `5m`; `60s` restores the old wait. Covers conversation Jobs and static environments, separately from HTTP readiness; caller deadlines still apply. |
 | `HTTP_ADDR` | | Address `internal/acpbridge.Server` listens on. Default: `:8080` |
 | `LLM_MODELS_PATH` | | Path to the static model catalog. Default: `./data/llm_models.json` |
 | `LOG_LEVEL` | | Default: `info` |

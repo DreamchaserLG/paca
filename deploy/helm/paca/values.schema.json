@@ -255,6 +255,7 @@
             "namespace": { "type": "string" },
             "cpuLimit": { "type": "string" },
             "memoryLimit": { "type": "string" },
+            "podReadyTimeout": { "type": "string", "minLength": 1 },
             "imagePullSecrets": {
               "type": "array",
               "items": {

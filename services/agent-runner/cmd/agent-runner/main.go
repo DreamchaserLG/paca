@@ -223,6 +223,7 @@ func newSandboxBackend(settings config.Settings) (sandbox.FullBackend, error) {
 			Namespace:        settings.SandboxNamespace,
 			CPULimit:         settings.SandboxCPULimit,
 			MemoryLimit:      settings.SandboxMemoryLimit,
+			PodReadyTimeout:  settings.SandboxPodReadyTimeout,
 			ImagePullSecrets: settings.SandboxImagePullSecrets,
 			// Read only by CreateEnvironment/StartEnvironment as the
 			// fallback when sandbox.EnvironmentConfig.Image is empty — see

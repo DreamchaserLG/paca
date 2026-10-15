@@ -53,15 +53,15 @@ const (
 	labelManaged = "paca.ai/managed-by"
 	managedValue = "agent-runner"
 
-	// podReadyTimeout bounds how long Start waits for the Job's Pod to
+	// defaultPodReadyTimeout bounds how long Start waits for the Job's Pod to
 	// exist and report a PodIP before giving up — separate from
 	// sandbox.WaitForReady's own timeout (which only starts once a
 	// candidate address exists at all), so a Pod that never schedules
 	// (e.g. no node has capacity) fails with its own clear error instead
 	// of being silently folded into WaitForReady's "never became ready"
 	// message.
-	podReadyTimeout   = 60 * time.Second
-	podReadyPollEvery = 250 * time.Millisecond
+	defaultPodReadyTimeout = 5 * time.Minute
+	podReadyPollEvery      = 250 * time.Millisecond
 
 	// jobTTLSecondsAfterFinished is a leak-safety net mirroring the
 	// Docker backend's AutoRemove: true — Stop already deletes the Job
@@ -85,6 +85,9 @@ const (
 type Options struct {
 	// Namespace is where every sandbox Job/Pod is created. Required.
 	Namespace string
+	// PodReadyTimeout bounds the wait for a Pod IP, including node provisioning.
+	// Zero uses five minutes. Negative durations are invalid.
+	PodReadyTimeout time.Duration
 	// CPULimit/MemoryLimit set both the request and the limit on the
 	// primary sandbox container, in resource.ParseQuantity syntax (e.g.
 	// "2", "4Gi"). Empty means defaultCPULimit/defaultMemoryLimit.
@@ -119,9 +122,10 @@ type Options struct {
 // *kubernetes.Clientset, so tests can substitute
 // k8s.io/client-go/kubernetes/fake instead of a real cluster.
 type Manager struct {
-	clientset  kubernetes.Interface
-	restConfig *rest.Config
-	namespace  string
+	clientset       kubernetes.Interface
+	restConfig      *rest.Config
+	namespace       string
+	podReadyTimeout time.Duration
 
 	cpuLimit    resource.Quantity
 	memoryLimit resource.Quantity
@@ -153,6 +157,10 @@ var _ sandbox.FullBackend = (*Manager)(nil)
 func NewManager(opts Options) (*Manager, error) {
 	if opts.Namespace == "" {
 		return nil, errors.New("sandbox/k8s: Namespace is required")
+	}
+
+	if opts.PodReadyTimeout < 0 {
+		return nil, errors.New("sandbox/k8s: PodReadyTimeout must not be negative")
 	}
 
 	restConfig, err := rest.InClusterConfig()
@@ -191,6 +199,7 @@ func NewManager(opts Options) (*Manager, error) {
 		clientset:                    clientset,
 		restConfig:                   restConfig,
 		namespace:                    opts.Namespace,
+		podReadyTimeout:              opts.PodReadyTimeout,
 		cpuLimit:                     cpuQty,
 		memoryLimit:                  memQty,
 		imagePullSecrets:             pullSecrets,
@@ -428,9 +437,15 @@ func (m *Manager) deleteJob(ctx context.Context, name string) error {
 // Kubernetes has no built-in equivalent of for a Deployment's Pods) —
 // this function itself has no opinion on which label a caller selects by.
 func (m *Manager) waitForPodIP(ctx context.Context, selector string) (podName, podIP string, err error) {
-	deadline := time.Now().Add(podReadyTimeout)
-	for time.Now().Before(deadline) {
-		pods, listErr := m.clientset.CoreV1().Pods(m.namespace).List(ctx, metav1.ListOptions{LabelSelector: selector})
+	timeout := m.podReadyTimeout
+	if timeout == 0 {
+		timeout = defaultPodReadyTimeout
+	}
+	// Bound API requests as well as polling, while honoring an earlier caller deadline.
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	for waitCtx.Err() == nil {
+		pods, listErr := m.clientset.CoreV1().Pods(m.namespace).List(waitCtx, metav1.ListOptions{LabelSelector: selector})
 		if listErr == nil {
 			for _, pod := range pods.Items {
 				if pod.DeletionTimestamp != nil {
@@ -458,12 +473,14 @@ func (m *Manager) waitForPodIP(ctx context.Context, selector string) (podName, p
 			}
 		}
 		select {
-		case <-ctx.Done():
-			return "", "", ctx.Err()
+		case <-waitCtx.Done():
 		case <-time.After(podReadyPollEvery):
 		}
 	}
-	return "", "", fmt.Errorf("sandbox/k8s: no pod matching selector %q got an IP after %s", selector, podReadyTimeout)
+	if err := ctx.Err(); err != nil {
+		return "", "", err
+	}
+	return "", "", fmt.Errorf("sandbox/k8s: no pod matching selector %q got an IP after %s", selector, timeout)
 }
 
 // podNameForJob resolves a Job name (Handle.ContainerID) to its current

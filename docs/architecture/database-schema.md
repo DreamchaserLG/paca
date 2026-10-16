@@ -242,6 +242,7 @@ Table custom_field_definitions {
   field_type varchar [not null, note: 'text | number | date | select | multi_select | boolean | url']
   options jsonb [null, note: 'Ordered list of option labels for select / multi_select types']
   is_required boolean [not null, default: false]
+  use_in_search boolean [not null, default: false]
   created_at timestamp
   updated_at timestamp
 

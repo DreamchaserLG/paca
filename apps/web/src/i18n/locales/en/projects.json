@@ -1036,7 +1036,8 @@
 				"displayName": "Display Name",
 				"fieldKey": "Field Key",
 				"type": "Type",
-				"required": "Required"
+				"required": "Required",
+				"useInSearch": "Use in search"
 			},
 			"yes": "Yes",
 			"no": "No",
@@ -1058,6 +1059,8 @@
 			"noColor": "No color",
 			"requiredLabel": "Required",
 			"requiredHint": "Users must fill this field when creating or editing a task.",
+			"useInSearchLabel": "Use in search",
+			"useInSearchHint": "Task search also matches this field's value.",
 			"fieldTypes": {
 				"text": "Text",
 				"number": "Number",

@@ -420,7 +420,7 @@ test.describe('Custom Fields Management', () => {
       await dialog.getByRole('textbox', { name: /Display name/i }).fill('E2E Required Field');
 
       // And the user toggles the "Required" switch on
-      await dialog.getByRole('switch').click();
+      await dialog.getByRole('switch', { name: 'Required' }).click();
 
       // And the user clicks "Create field"
       await dialog.getByRole('button', { name: 'Create field' }).click();
@@ -585,7 +585,7 @@ test.describe('Custom Fields Management', () => {
       const dialog = page.getByRole('dialog', { name: 'Edit custom field' });
 
       // And the user toggles the "Required" switch
-      await dialog.getByRole('switch').click();
+      await dialog.getByRole('switch', { name: 'Required' }).click();
 
       // And the user clicks "Save changes"
       await dialog.getByRole('button', { name: 'Save changes' }).click();

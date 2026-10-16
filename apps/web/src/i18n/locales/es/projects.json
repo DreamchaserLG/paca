@@ -1032,7 +1032,8 @@
 				"displayName": "Nombre visible",
 				"fieldKey": "Clave del campo",
 				"type": "Tipo",
-				"required": "Obligatorio"
+				"required": "Obligatorio",
+				"useInSearch": "Usar en la búsqueda"
 			},
 			"yes": "Sí",
 			"no": "No",
@@ -1054,6 +1055,8 @@
 			"noColor": "Sin color",
 			"requiredLabel": "Obligatorio",
 			"requiredHint": "Los usuarios deben completar este campo al crear o editar una tarea.",
+			"useInSearchLabel": "Usar en la búsqueda",
+			"useInSearchHint": "La búsqueda de tareas también coincide con el valor de este campo.",
 			"fieldTypes": {
 				"text": "Texto",
 				"number": "Número",

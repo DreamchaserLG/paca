@@ -236,6 +236,7 @@ type CreateCustomFieldDefinitionInput struct {
 	FieldType   FieldType
 	Options     []CustomFieldOption
 	IsRequired  bool
+	UseInSearch bool
 }
 
 // UpdateCustomFieldDefinitionInput carries mutable custom field definition
@@ -245,4 +246,5 @@ type UpdateCustomFieldDefinitionInput struct {
 	FieldType   *FieldType
 	Options     []CustomFieldOption
 	IsRequired  *bool
+	UseInSearch *bool
 }

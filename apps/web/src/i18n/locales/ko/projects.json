@@ -1032,7 +1032,8 @@
 				"displayName": "표시 이름",
 				"fieldKey": "필드 키",
 				"type": "유형",
-				"required": "필수"
+				"required": "필수",
+				"useInSearch": "검색에 사용"
 			},
 			"yes": "예",
 			"no": "아니오",
@@ -1054,6 +1055,8 @@
 			"noColor": "색상 없음",
 			"requiredLabel": "필수",
 			"requiredHint": "사용자는 작업을 생성하거나 수정할 때 이 필드를 입력해야 합니다.",
+			"useInSearchLabel": "검색에 사용",
+			"useInSearchHint": "작업 검색 시 이 필드의 값도 함께 검색됩니다.",
 			"fieldTypes": {
 				"text": "텍스트",
 				"number": "숫자",

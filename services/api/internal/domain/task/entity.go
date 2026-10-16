@@ -120,6 +120,8 @@ type CustomFieldDefinition struct {
 	FieldType   FieldType
 	Options     []CustomFieldOption // populated for select / multi_select types
 	IsRequired  bool
+	// UseInSearch makes task search also match this field's stored value.
+	UseInSearch bool
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }

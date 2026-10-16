@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import {
 	Table,
 	TableBody,
@@ -121,6 +122,7 @@ function CreateCustomFieldDialog({
 	const [keyManuallyEdited, setKeyManuallyEdited] = useState(false);
 	const [fieldType, setFieldType] = useState<UIFieldType>("Text");
 	const [required, setRequired] = useState(false);
+	const [useInSearch, setUseInSearch] = useState(false);
 	const [options, setOptions] = useState<CustomFieldOption[]>([]);
 	const [newOption, setNewOption] = useState("");
 	const [error, setError] = useState<string | null>(null);
@@ -131,6 +133,7 @@ function CreateCustomFieldDialog({
 		setKeyManuallyEdited(false);
 		setFieldType("Text");
 		setRequired(false);
+		setUseInSearch(false);
 		setOptions([]);
 		setNewOption("");
 		setError(null);
@@ -150,6 +153,7 @@ function CreateCustomFieldDialog({
 				options:
 					fieldType === "Select" || fieldType === "MultiSelect" ? options : [],
 				is_required: required,
+				use_in_search: useInSearch,
 			}),
 		onSuccess: () => {
 			void queryClient.invalidateQueries({
@@ -337,25 +341,28 @@ function CreateCustomFieldDialog({
 								{t("settings.customFields.requiredHint")}
 							</p>
 						</div>
-						<button
-							type="button"
-							role="switch"
-							aria-checked={required}
-							onClick={() => setRequired(!required)}
-							className={cn(
-								"relative inline-flex h-5 w-9 items-center rounded-full border-2 transition-colors",
-								required
-									? "border-primary bg-primary"
-									: "border-border bg-muted",
-							)}
-						>
-							<span
-								className={cn(
-									"inline-block size-3.5 rounded-full bg-white shadow transition-transform",
-									required ? "translate-x-4" : "translate-x-0.5",
-								)}
-							/>
-						</button>
+						<Switch
+							aria-label={t("settings.customFields.requiredLabel")}
+							checked={required}
+							onCheckedChange={setRequired}
+						/>
+					</div>
+
+					{/* Use-in-search toggle */}
+					<div className="flex items-center justify-between rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
+						<div>
+							<p className="text-sm font-medium">
+								{t("settings.customFields.useInSearchLabel")}
+							</p>
+							<p className="text-xs text-muted-foreground/70">
+								{t("settings.customFields.useInSearchHint")}
+							</p>
+						</div>
+						<Switch
+							aria-label={t("settings.customFields.useInSearchLabel")}
+							checked={useInSearch}
+							onCheckedChange={setUseInSearch}
+						/>
 					</div>
 
 					{error ? (
@@ -413,6 +420,7 @@ function EditCustomFieldDialog({
 		field?.options ?? [],
 	);
 	const [required, setRequired] = useState(field?.is_required ?? false);
+	const [useInSearch, setUseInSearch] = useState(field?.use_in_search ?? false);
 	const [newOption, setNewOption] = useState("");
 	const [error, setError] = useState<string | null>(null);
 
@@ -420,6 +428,7 @@ function EditCustomFieldDialog({
 		setDisplayName(field?.display_name ?? "");
 		setOptions(field?.options ?? []);
 		setRequired(field?.is_required ?? false);
+		setUseInSearch(field?.use_in_search ?? false);
 		setError(null);
 		setNewOption("");
 	}, [field]);
@@ -437,6 +446,7 @@ function EditCustomFieldDialog({
 						? options
 						: undefined,
 				is_required: required,
+				use_in_search: useInSearch,
 			});
 		},
 		onSuccess: () => {
@@ -601,25 +611,28 @@ function EditCustomFieldDialog({
 								{t("settings.customFields.requiredHint")}
 							</p>
 						</div>
-						<button
-							type="button"
-							role="switch"
-							aria-checked={required}
-							onClick={() => setRequired(!required)}
-							className={cn(
-								"relative inline-flex h-5 w-9 items-center rounded-full border-2 transition-colors",
-								required
-									? "border-primary bg-primary"
-									: "border-border bg-muted",
-							)}
-						>
-							<span
-								className={cn(
-									"inline-block size-3.5 rounded-full bg-white shadow transition-transform",
-									required ? "translate-x-4" : "translate-x-0.5",
-								)}
-							/>
-						</button>
+						<Switch
+							aria-label={t("settings.customFields.requiredLabel")}
+							checked={required}
+							onCheckedChange={setRequired}
+						/>
+					</div>
+
+					{/* Use-in-search toggle */}
+					<div className="flex items-center justify-between rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
+						<div>
+							<p className="text-sm font-medium">
+								{t("settings.customFields.useInSearchLabel")}
+							</p>
+							<p className="text-xs text-muted-foreground/70">
+								{t("settings.customFields.useInSearchHint")}
+							</p>
+						</div>
+						<Switch
+							aria-label={t("settings.customFields.useInSearchLabel")}
+							checked={useInSearch}
+							onCheckedChange={setUseInSearch}
+						/>
 					</div>
 
 					{error ? (
@@ -882,6 +895,9 @@ export function CustomFieldsSettings({
 								<TableHead className="px-5 text-xs font-semibold uppercase tracking-wide">
 									{t("settings.customFields.table.required")}
 								</TableHead>
+								<TableHead className="px-5 text-xs font-semibold uppercase tracking-wide">
+									{t("settings.customFields.table.useInSearch")}
+								</TableHead>
 								{canWrite && <TableHead className="w-20 px-5" />}
 							</TableRow>
 						</TableHeader>
@@ -901,6 +917,18 @@ export function CustomFieldsSettings({
 									</TableCell>
 									<TableCell className="px-5">
 										{field.is_required ? (
+											<span className="inline-flex items-center gap-1 text-emerald-600 text-xs font-medium">
+												<Check className="size-3" />
+												{t("settings.customFields.yes")}
+											</span>
+										) : (
+											<span className="text-xs text-muted-foreground/50">
+												{t("settings.customFields.no")}
+											</span>
+										)}
+									</TableCell>
+									<TableCell className="px-5">
+										{field.use_in_search ? (
 											<span className="inline-flex items-center gap-1 text-emerald-600 text-xs font-medium">
 												<Check className="size-3" />
 												{t("settings.customFields.yes")}

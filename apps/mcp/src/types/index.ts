@@ -594,6 +594,7 @@ export interface CustomFieldDefinition {
 	field_type: FieldType;
 	options: CustomFieldOption[];
 	is_required: boolean;
+	use_in_search: boolean;
 	created_at: string;
 	updated_at: string;
 }
@@ -604,6 +605,7 @@ export interface CreateCustomFieldInput {
 	field_type: FieldType;
 	options?: CustomFieldOption[];
 	is_required?: boolean;
+	use_in_search?: boolean;
 }
 
 export interface UpdateCustomFieldInput {
@@ -611,6 +613,7 @@ export interface UpdateCustomFieldInput {
 	field_type?: FieldType;
 	options?: CustomFieldOption[];
 	is_required?: boolean;
+	use_in_search?: boolean;
 }
 
 // ==================== Attachments ====================

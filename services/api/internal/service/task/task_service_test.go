@@ -2491,6 +2491,44 @@ func TestUpdateCustomFieldDefinition_OK(t *testing.T) {
 	}
 }
 
+func TestUpdateCustomFieldDefinition_UseInSearch(t *testing.T) {
+	ctx := context.Background()
+	repo := newFakeTaskRepo()
+	svc := tasksvc.New(repo)
+
+	f, err := svc.CreateCustomFieldDefinition(ctx, taskdom.CreateCustomFieldDefinitionInput{
+		ProjectID:   uuid.New(),
+		FieldKey:    "tracking_no",
+		DisplayName: "Tracking No",
+		FieldType:   taskdom.FieldTypeText,
+		UseInSearch: true,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !f.UseInSearch {
+		t.Fatal("expected UseInSearch=true after create")
+	}
+
+	// Omitted use_in_search must leave the value unchanged.
+	updated, err := svc.UpdateCustomFieldDefinition(ctx, f.ProjectID, f.ID, taskdom.UpdateCustomFieldDefinitionInput{DisplayName: "Tracking"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !updated.UseInSearch {
+		t.Error("expected UseInSearch to stay true when omitted")
+	}
+
+	off := false
+	updated, err = svc.UpdateCustomFieldDefinition(ctx, f.ProjectID, f.ID, taskdom.UpdateCustomFieldDefinitionInput{UseInSearch: &off})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if updated.UseInSearch {
+		t.Error("expected UseInSearch=false after explicit update")
+	}
+}
+
 func TestUpdateCustomFieldDefinition_InvalidType(t *testing.T) {
 	ctx := context.Background()
 	repo := newFakeTaskRepo()

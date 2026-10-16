@@ -131,6 +131,7 @@ const CreateCustomFieldSchema = z.object({
 	fieldType: z.string(),
 	options: z.array(CustomFieldOptionInputSchema).optional(),
 	isRequired: z.boolean().optional(),
+	useInSearch: z.boolean().optional(),
 });
 
 const GetCustomFieldSchema = z.object({
@@ -145,6 +146,7 @@ const UpdateCustomFieldSchema = z.object({
 	fieldType: z.string().optional(),
 	options: z.array(CustomFieldOptionInputSchema).optional(),
 	isRequired: z.boolean().optional(),
+	useInSearch: z.boolean().optional(),
 });
 
 // Normalizes a parsed options array (each element either a plain string or
@@ -497,6 +499,11 @@ export function getCustomFieldTools(): Tool[] {
 						type: "boolean",
 						description: "Whether the field is required",
 					},
+					useInSearch: {
+						type: "boolean",
+						description:
+							"Whether task search also matches this field's value",
+					},
 				},
 				required: ["projectId", "fieldKey", "displayName", "fieldType"],
 			},
@@ -562,6 +569,11 @@ export function getCustomFieldTools(): Tool[] {
 					isRequired: {
 						type: "boolean",
 						description: "Whether the field is required",
+					},
+					useInSearch: {
+						type: "boolean",
+						description:
+							"Whether task search also matches this field's value",
 					},
 				},
 				required: ["projectId", "fieldId"],
@@ -632,6 +644,7 @@ Key: ${field.field_key}
 Type: ${field.field_type}
 Options: ${field.options.length > 0 ? field.options.map((o: { value: string }) => o.value).join(", ") : "None"}
 Required: ${field.is_required}
+Use in search: ${field.use_in_search}
 Created: ${field.created_at}`;
 }
 
@@ -854,6 +867,7 @@ export async function handleViewTool(
 				fieldType,
 				options,
 				isRequired,
+				useInSearch,
 			} = CreateCustomFieldSchema.parse(args);
 			const field = await client.createCustomFieldDefinition(projectId, {
 				field_key: fieldKey,
@@ -861,6 +875,7 @@ export async function handleViewTool(
 				field_type: fieldType as any,
 				options: normalizeCustomFieldOptions(options),
 				is_required: isRequired,
+				use_in_search: useInSearch,
 			});
 			return {
 				content: [
@@ -893,6 +908,7 @@ export async function handleViewTool(
 				fieldType,
 				options,
 				isRequired,
+				useInSearch,
 			} = UpdateCustomFieldSchema.parse(args);
 			const field = await client.updateCustomFieldDefinition(
 				projectId,
@@ -902,6 +918,7 @@ export async function handleViewTool(
 					field_type: fieldType as any,
 					options: normalizeCustomFieldOptions(options),
 					is_required: isRequired,
+					use_in_search: useInSearch,
 				},
 			);
 			return {

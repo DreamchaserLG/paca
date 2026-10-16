@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import {
 	Table,
 	TableBody,
@@ -340,25 +341,11 @@ function CreateCustomFieldDialog({
 								{t("settings.customFields.requiredHint")}
 							</p>
 						</div>
-						<button
-							type="button"
-							role="switch"
-							aria-checked={required}
-							onClick={() => setRequired(!required)}
-							className={cn(
-								"relative inline-flex h-5 w-9 items-center rounded-full border-2 transition-colors",
-								required
-									? "border-primary bg-primary"
-									: "border-border bg-muted",
-							)}
-						>
-							<span
-								className={cn(
-									"inline-block size-3.5 rounded-full bg-white shadow transition-transform",
-									required ? "translate-x-4" : "translate-x-0.5",
-								)}
-							/>
-						</button>
+						<Switch
+							aria-label={t("settings.customFields.requiredLabel")}
+							checked={required}
+							onCheckedChange={setRequired}
+						/>
 					</div>
 
 					{/* Use-in-search toggle */}
@@ -371,25 +358,11 @@ function CreateCustomFieldDialog({
 								{t("settings.customFields.useInSearchHint")}
 							</p>
 						</div>
-						<button
-							type="button"
-							role="switch"
-							aria-checked={useInSearch}
-							onClick={() => setUseInSearch(!useInSearch)}
-							className={cn(
-								"relative inline-flex h-5 w-9 items-center rounded-full border-2 transition-colors",
-								useInSearch
-									? "border-primary bg-primary"
-									: "border-border bg-muted",
-							)}
-						>
-							<span
-								className={cn(
-									"inline-block size-3.5 rounded-full bg-white shadow transition-transform",
-									useInSearch ? "translate-x-4" : "translate-x-0.5",
-								)}
-							/>
-						</button>
+						<Switch
+							aria-label={t("settings.customFields.useInSearchLabel")}
+							checked={useInSearch}
+							onCheckedChange={setUseInSearch}
+						/>
 					</div>
 
 					{error ? (
@@ -638,25 +611,11 @@ function EditCustomFieldDialog({
 								{t("settings.customFields.requiredHint")}
 							</p>
 						</div>
-						<button
-							type="button"
-							role="switch"
-							aria-checked={required}
-							onClick={() => setRequired(!required)}
-							className={cn(
-								"relative inline-flex h-5 w-9 items-center rounded-full border-2 transition-colors",
-								required
-									? "border-primary bg-primary"
-									: "border-border bg-muted",
-							)}
-						>
-							<span
-								className={cn(
-									"inline-block size-3.5 rounded-full bg-white shadow transition-transform",
-									required ? "translate-x-4" : "translate-x-0.5",
-								)}
-							/>
-						</button>
+						<Switch
+							aria-label={t("settings.customFields.requiredLabel")}
+							checked={required}
+							onCheckedChange={setRequired}
+						/>
 					</div>
 
 					{/* Use-in-search toggle */}
@@ -669,25 +628,11 @@ function EditCustomFieldDialog({
 								{t("settings.customFields.useInSearchHint")}
 							</p>
 						</div>
-						<button
-							type="button"
-							role="switch"
-							aria-checked={useInSearch}
-							onClick={() => setUseInSearch(!useInSearch)}
-							className={cn(
-								"relative inline-flex h-5 w-9 items-center rounded-full border-2 transition-colors",
-								useInSearch
-									? "border-primary bg-primary"
-									: "border-border bg-muted",
-							)}
-						>
-							<span
-								className={cn(
-									"inline-block size-3.5 rounded-full bg-white shadow transition-transform",
-									useInSearch ? "translate-x-4" : "translate-x-0.5",
-								)}
-							/>
-						</button>
+						<Switch
+							aria-label={t("settings.customFields.useInSearchLabel")}
+							checked={useInSearch}
+							onCheckedChange={setUseInSearch}
+						/>
 					</div>
 
 					{error ? (

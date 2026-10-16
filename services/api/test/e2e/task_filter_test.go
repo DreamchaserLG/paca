@@ -915,7 +915,7 @@ func TestE2ETaskSearch_CustomFieldUseInSearch(t *testing.T) {
 		"title": "Parcel", "custom_fields": map[string]any{"tracking": "ZX-99812-AB"},
 	})
 	createTaskViaAPIWithBody(t, env, client, token, projID, map[string]any{
-		"title": "Other", "custom_fields": map[string]any{"secret": "ZX-99812-AB"},
+		"title": "Other", "custom_fields": map[string]any{"secret": "ONLY-IN-SECRET"},
 	})
 
 	t.Run("matches_searchable_field_case_insensitive", func(t *testing.T) {
@@ -926,7 +926,7 @@ func TestE2ETaskSearch_CustomFieldUseInSearch(t *testing.T) {
 	})
 
 	t.Run("ignores_non_searchable_field", func(t *testing.T) {
-		data := listTasksPage(t, env, client, token, projID, url.Values{"search": {"nonexistent-value"}})
+		data := listTasksPage(t, env, client, token, projID, url.Values{"search": {"only-in-secret"}})
 		if got := itemIDs(data); len(got) != 0 {
 			t.Fatalf("expected no matches, got %v", got)
 		}

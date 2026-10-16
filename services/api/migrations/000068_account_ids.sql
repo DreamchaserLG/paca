@@ -13,6 +13,12 @@
 -- column follow the rename automatically. users-only data (credentials, SSO
 -- identities, password-set tokens) keeps user_id: it is about logging in.
 
+-- Deploy: API, agent-runner and realtime must roll out together with this
+-- migration (an old service hits missing columns). It is not reversible
+-- without a counter-migration. Every users row has an accounts row (backfilled
+-- and kept in sync by 000066), so the new foreign keys validate; the ALTERs
+-- take brief locks, and notifications is the only large table involved.
+
 BEGIN;
 
 -- Replace the foreign key of table.col (currently to users) with one to

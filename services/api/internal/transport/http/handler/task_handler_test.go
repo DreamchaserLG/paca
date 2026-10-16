@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -231,6 +232,7 @@ func (f *fakeTaskSvc) CreateTask(_ context.Context, in taskdom.CreateTaskInput) 
 		SprintID:     in.SprintID,
 		StatusID:     in.StatusID,
 		AssigneeIDs:  in.AssigneeIDs,
+		ReporterID:   in.ReporterID,
 		CustomFields: map[string]any{},
 		Tags:         []string{},
 		CreatedAt:    now,
@@ -1060,12 +1062,12 @@ func TestTaskHandler_ListAssignedToMe_ResolvesMemberIDsAcrossProjects(t *testing
 			switch projectID {
 			case projectA.ID:
 				return []*projectdom.ProjectMember{
-					{ID: memberInA, ProjectID: projectA.ID, UserID: userID},
-					{ID: uuid.New(), ProjectID: projectA.ID, UserID: uuid.New()},
+					{ID: memberInA, ProjectID: projectA.ID, AccountID: userID},
+					{ID: uuid.New(), ProjectID: projectA.ID, AccountID: uuid.New()},
 				}, nil
 			case projectB.ID:
 				return []*projectdom.ProjectMember{
-					{ID: memberInB, ProjectID: projectB.ID, UserID: userID},
+					{ID: memberInB, ProjectID: projectB.ID, AccountID: userID},
 				}, nil
 			}
 			return nil, nil
@@ -1917,5 +1919,71 @@ func TestTaskHandler_ListTaskActivities_PagedMode(t *testing.T) {
 	act.pageLimit = 0
 	if w := doTaskRequest(r, http.MethodGet, path, nil); w.Code != http.StatusOK || act.pageLimit != 30 {
 		t.Fatalf("default page size: %d limit=%d", w.Code, act.pageLimit)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Reporter defaulting / validation
+// ---------------------------------------------------------------------------
+
+func buildReporterRouter(svc *fakeTaskSvc, repo *fakeMemberRepo, userID uuid.UUID) chi.Router {
+	h := handler.NewTaskHandler(svc, &fakeViewSvcTask{}, newFakeActivitySvc(),
+		handler.WithTaskMemberRepository(repo))
+	r := chi.NewRouter()
+	r.Use(claimsMiddleware(userID.String()))
+	r.Post("/projects/{projectId}/tasks", h.CreateTask)
+	return r
+}
+
+func TestTaskHandler_CreateTask_DefaultsReporterToCallerMember(t *testing.T) {
+	userID, projectID, memberID := uuid.New(), uuid.New(), uuid.New()
+	svc := newFakeTaskSvc()
+	repo := &fakeMemberRepo{findMember: func(_ context.Context, pid, aid uuid.UUID) (*projectdom.ProjectMember, error) {
+		if pid != projectID || aid != userID {
+			t.Fatalf("unexpected lookup %s/%s", pid, aid)
+		}
+		return &projectdom.ProjectMember{ID: memberID, ProjectID: projectID}, nil
+	}}
+	w := doTaskRequest(buildReporterRouter(svc, repo, userID), http.MethodPost,
+		fmt.Sprintf("/projects/%s/tasks", projectID), map[string]any{"title": "T"})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), memberID.String()) {
+		t.Fatalf("reporter not defaulted to %s: %s", memberID, w.Body.String())
+	}
+}
+
+func TestTaskHandler_CreateTask_NonMemberCallerGetsNoReporter(t *testing.T) {
+	repo := &fakeMemberRepo{findMember: func(context.Context, uuid.UUID, uuid.UUID) (*projectdom.ProjectMember, error) {
+		return nil, projectdom.ErrMemberNotFound
+	}}
+	w := doTaskRequest(buildReporterRouter(newFakeTaskSvc(), repo, uuid.New()), http.MethodPost,
+		fmt.Sprintf("/projects/%s/tasks", uuid.New()), map[string]any{"title": "T"})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestTaskHandler_CreateTask_MemberLookupFailureSurfaces(t *testing.T) {
+	repo := &fakeMemberRepo{findMember: func(context.Context, uuid.UUID, uuid.UUID) (*projectdom.ProjectMember, error) {
+		return nil, errors.New("db down")
+	}}
+	w := doTaskRequest(buildReporterRouter(newFakeTaskSvc(), repo, uuid.New()), http.MethodPost,
+		fmt.Sprintf("/projects/%s/tasks", uuid.New()), map[string]any{"title": "T"})
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestTaskHandler_CreateTask_ReporterFromOtherProjectReturns400(t *testing.T) {
+	repo := &fakeMemberRepo{findMemberByID: func(_ context.Context, id uuid.UUID) (*projectdom.ProjectMember, error) {
+		return &projectdom.ProjectMember{ID: id, ProjectID: uuid.New()}, nil
+	}}
+	w := doTaskRequest(buildReporterRouter(newFakeTaskSvc(), repo, uuid.New()), http.MethodPost,
+		fmt.Sprintf("/projects/%s/tasks", uuid.New()),
+		map[string]any{"title": "T", "reporter_id": uuid.New().String()})
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
 	}
 }

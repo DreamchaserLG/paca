@@ -208,6 +208,8 @@ type assignmentStreamPayload struct {
 	ActorID             string `json:"actor_id"`
 	// LegacyActorUserID is what producers called actor_id before it was
 	// renamed; read only so entries still queued across the upgrade resolve.
+	// Remove it (and the fallback in handle) once the stream has drained after
+	// the release that introduced actor_id, i.e. one release later.
 	LegacyActorUserID string `json:"actor_user_id,omitempty"`
 	AutomationName    string `json:"automation_name,omitempty"`
 }

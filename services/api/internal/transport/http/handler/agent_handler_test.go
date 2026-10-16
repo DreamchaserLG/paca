@@ -418,7 +418,8 @@ func newGlobalAgentAdminRouter(svc agentdom.Service) chi.Router {
 // control FindMember (used by callerMemberID and ListAgentActivities). Every other method
 // panics if invoked, since those tests should never reach them.
 type fakeMemberRepo struct {
-	findMember func(ctx context.Context, projectID, accountID uuid.UUID) (*projectdom.ProjectMember, error)
+	findMember     func(ctx context.Context, projectID, accountID uuid.UUID) (*projectdom.ProjectMember, error)
+	findMemberByID func(ctx context.Context, memberID uuid.UUID) (*projectdom.ProjectMember, error)
 }
 
 func (f *fakeMemberRepo) CountMembers(context.Context, uuid.UUID, projectdom.MemberFilter) (int64, error) {
@@ -441,7 +442,10 @@ func (f *fakeMemberRepo) FindMember(ctx context.Context, projectID, accountID uu
 	}
 	panic("fakeMemberRepo: FindMember not configured")
 }
-func (f *fakeMemberRepo) FindMemberByID(context.Context, uuid.UUID) (*projectdom.ProjectMember, error) {
+func (f *fakeMemberRepo) FindMemberByID(ctx context.Context, id uuid.UUID) (*projectdom.ProjectMember, error) {
+	if f.findMemberByID != nil {
+		return f.findMemberByID(ctx, id)
+	}
 	panic("fakeMemberRepo: FindMemberByID not used by resolveMemberID tests")
 }
 func (f *fakeMemberRepo) AddMember(context.Context, *projectdom.ProjectMember, []uuid.UUID, *uuid.UUID) error {

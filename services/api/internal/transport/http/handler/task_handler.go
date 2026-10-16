@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -133,6 +134,19 @@ func WithTaskAssignedProjectService(svc projectServiceForAssigned) TaskHandlerOp
 // it, tasks created without an explicit reporter_id have no reporter.
 func WithTaskMemberRepository(repo projectdom.MemberRepository) TaskHandlerOption {
 	return func(h *TaskHandler) { h.memberRepo = repo }
+}
+
+// checkReporter rejects a reporter that is not an active member of projectID.
+// It is a no-op when no member repository is configured.
+func (h *TaskHandler) checkReporter(ctx context.Context, projectID, memberID uuid.UUID) error {
+	if h.memberRepo == nil {
+		return nil
+	}
+	m, err := h.memberRepo.FindMemberByID(ctx, memberID)
+	if errors.Is(err, projectdom.ErrMemberNotFound) || (err == nil && m.ProjectID != projectID) {
+		return apierr.New(apierr.CodeBadRequest, "reporter_id must be a member of this project")
+	}
+	return err
 }
 
 // WithTaskAutofillRepository configures recording which fields a user
@@ -892,7 +906,7 @@ func (h *TaskHandler) ListAssignedToMe(w http.ResponseWriter, r *http.Request) {
 				return listErr
 			}
 			for _, m := range members {
-				if m.UserID == accountID {
+				if m.AccountID == accountID {
 					mu.Lock()
 					memberIDs = append(memberIDs, m.ID)
 					memberProjects = append(memberProjects, projectID)
@@ -1036,12 +1050,24 @@ func (h *TaskHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Default the reporter to whoever is creating the task (best-effort: a
-	// caller with no project membership, e.g. an admin, just gets none).
+	// An explicit reporter must be a member of this project; otherwise default
+	// it to whoever is creating the task. A caller with no project membership
+	// (e.g. an admin) just gets none; any other lookup failure is surfaced.
 	reporterID := req.ReporterID
-	if reporterID == nil && h.memberRepo != nil {
-		if id, err := callerMemberID(r, h.memberRepo, projectID); err == nil {
+	if reporterID != nil {
+		if err := h.checkReporter(r.Context(), projectID, *reporterID); err != nil {
+			presenter.Error(w, r, err)
+			return
+		}
+	} else if h.memberRepo != nil {
+		id, err := callerMemberID(r, h.memberRepo, projectID)
+		switch {
+		case err == nil:
 			reporterID = &id
+		case errors.Is(err, projectdom.ErrMemberNotFound):
+		default:
+			presenter.Error(w, r, err)
+			return
 		}
 	}
 
@@ -1142,6 +1168,13 @@ func (h *TaskHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	if req.Description.Set && req.Description.Value != nil {
 		if err := dto.ValidateBlockNoteContent(req.Description.Value); err != nil {
 			presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "description: "+err.Error()))
+			return
+		}
+	}
+
+	if req.ReporterID.Set && req.ReporterID.Value != nil {
+		if err := h.checkReporter(r.Context(), projectID, *req.ReporterID.Value); err != nil {
+			presenter.Error(w, r, err)
 			return
 		}
 	}

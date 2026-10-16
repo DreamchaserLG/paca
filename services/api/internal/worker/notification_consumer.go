@@ -359,6 +359,7 @@ func (c *NotificationConsumer) handle(msg redis.XMessage) {
 					TaskID:       taskID,
 					ProjectID:    projectID,
 					ActorID:      &agentID,
+					Origin:       taskdom.OriginAgent,
 					ActivityType: taskdom.ActivityTypeAgentSessionStarted,
 					Content:      content,
 				}); recErr != nil {

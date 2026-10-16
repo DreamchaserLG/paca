@@ -481,7 +481,7 @@ type AgentConversationResponse struct {
 	TaskID              *uuid.UUID `json:"task_id,omitempty"`
 	ChatSessionID       *uuid.UUID `json:"chat_session_id,omitempty"`
 	TriggeredByMemberID *uuid.UUID `json:"triggered_by_member_id,omitempty"`
-	ActorAccountID      *uuid.UUID `json:"actor_user_id,omitempty"`
+	ActorAccountID      *uuid.UUID `json:"actor_account_id,omitempty"`
 	Status              string     `json:"status"`
 	IterationCount      int        `json:"iteration_count"`
 	InputTokens         int64      `json:"input_tokens"`
@@ -647,7 +647,7 @@ type AgentChatSessionResponse struct {
 	AgentID        uuid.UUID  `json:"agent_id"`
 	ProjectID      *uuid.UUID `json:"project_id,omitempty"`
 	MemberID       *uuid.UUID `json:"member_id,omitempty"`
-	ActorAccountID *uuid.UUID `json:"actor_user_id,omitempty"`
+	ActorAccountID *uuid.UUID `json:"actor_account_id,omitempty"`
 	Title          *string    `json:"title,omitempty"`
 	LastMessageAt  *time.Time `json:"last_message_at,omitempty"`
 	CreatedAt      time.Time  `json:"created_at"`

@@ -1690,6 +1690,7 @@ func (h *AgentHandler) WriteTaskDescriptionWithAI(w http.ResponseWriter, r *http
 			TaskID:       taskID,
 			ProjectID:    projectID,
 			ActorID:      &agentID,
+			Origin:       taskdom.OriginAgent,
 			ActivityType: taskdom.ActivityTypeAgentSessionStarted,
 			Content:      content,
 		})

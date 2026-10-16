@@ -236,12 +236,11 @@ func withPrincipal(r *http.Request, p Principal, claims *domainauth.Claims) *htt
 	}
 	ctx := context.WithValue(r.Context(), claimsContextKey{}, claims)
 	ctx = context.WithValue(ctx, principalContextKey{}, p)
-	var agentID *uuid.UUID
+	origin := events.OriginUser
 	if p.Kind == accountdom.KindAgent {
-		id := p.AccountID
-		agentID = &id
+		origin = events.OriginAgent
 	}
-	ctx = events.WithRequestActor(ctx, p.AccountID, agentID)
+	ctx = events.WithRequestActor(ctx, p.AccountID, origin)
 	return r.WithContext(ctx)
 }
 

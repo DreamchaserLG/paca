@@ -25,12 +25,12 @@ func NewAPIKeyHandler(svc apikeydom.Service) *APIKeyHandler {
 
 // List handles GET /users/me/api-keys.
 func (h *APIKeyHandler) List(w http.ResponseWriter, r *http.Request) {
-	userID, ok := resolveCallerID(w, r)
+	accountID, ok := requireAccountID(w, r)
 	if !ok {
 		return
 	}
 
-	listAPIKeys(w, r, h.svc, userID)
+	listAPIKeys(w, r, h.svc, accountID)
 }
 
 // listAPIKeys writes one cursor page of an account's active keys; shared by
@@ -62,7 +62,7 @@ func listAPIKeys(w http.ResponseWriter, r *http.Request, svc apikeydom.Service, 
 
 // Create handles POST /users/me/api-keys.
 func (h *APIKeyHandler) Create(w http.ResponseWriter, r *http.Request) {
-	userID, ok := resolveCallerID(w, r)
+	accountID, ok := requireAccountID(w, r)
 	if !ok {
 		return
 	}
@@ -73,8 +73,8 @@ func (h *APIKeyHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	in := apikeydom.CreateInput{
-		AccountID: userID,
-		CreatedBy: &userID,
+		AccountID: accountID,
+		CreatedBy: &accountID,
 		Name:      req.Name,
 		ExpiresAt: req.ExpiresAt,
 	}
@@ -94,7 +94,7 @@ func (h *APIKeyHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // Revoke handles DELETE /users/me/api-keys/:keyId.
 func (h *APIKeyHandler) Revoke(w http.ResponseWriter, r *http.Request) {
-	userID, ok := resolveCallerID(w, r)
+	accountID, ok := requireAccountID(w, r)
 	if !ok {
 		return
 	}
@@ -105,25 +105,10 @@ func (h *APIKeyHandler) Revoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.svc.Revoke(r.Context(), userID, keyID); err != nil {
+	if err := h.svc.Revoke(r.Context(), accountID, keyID); err != nil {
 		presenter.Error(w, r, err)
 		return
 	}
 
 	presenter.NoContent(w)
-}
-
-// resolveCallerID extracts the authenticated user's ID from JWT claims.
-func resolveCallerID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
-	claims := middleware.ClaimsFrom(r)
-	if claims == nil {
-		presenter.Error(w, r, apierr.New(apierr.CodeUnauthenticated, "unauthenticated"))
-		return uuid.Nil, false
-	}
-	id, err := uuid.Parse(claims.Subject)
-	if err != nil {
-		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid subject claim"))
-		return uuid.Nil, false
-	}
-	return id, true
 }

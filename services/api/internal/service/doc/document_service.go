@@ -13,9 +13,9 @@ import (
 	projectdom "github.com/Paca-AI/api/internal/domain/project"
 )
 
-// memberLookup resolves an actor to their project membership.
+// memberLookup resolves an account to its project membership.
 type memberLookup interface {
-	FindMemberByActor(ctx context.Context, projectID, actorID uuid.UUID, agentID *uuid.UUID) (*projectdom.ProjectMember, error)
+	FindMember(ctx context.Context, projectID, accountID uuid.UUID) (*projectdom.ProjectMember, error)
 }
 
 // Service is the concrete implementation of docdom.Service.
@@ -347,12 +347,12 @@ func (s *Service) GetSnapshot(ctx context.Context, projectID, id uuid.UUID) (*do
 // --- helpers ----------------------------------------------------------------
 
 // resolveMember converts a user UUID to a project_members.id UUID.
-// Returns nil (no error) when memberRepo is not configured or when userID is nil.
-func (s *Service) resolveMember(ctx context.Context, userID *uuid.UUID, projectID uuid.UUID) *uuid.UUID {
-	if s.memberRepo == nil || userID == nil {
+// Returns nil (no error) when memberRepo is not configured or when accountID is nil.
+func (s *Service) resolveMember(ctx context.Context, accountID *uuid.UUID, projectID uuid.UUID) *uuid.UUID {
+	if s.memberRepo == nil || accountID == nil {
 		return nil
 	}
-	member, err := s.memberRepo.FindMemberByActor(ctx, projectID, *userID, nil)
+	member, err := s.memberRepo.FindMember(ctx, projectID, *accountID)
 	if err != nil {
 		return nil
 	}

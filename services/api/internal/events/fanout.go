@@ -82,11 +82,9 @@ type Event struct {
 	// project feed link back to it. Nil for non-task events.
 	TaskID *uuid.UUID
 
-	// ActorID is the authenticated user's UUID; ActorAgentID the acting
-	// agent's. Both nil for system-driven changes, which is exactly why
-	// Origin exists.
-	ActorID      *uuid.UUID
-	ActorAgentID *uuid.UUID
+	// ActorID is the acting account (user, agent or service account). Nil for
+	// system-driven changes, which is exactly why Origin exists.
+	ActorID *uuid.UUID
 
 	// Origin identifies what caused the event. Empty is normalised to
 	// OriginSystem. It travels as its own stream field so a consumer can
@@ -139,9 +137,6 @@ func (e Event) streamFields() (map[string]any, bool) {
 	}
 	if e.ActorID != nil {
 		fields["actor_id"] = e.ActorID.String()
-	}
-	if e.ActorAgentID != nil {
-		fields["actor_agent_id"] = e.ActorAgentID.String()
 	}
 	return fields, true
 }

@@ -17,10 +17,10 @@ import { formatApiRequestError } from "../utils/index.js";
  * self-service path, deliberately distinct from the human-facing
  * GET /projects/:projectId/conversations/:id and GET /agents/conversations/:id
  * endpoints the frontend uses. Both of those require a human member/actor
- * identity (project_members.id or actor_user_id) to authorize against; a
+ * identity (project_members.id or actor_account_id) to authorize against; a
  * bare agent calling with its own API key has neither (agents aren't
  * project members, and a plain project-scoped chat trigger never carries an
- * actor_user_id), so calling them here always failed — with "member not
+ * actor_account_id), so calling them here always failed — with "member not
  * found" (404) on the project-scoped path, or a mis-scoped lookup on the
  * global path, regardless of which one this tool guessed at based on
  * whether the caller happened to pass a projectId. The /agents/me path

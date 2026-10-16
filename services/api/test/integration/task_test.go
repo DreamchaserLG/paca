@@ -743,18 +743,11 @@ func newFakeTaskActivityRepo() *fakeTaskActivityRepo {
 // resolves, since that identity is never itself a project member.
 type fakeActivityMemberRepo struct{}
 
-func (r *fakeActivityMemberRepo) FindMemberByActor(_ context.Context, _, actorID uuid.UUID, agentID *uuid.UUID) (*projectdom.ProjectMember, error) {
-	if agentID != nil {
-		return &projectdom.ProjectMember{ID: *agentID}, nil
-	}
+func (r *fakeActivityMemberRepo) FindMember(_ context.Context, _, actorID uuid.UUID) (*projectdom.ProjectMember, error) {
 	if actorID == userdom.SystemActorUserID {
 		return nil, projectdom.ErrMemberNotFound
 	}
 	return &projectdom.ProjectMember{ID: actorID}, nil
-}
-
-func (r *fakeActivityMemberRepo) FindMemberByAgent(_ context.Context, _, _ uuid.UUID) (*projectdom.ProjectMember, error) {
-	return nil, projectdom.ErrMemberNotFound
 }
 
 // ---------------------------------------------------------------------------

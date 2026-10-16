@@ -1374,7 +1374,8 @@
 		"common": {
 			"empty": "空",
 			"dash": "—",
-			"unassigned": "未割り当て"
+			"unassigned": "未割り当て",
+			"none": "なし"
 		},
 		"notFound": {
 			"title": "タスクが見つかりません",

@@ -405,7 +405,7 @@ func (s *ViewService) ReorderProjectViews(ctx context.Context, projectID uuid.UU
 // This is narrow (requires a concurrent shared-config edit mid-edit) and
 // self-healing (ClearUserViewConfig/"use team default" recovers it in one
 // click, which didn't exist before this override model).
-func (s *ViewService) SetUserViewConfig(ctx context.Context, projectID, viewID, userID uuid.UUID, cfg sprintdom.ViewConfig) (*sprintdom.SprintView, error) {
+func (s *ViewService) SetUserViewConfig(ctx context.Context, projectID, viewID, accountID uuid.UUID, cfg sprintdom.ViewConfig) (*sprintdom.SprintView, error) {
 	v, err := s.repo.FindViewByID(ctx, viewID)
 	if err != nil {
 		return nil, err
@@ -420,12 +420,12 @@ func (s *ViewService) SetUserViewConfig(ctx context.Context, projectID, viewID, 
 	sparse := diffViewConfig(v.Config, cfg)
 	sharedConfig := v.Config
 	if isZeroViewConfig(sparse) {
-		if err := s.repo.DeleteUserViewConfig(ctx, viewID, userID); err != nil {
+		if err := s.repo.DeleteUserViewConfig(ctx, viewID, accountID); err != nil {
 			return nil, err
 		}
 		v.HasPersonalConfig = false
 	} else {
-		if err := s.repo.UpsertUserViewConfig(ctx, viewID, userID, sparse); err != nil {
+		if err := s.repo.UpsertUserViewConfig(ctx, viewID, accountID, sparse); err != nil {
 			return nil, err
 		}
 		v.HasPersonalConfig = true
@@ -439,7 +439,7 @@ func (s *ViewService) SetUserViewConfig(ctx context.Context, projectID, viewID, 
 // view, verifying it belongs to projectID, and returns the view now carrying
 // the shared default (HasPersonalConfig is false). Deleting a nonexistent
 // override is a harmless no-op, matching UpsertUserViewConfig's idempotence.
-func (s *ViewService) ClearUserViewConfig(ctx context.Context, projectID, viewID, userID uuid.UUID) (*sprintdom.SprintView, error) {
+func (s *ViewService) ClearUserViewConfig(ctx context.Context, projectID, viewID, accountID uuid.UUID) (*sprintdom.SprintView, error) {
 	v, err := s.repo.FindViewByID(ctx, viewID)
 	if err != nil {
 		return nil, err
@@ -447,7 +447,7 @@ func (s *ViewService) ClearUserViewConfig(ctx context.Context, projectID, viewID
 	if v.ProjectID != projectID {
 		return nil, sprintdom.ErrViewNotFound
 	}
-	if err := s.repo.DeleteUserViewConfig(ctx, viewID, userID); err != nil {
+	if err := s.repo.DeleteUserViewConfig(ctx, viewID, accountID); err != nil {
 		return nil, err
 	}
 	return v, nil
@@ -459,8 +459,8 @@ func (s *ViewService) ClearUserViewConfig(ctx context.Context, projectID, viewID
 // empty view list is a no-op. The passed views are mutated in place; callers
 // pass per-request copies (cache hits deserialize fresh objects), so the shared
 // cache is never affected.
-func (s *ViewService) OverlayUserConfigs(ctx context.Context, userID uuid.UUID, views []*sprintdom.SprintView) error {
-	if userID == uuid.Nil || len(views) == 0 {
+func (s *ViewService) OverlayUserConfigs(ctx context.Context, accountID uuid.UUID, views []*sprintdom.SprintView) error {
+	if accountID == uuid.Nil || len(views) == 0 {
 		return nil
 	}
 	ids := make([]uuid.UUID, 0, len(views))
@@ -469,7 +469,7 @@ func (s *ViewService) OverlayUserConfigs(ctx context.Context, userID uuid.UUID, 
 			ids = append(ids, v.ID)
 		}
 	}
-	overrides, err := s.repo.GetUserViewConfigs(ctx, userID, ids)
+	overrides, err := s.repo.GetUserViewConfigs(ctx, accountID, ids)
 	if err != nil {
 		return err
 	}

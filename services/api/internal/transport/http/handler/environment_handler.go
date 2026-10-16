@@ -188,8 +188,7 @@ func (h *EnvironmentHandler) CreateEnvironment(w http.ResponseWriter, r *http.Re
 		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "name is required"))
 		return
 	}
-	claims := middleware.ClaimsFrom(r)
-	callerID, _ := uuid.Parse(claims.Subject)
+	callerID, _ := middleware.ActorIDFromContext(r.Context())
 
 	env, err := h.svc.CreateEnvironment(r.Context(), projectID, environmentdom.CreateEnvironmentInput{
 		Name:          req.Name,
@@ -407,8 +406,7 @@ func (h *EnvironmentHandler) AddFolder(w http.ResponseWriter, r *http.Request) {
 		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "path is required"))
 		return
 	}
-	claims := middleware.ClaimsFrom(r)
-	callerID, _ := uuid.Parse(claims.Subject)
+	callerID, _ := middleware.ActorIDFromContext(r.Context())
 
 	folder, err := h.svc.AddFolder(r.Context(), projectID, environmentID, environmentdom.AddFolderInput{
 		Path:      req.Path,
@@ -523,8 +521,7 @@ func (h *EnvironmentHandler) AddSSHKey(w http.ResponseWriter, r *http.Request) {
 		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "public_key is required"))
 		return
 	}
-	claims := middleware.ClaimsFrom(r)
-	callerID, _ := uuid.Parse(claims.Subject)
+	callerID, _ := middleware.ActorIDFromContext(r.Context())
 
 	key, err := h.svc.AddSSHKey(r.Context(), projectID, environmentID, environmentdom.AddSSHKeyInput{
 		Label:     req.Label,
@@ -632,8 +629,7 @@ func (h *EnvironmentHandler) AddPortForward(w http.ResponseWriter, r *http.Reque
 		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "container_port is required"))
 		return
 	}
-	claims := middleware.ClaimsFrom(r)
-	callerID, _ := uuid.Parse(claims.Subject)
+	callerID, _ := middleware.ActorIDFromContext(r.Context())
 
 	pf, err := h.svc.AddPortForward(r.Context(), projectID, environmentID, environmentdom.AddPortForwardInput{
 		Label:         req.Label,

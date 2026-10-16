@@ -1374,7 +1374,8 @@
 		"common": {
 			"empty": "Vacío",
 			"dash": "—",
-			"unassigned": "Sin asignar"
+			"unassigned": "Sin asignar",
+			"none": "Ninguno"
 		},
 		"notFound": {
 			"title": "Tarea no encontrada",

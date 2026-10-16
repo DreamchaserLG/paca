@@ -374,7 +374,7 @@ test.describe("Project-scoped conversations list", () => {
 				...c,
 				trigger_type: "task_assigned",
 				triggered_by_member_id: null,
-				actor_user_id: null,
+				actor_account_id: null,
 			})),
 		}));
 

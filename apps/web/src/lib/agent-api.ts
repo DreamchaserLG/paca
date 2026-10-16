@@ -257,14 +257,14 @@ export interface AgentConversation {
 	id: string;
 	agent_id: string;
 	// Null for a global-chat conversation (with a global agent from the
-	// home/admin pages) — actor_user_id identifies the human instead.
+	// home/admin pages) — actor_account_id identifies the human instead.
 	project_id?: string | null;
 	trigger_type: ConversationTriggerType;
 	task_id?: string | null;
 	comment_id?: string | null;
 	chat_session_id?: string | null;
 	triggered_by_member_id?: string;
-	actor_user_id?: string | null;
+	actor_account_id?: string | null;
 	status: ConversationStatus;
 	iteration_count: number;
 	input_tokens: number;
@@ -306,11 +306,11 @@ export interface AgentConversationEvent {
 export interface AgentChatSession {
 	id: string;
 	agent_id: string;
-	// project_id/member_id are null for a global chat session; actor_user_id
+	// project_id/member_id are null for a global chat session; actor_account_id
 	// is set instead. Exactly the reverse for a project chat session.
 	project_id?: string | null;
 	member_id?: string | null;
-	actor_user_id?: string | null;
+	actor_account_id?: string | null;
 	title?: string | null;
 	last_message_at?: string | null;
 	created_at: string;

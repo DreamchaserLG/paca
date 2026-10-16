@@ -1374,7 +1374,8 @@
 		"common": {
 			"empty": "空",
 			"dash": "—",
-			"unassigned": "未分配"
+			"unassigned": "未分配",
+			"none": "无"
 		},
 		"notFound": {
 			"title": "未找到任务",

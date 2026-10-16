@@ -433,7 +433,7 @@ func (c *TaskAutoAssignConsumer) processTask(ctx context.Context, projectID, tas
 }
 
 // recordActivity persists the resolved assignment as a task.updated
-// activity attributed to no human/agent actor (ActorID/ActorAgentID both
+// activity attributed to no human/agent actor (ActorID is
 // nil — the activity feed renders this as "System", the same fallback used
 // for automation-applied entries), so it renders through the exact same
 // describeTaskChange("assignee", ...) path a human's assignment does. This

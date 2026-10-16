@@ -33,10 +33,7 @@ var mentionRegexp = regexp.MustCompile(`@([a-zA-Z0-9._-]+)`)
 // project_members.id → users.id via an ID lookup.
 type memberLookup interface {
 	FindMemberByID(ctx context.Context, memberID uuid.UUID) (*projectdom.ProjectMember, error)
-	FindMemberByUserProject(ctx context.Context, userID, projectID uuid.UUID) (*projectdom.ProjectMember, error)
-	// FindMemberByActor resolves an actor to a project member: the agent's
-	// member record when agentID is non-nil, otherwise the human user's.
-	FindMemberByActor(ctx context.Context, projectID, actorID uuid.UUID, agentID *uuid.UUID) (*projectdom.ProjectMember, error)
+	FindMember(ctx context.Context, projectID, accountID uuid.UUID) (*projectdom.ProjectMember, error)
 	ListAllMembers(ctx context.Context, projectID uuid.UUID) ([]*projectdom.ProjectMember, error)
 }
 
@@ -109,7 +106,7 @@ func (s *Svc) WithTitleLookup(taskRepo taskLookup, docRepo docLookup) *Svc {
 	return s
 }
 
-// publishNotificationEvent resolves recipientUserID's name/email and
+// publishNotificationEvent resolves recipientAccountID's name/email and
 // publishes topic to the plugin event stream with recipient/actor names and
 // a direct link to whatever was mentioned/assigned — the same event fires
 // regardless of whether the recipient has an email on file, since paca has
@@ -122,11 +119,11 @@ func (s *Svc) WithTitleLookup(taskRepo taskLookup, docRepo docLookup) *Svc {
 // entityTitle is the title of the task or document the notification is about
 // (resolved via WithTitleLookup); it may be empty when no lookup is configured
 // or the entity can't be loaded, and a subscribing plugin must tolerate that.
-func (s *Svc) publishNotificationEvent(ctx context.Context, topic string, recipientUserID uuid.UUID, actorName, linkURL, entityTitle string) {
+func (s *Svc) publishNotificationEvent(ctx context.Context, topic string, recipientAccountID uuid.UUID, actorName, linkURL, entityTitle string) {
 	if s.publisher == nil || s.userRepo == nil {
 		return
 	}
-	recipient, err := s.userRepo.FindByID(ctx, recipientUserID)
+	recipient, err := s.userRepo.FindByID(ctx, recipientAccountID)
 	if err != nil {
 		return
 	}
@@ -136,12 +133,12 @@ func (s *Svc) publishNotificationEvent(ctx context.Context, topic string, recipi
 	}
 
 	payload := map[string]any{
-		"recipient_user_id": recipientUserID,
-		"recipient_email":   recipientEmail,
-		"recipient_name":    recipient.FullName,
-		"actor_name":        actorName,
-		"link_url":          linkURL,
-		"entity_title":      entityTitle,
+		"recipient_account_id": recipientAccountID,
+		"recipient_email":      recipientEmail,
+		"recipient_name":       recipient.FullName,
+		"actor_name":           actorName,
+		"link_url":             linkURL,
+		"entity_title":         entityTitle,
 	}
 	_ = s.publisher.Append(ctx, events.StreamPluginEvents, topic, payload)
 }
@@ -209,26 +206,25 @@ func (s *Svc) NotifyAssigned(ctx context.Context, in notificationdom.NotifyAssig
 	}
 
 	// Skip self-assignment (actor is the same user as the new assignee).
-	if assigneeMember.UserID == in.ActorUserID {
+	if assigneeMember.UserID == in.ActorID {
 		return nil
 	}
 
-	// Resolve the actor's member ID for attribution. When ActorAgentID is
-	// set (the assignment was made by an AI agent), this resolves the
-	// agent's own member record so the notification shows the agent's name
-	// and avatar instead of failing to find a human member.
-	actorMember, err := s.memberRepo.FindMemberByActor(ctx, in.ProjectID, in.ActorUserID, in.ActorAgentID)
+	// Resolve the actor's member ID for attribution. The actor is an account,
+	// so an assignment made by an agent resolves to the agent's own member
+	// record and shows the agent's name and avatar.
+	actorMember, err := s.memberRepo.FindMember(ctx, in.ProjectID, in.ActorID)
 	if err != nil {
 		// Actor not found in project; still create the notification without actor attribution.
 		actorMember = nil
 	}
 
 	n := &notificationdom.Notification{
-		ID:              uuid.New(),
-		RecipientUserID: assigneeMember.UserID,
-		Type:            notificationdom.NotificationTypeAssigned,
-		ProjectID:       in.ProjectID,
-		CreatedAt:       time.Now(),
+		ID:                 uuid.New(),
+		RecipientAccountID: assigneeMember.UserID,
+		Type:               notificationdom.NotificationTypeAssigned,
+		ProjectID:          in.ProjectID,
+		CreatedAt:          time.Now(),
 	}
 	if actorMember != nil {
 		id := actorMember.ID
@@ -299,7 +295,7 @@ func (s *Svc) NotifyMentioned(ctx context.Context, in notificationdom.NotifyMent
 	seen := make(map[uuid.UUID]bool) // avoid duplicate notifications
 	for _, mentionedUserID := range mentionedUserIDs {
 		// Skip self-mention.
-		if mentionedUserID == in.ActorUserID {
+		if mentionedUserID == in.ActorID {
 			continue
 		}
 		// Skip duplicate (same user mentioned multiple times in one comment).
@@ -309,20 +305,20 @@ func (s *Svc) NotifyMentioned(ctx context.Context, in notificationdom.NotifyMent
 		seen[mentionedUserID] = true
 
 		// Resolve the mentioned user's member ID for the notification
-		_, err := s.memberRepo.FindMemberByUserProject(ctx, mentionedUserID, in.ProjectID)
+		_, err := s.memberRepo.FindMember(ctx, in.ProjectID, mentionedUserID)
 		if err != nil {
 			continue // user not in project, skip
 		}
 
 		taskID := in.TaskID
 		n := &notificationdom.Notification{
-			ID:              uuid.New(),
-			RecipientUserID: mentionedUserID,
-			ActorMemberID:   &actorID,
-			Type:            notificationdom.NotificationTypeMentioned,
-			TaskID:          &taskID,
-			ProjectID:       in.ProjectID,
-			CreatedAt:       time.Now(),
+			ID:                 uuid.New(),
+			RecipientAccountID: mentionedUserID,
+			ActorMemberID:      &actorID,
+			Type:               notificationdom.NotificationTypeMentioned,
+			TaskID:             &taskID,
+			ProjectID:          in.ProjectID,
+			CreatedAt:          time.Now(),
 		}
 		if err := s.repo.Create(ctx, n); err != nil {
 			continue // best-effort; don't abort for one failure
@@ -346,19 +342,19 @@ func (s *Svc) NotifyMentioned(ctx context.Context, in notificationdom.NotifyMent
 // BlockNote content (mentionpkg.ExtractTeamMentionsFromBlocks reads it
 // verbatim from a teamMention block's "id" prop), not from a server-side
 // picker restricted to project members — so, exactly like NotifyMentioned's
-// FindMemberByUserProject check, membership must be re-verified here before
+// FindMember check, membership must be re-verified here before
 // resolving and publishing the mentioned user's name/email; otherwise any
 // editor could name an arbitrary user ID to leak that user's identity to a
 // subscribing plugin (and trigger it to email them) despite them having no
 // relationship to this project.
-func (s *Svc) NotifyDocMentioned(ctx context.Context, mentionedUserID, actorUserID uuid.UUID, projectID, docID uuid.UUID) {
-	if mentionedUserID == actorUserID {
+func (s *Svc) NotifyDocMentioned(ctx context.Context, mentionedUserID, actorID uuid.UUID, projectID, docID uuid.UUID) {
+	if mentionedUserID == actorID {
 		return
 	}
-	if _, err := s.memberRepo.FindMemberByUserProject(ctx, mentionedUserID, projectID); err != nil {
+	if _, err := s.memberRepo.FindMember(ctx, projectID, mentionedUserID); err != nil {
 		return // mentioned user isn't a member of this project; nothing to notify
 	}
-	actorName := s.resolveUserName(ctx, actorUserID)
+	actorName := s.resolveUserName(ctx, actorID)
 	s.publishNotificationEvent(ctx, events.TopicNotificationDocMentioned, mentionedUserID, actorName, s.docURL(projectID, docID), s.docTitle(ctx, docID))
 }
 
@@ -368,14 +364,14 @@ func (s *Svc) NotifyDocMentioned(ctx context.Context, mentionedUserID, actorUser
 // NotifyMentioned already handles). See NotifyDocMentioned's doc comment for
 // why this doesn't create an in-app row and why project membership must be
 // re-verified against the client-supplied mention ID.
-func (s *Svc) NotifyTaskDescriptionMentioned(ctx context.Context, mentionedUserID, actorUserID uuid.UUID, projectID, taskID uuid.UUID) {
-	if mentionedUserID == actorUserID {
+func (s *Svc) NotifyTaskDescriptionMentioned(ctx context.Context, mentionedUserID, actorID uuid.UUID, projectID, taskID uuid.UUID) {
+	if mentionedUserID == actorID {
 		return
 	}
-	if _, err := s.memberRepo.FindMemberByUserProject(ctx, mentionedUserID, projectID); err != nil {
+	if _, err := s.memberRepo.FindMember(ctx, projectID, mentionedUserID); err != nil {
 		return // mentioned user isn't a member of this project; nothing to notify
 	}
-	actorName := s.resolveUserName(ctx, actorUserID)
+	actorName := s.resolveUserName(ctx, actorID)
 	s.publishNotificationEvent(ctx, events.TopicNotificationTaskDescriptionMentioned, mentionedUserID, actorName, s.taskURL(projectID, taskID), s.taskTitle(ctx, taskID))
 }
 
@@ -416,18 +412,18 @@ func extractMentions(text string) map[string]struct{} {
 
 // publishCreated publishes a notification.created event to the realtime channel.
 // Errors are silently swallowed so messaging failures don't block the caller.
-func (s *Svc) publishCreated(ctx context.Context, n *notificationdom.Notification, recipientUserID uuid.UUID) {
+func (s *Svc) publishCreated(ctx context.Context, n *notificationdom.Notification, recipientAccountID uuid.UUID) {
 	if s.publisher == nil {
 		return
 	}
 	payload := map[string]any{
-		"id":                n.ID,
-		"recipient_user_id": recipientUserID,
-		"actor_member_id":   n.ActorMemberID,
-		"type":              string(n.Type),
-		"task_id":           n.TaskID,
-		"project_id":        n.ProjectID,
-		"created_at":        n.CreatedAt,
+		"id":                   n.ID,
+		"recipient_account_id": recipientAccountID,
+		"actor_member_id":      n.ActorMemberID,
+		"type":                 string(n.Type),
+		"task_id":              n.TaskID,
+		"project_id":           n.ProjectID,
+		"created_at":           n.CreatedAt,
 	}
 	_ = s.publisher.Publish(ctx, events.ChannelRealtime, map[string]any{
 		"type":    events.TopicNotificationCreated,

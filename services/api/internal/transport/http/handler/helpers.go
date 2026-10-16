@@ -9,7 +9,51 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Paca-AI/api/internal/apierr"
+	projectdom "github.com/Paca-AI/api/internal/domain/project"
+	"github.com/Paca-AI/api/internal/transport/http/middleware"
+	"github.com/Paca-AI/api/internal/transport/http/presenter"
 )
+
+// callerMemberID maps the authenticated caller to its project_members.id in
+// projectID. Columns such as tasks.reporter_id and
+// agent_conversations.triggered_by_member_id have a foreign key to
+// project_members(id), so the account id itself must not be stored there.
+func callerMemberID(r *http.Request, repo projectdom.MemberRepository, projectID uuid.UUID) (uuid.UUID, error) {
+	if repo == nil {
+		return uuid.Nil, apierr.New(apierr.CodeInternalError, "member resolver not available")
+	}
+	accountID, ok := middleware.ActorIDFromContext(r.Context())
+	if !ok {
+		return uuid.Nil, apierr.New(apierr.CodeUnauthenticated, "unauthenticated")
+	}
+	member, err := repo.FindMember(r.Context(), projectID, accountID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return member.ID, nil
+}
+
+// callerAccountID returns the id of the account making the request, for
+// handlers that return their own error rather than writing the response.
+func callerAccountID(r *http.Request) (uuid.UUID, error) {
+	id, ok := middleware.ActorIDFromContext(r.Context())
+	if !ok {
+		return uuid.Nil, apierr.New(apierr.CodeUnauthenticated, "unauthenticated")
+	}
+	return id, nil
+}
+
+// requireAccountID returns the id of the account making the request (the
+// user, agent or service account behind the session or API key), writing a
+// 401 and returning ok=false when the request is unauthenticated.
+func requireAccountID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	id, ok := middleware.ActorIDFromContext(r.Context())
+	if !ok {
+		presenter.Error(w, r, apierr.New(apierr.CodeUnauthenticated, "unauthenticated"))
+		return uuid.Nil, false
+	}
+	return id, true
+}
 
 // defaultQuery returns the URL query parameter named key, or fallback if missing/empty.
 func defaultQuery(r *http.Request, key, fallback string) string {

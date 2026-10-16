@@ -1374,7 +1374,8 @@
 		"common": {
 			"empty": "Empty",
 			"dash": "—",
-			"unassigned": "Unassigned"
+			"unassigned": "Unassigned",
+			"none": "None"
 		},
 		"notFound": {
 			"title": "Task not found",

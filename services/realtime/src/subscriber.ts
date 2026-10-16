@@ -19,7 +19,7 @@
 //                          no project_id (a global agent's home-page / admin
 //                          chat, see services/ai-agent's
 //                          core.streams.publish_realtime) —
-//                          user:<actorUserId>:agent-chat instead.
+//                          user:<actorAccountId>:agent-chat instead.
 //
 // Sockets are pre-placed in the correct rooms at join time based on their
 // project permissions (project:* rooms) or simply their own identity
@@ -28,7 +28,7 @@
 // here — if a socket is in the room it is authorised to receive the event.
 //
 // Events without a project_id and (for agent.* events) without an
-// actor_user_id, or with an unrecognised type prefix, are dropped.
+// actor_account_id, or with an unrecognised type prefix, are dropped.
 
 import Redis from "ioredis";
 import type { Logger } from "pino";
@@ -113,30 +113,30 @@ function routeEvent(io: Server, msg: RealtimeMessage, logger: Logger): void {
 
 	// notification.* events are routed to a user-specific room.
 	if (type.startsWith("notification.")) {
-		const recipientUserId = payload.recipient_user_id;
-		if (typeof recipientUserId !== "string" || !recipientUserId) {
+		const recipientAccountId = payload.recipient_account_id;
+		if (typeof recipientAccountId !== "string" || !recipientAccountId) {
 			logger.debug(
 				{ type },
-				"notification event has no recipient_user_id — skipped",
+				"notification event has no recipient_account_id — skipped",
 			);
 			return;
 		}
-		const room = `user:${recipientUserId}:notifications`;
+		const room = `user:${recipientAccountId}:notifications`;
 		logger.debug({ type, room }, "routing notification to user room");
 		io.to(room).emit("notification", { type, payload });
 		return;
 	}
 
-	// An owner-private agent.* event carries actor_user_id (the owning user)
+	// An owner-private agent.* event carries actor_account_id (the owning user)
 	// and routes to that user's own per-user room — this covers both global
 	// chat and a project's owner-private chat conversations. Checked before
 	// project_id so a private conversation is never also broadcast into the
-	// project room; a project-shared conversation has no actor_user_id and
+	// project room; a project-shared conversation has no actor_account_id and
 	// falls through to the project-scoped branch below.
 	if (type.startsWith("agent.")) {
-		const actorUserId = payload.actor_user_id;
-		if (typeof actorUserId === "string" && actorUserId) {
-			const room = agentChatRoomName(actorUserId);
+		const actorAccountId = payload.actor_account_id;
+		if (typeof actorAccountId === "string" && actorAccountId) {
+			const room = agentChatRoomName(actorAccountId);
 			logger.debug(
 				{ type, room },
 				"routing owner-private agent event to user room",

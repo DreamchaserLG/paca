@@ -39,7 +39,7 @@ var testKind = activitysvc.CommentKind{
 // membersByUser resolves each user to a member with the same ID.
 type membersByUser struct{}
 
-func (membersByUser) FindMemberByActor(_ context.Context, _, actorID uuid.UUID, _ *uuid.UUID) (*projectdom.ProjectMember, error) {
+func (membersByUser) FindMember(_ context.Context, _, actorID uuid.UUID) (*projectdom.ProjectMember, error) {
 	return &projectdom.ProjectMember{ID: actorID}, nil
 }
 
@@ -106,10 +106,10 @@ func TestUpdateComment_OnlyAuthor(t *testing.T) {
 	projectID, author := uuid.New(), uuid.New()
 	a := addComment(t, svc, projectID, author)
 
-	if _, err := svc.UpdateComment(context.Background(), testKind, a.ID, projectID, uuid.New(), nil, content); !errors.Is(err, errForbidden) {
+	if _, err := svc.UpdateComment(context.Background(), testKind, a.ID, projectID, uuid.New(), content); !errors.Is(err, errForbidden) {
 		t.Fatalf("expected forbidden for a non-author, got %v", err)
 	}
-	if _, err := svc.UpdateComment(context.Background(), testKind, a.ID, projectID, author, nil, content); err != nil {
+	if _, err := svc.UpdateComment(context.Background(), testKind, a.ID, projectID, author, content); err != nil {
 		t.Fatalf("author update failed: %v", err)
 	}
 }
@@ -119,15 +119,15 @@ func TestComment_OtherProjectOrKindIsNotFound(t *testing.T) {
 	projectID, author := uuid.New(), uuid.New()
 	a := addComment(t, svc, projectID, author)
 
-	if err := svc.DeleteComment(context.Background(), testKind, a.ID, uuid.New(), author, nil); !errors.Is(err, errNotFound) {
+	if err := svc.DeleteComment(context.Background(), testKind, a.ID, uuid.New(), author); !errors.Is(err, errNotFound) {
 		t.Errorf("cross-project delete: expected not found, got %v", err)
 	}
 	docKind := testKind
 	docKind.EntityType = events.EntityDoc
-	if err := svc.DeleteComment(context.Background(), docKind, a.ID, projectID, author, nil); !errors.Is(err, errNotFound) {
+	if err := svc.DeleteComment(context.Background(), docKind, a.ID, projectID, author); !errors.Is(err, errNotFound) {
 		t.Errorf("a task comment addressed as a doc comment: expected not found, got %v", err)
 	}
-	if err := svc.DeleteComment(context.Background(), testKind, uuid.New(), projectID, author, nil); !errors.Is(err, errNotFound) {
+	if err := svc.DeleteComment(context.Background(), testKind, uuid.New(), projectID, author); !errors.Is(err, errNotFound) {
 		t.Errorf("unknown id: expected not found, got %v", err)
 	}
 }
@@ -137,13 +137,13 @@ func TestDeleteComment_ThenEditIsNotFound(t *testing.T) {
 	projectID, author := uuid.New(), uuid.New()
 	a := addComment(t, svc, projectID, author)
 
-	if err := svc.DeleteComment(context.Background(), testKind, a.ID, projectID, author, nil); err != nil {
+	if err := svc.DeleteComment(context.Background(), testKind, a.ID, projectID, author); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
 	if items, _, _ := repo.ListForEntity(context.Background(), "task", a.EntityIDOrNil(), nil, 10); len(items) != 0 {
 		t.Errorf("deleted comment still on the timeline")
 	}
-	if _, err := svc.UpdateComment(context.Background(), testKind, a.ID, projectID, author, nil, content); !errors.Is(err, errNotFound) {
+	if _, err := svc.UpdateComment(context.Background(), testKind, a.ID, projectID, author, content); !errors.Is(err, errNotFound) {
 		t.Errorf("editing a deleted comment: expected not found, got %v", err)
 	}
 }
@@ -156,7 +156,7 @@ func TestNotAComment(t *testing.T) {
 	_ = repo.Create(context.Background(), &activitydom.Activity{
 		ID: id, ProjectID: projectID, EntityType: "task", EntityID: &entityID, ActivityType: "task.created",
 	})
-	if err := svc.DeleteComment(context.Background(), testKind, id, projectID, uuid.New(), nil); !errors.Is(err, errNotAComment) {
+	if err := svc.DeleteComment(context.Background(), testKind, id, projectID, uuid.New()); !errors.Is(err, errNotAComment) {
 		t.Errorf("expected not-a-comment, got %v", err)
 	}
 }

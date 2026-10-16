@@ -10,7 +10,6 @@ import (
 	"github.com/Paca-AI/api/internal/apierr"
 	exportdom "github.com/Paca-AI/api/internal/domain/export"
 	"github.com/Paca-AI/api/internal/transport/http/dto"
-	"github.com/Paca-AI/api/internal/transport/http/middleware"
 	"github.com/Paca-AI/api/internal/transport/http/presenter"
 )
 
@@ -35,18 +34,12 @@ func (h *ProjectExportHandler) RequestExport(w http.ResponseWriter, r *http.Requ
 		presenter.Error(w, r, err)
 		return
 	}
-	claims := middleware.ClaimsFrom(r)
-	if claims == nil {
-		presenter.Error(w, r, apierr.New(apierr.CodeUnauthenticated, "authentication required"))
-		return
-	}
-	userID, err := uuid.Parse(claims.Subject)
-	if err != nil {
-		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid subject claim"))
+	accountID, ok := requireAccountID(w, r)
+	if !ok {
 		return
 	}
 
-	e, err := h.svc.RequestExport(r.Context(), projectID, userID)
+	e, err := h.svc.RequestExport(r.Context(), projectID, accountID)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return

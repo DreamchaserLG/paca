@@ -83,19 +83,15 @@ func (s *ActivitySvc) RecordActivity(ctx context.Context, in docdom.RecordActivi
 		a.Content = json.RawMessage("{}")
 	}
 	payload := activitysvc.EntityPayload(a, docComments.IDKey)
-	if in.ActorAgentID != nil {
-		payload["actor_agent_id"] = in.ActorAgentID.String()
-	}
 	s.act.Record(ctx, activitysvc.Entry{
-		ProjectID:    in.ProjectID,
-		EntityType:   events.EntityDoc,
-		EntityID:     in.DocumentID,
-		Topic:        a.ActivityType,
-		Payload:      payload,
-		ActorID:      in.ActorID,
-		ActorAgentID: in.ActorAgentID,
-		Origin:       activitysvc.OriginFor("", in.ActorID, in.ActorAgentID),
-		Plugins:      true,
+		ProjectID:  in.ProjectID,
+		EntityType: events.EntityDoc,
+		EntityID:   in.DocumentID,
+		Topic:      a.ActivityType,
+		Payload:    payload,
+		ActorID:    in.ActorID,
+		Origin:     activitysvc.OriginFor(ctx, "", in.ActorID),
+		Plugins:    true,
 	})
 	return nil
 }
@@ -125,7 +121,6 @@ func (s *ActivitySvc) AddComment(ctx context.Context, in docdom.AddCommentInput)
 		ProjectID: in.ProjectID,
 		EntityID:  in.DocumentID,
 		ActorID:   in.ActorID,
-		AgentID:   in.AgentID,
 		Content:   in.Content,
 	})
 	if err != nil {
@@ -135,8 +130,8 @@ func (s *ActivitySvc) AddComment(ctx context.Context, in docdom.AddCommentInput)
 }
 
 // UpdateComment edits the content of an existing comment.
-func (s *ActivitySvc) UpdateComment(ctx context.Context, id uuid.UUID, projectID uuid.UUID, actorID uuid.UUID, agentID *uuid.UUID, content json.RawMessage) (*docdom.Activity, error) {
-	a, err := s.act.UpdateComment(ctx, docComments, id, projectID, actorID, agentID, content)
+func (s *ActivitySvc) UpdateComment(ctx context.Context, id uuid.UUID, projectID uuid.UUID, actorID uuid.UUID, content json.RawMessage) (*docdom.Activity, error) {
+	a, err := s.act.UpdateComment(ctx, docComments, id, projectID, actorID, content)
 	if err != nil {
 		return nil, err
 	}
@@ -144,8 +139,8 @@ func (s *ActivitySvc) UpdateComment(ctx context.Context, id uuid.UUID, projectID
 }
 
 // DeleteComment soft-deletes a comment.
-func (s *ActivitySvc) DeleteComment(ctx context.Context, id uuid.UUID, projectID uuid.UUID, actorID uuid.UUID, agentID *uuid.UUID) error {
-	return s.act.DeleteComment(ctx, docComments, id, projectID, actorID, agentID)
+func (s *ActivitySvc) DeleteComment(ctx context.Context, id uuid.UUID, projectID uuid.UUID, actorID uuid.UUID) error {
+	return s.act.DeleteComment(ctx, docComments, id, projectID, actorID)
 }
 
 // toDocActivity maps a log entry to the doc timeline's shape.

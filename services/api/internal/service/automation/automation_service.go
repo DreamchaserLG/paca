@@ -34,9 +34,7 @@ type taskLookup interface {
 // memberLookup is the minimal project-domain surface the automation service needs.
 type memberLookup interface {
 	FindMemberByID(ctx context.Context, memberID uuid.UUID) (*projectdom.ProjectMember, error)
-	// FindMemberByActor resolves an authenticated actor (user, or agent when
-	// agentID is non-nil) to their project_members.id.
-	FindMemberByActor(ctx context.Context, projectID, actorID uuid.UUID, agentID *uuid.UUID) (*projectdom.ProjectMember, error)
+	FindMember(ctx context.Context, projectID, accountID uuid.UUID) (*projectdom.ProjectMember, error)
 }
 
 // Service implements automationdom.Service.
@@ -125,7 +123,7 @@ func (s *Service) CreateAutomation(ctx context.Context, in automationdom.CreateA
 		Name:        name,
 		Description: strings.TrimSpace(in.Description),
 		Status:      automationdom.StatusInactive,
-		CreatedBy:   s.resolveMember(ctx, in.CreatedBy, in.AgentID, in.ProjectID),
+		CreatedBy:   s.resolveMember(ctx, in.CreatedBy, in.ProjectID),
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
@@ -572,7 +570,7 @@ func (s *Service) GenerateWebhookToken(ctx context.Context, projectID, automatio
 		NodeID:       nodeID,
 		AutomationID: automationID,
 		TokenPrefix:  rawHex[:webhookTokenDisplayLen],
-		CreatedBy:    s.resolveMember(ctx, actor.UserID, actor.AgentID, projectID),
+		CreatedBy:    s.resolveMember(ctx, actor.UserID, projectID),
 	}
 	created, err := s.repo.CreateOrRotateWebhookToken(ctx, tok, tokenHash)
 	if err != nil {
@@ -670,14 +668,14 @@ func (s *Service) findOwnedRun(ctx context.Context, automationID, runID uuid.UUI
 }
 
 // resolveMember resolves an authenticated actor to their project_members.id
-// for storage in Automation.CreatedBy. Returns nil (no error) when userID is
+// for storage in Automation.CreatedBy. Returns nil (no error) when accountID is
 // nil or the actor can't be resolved as a member of this project —
 // CreatedBy is purely informational.
-func (s *Service) resolveMember(ctx context.Context, userID, agentID *uuid.UUID, projectID uuid.UUID) *uuid.UUID {
-	if userID == nil {
+func (s *Service) resolveMember(ctx context.Context, accountID *uuid.UUID, projectID uuid.UUID) *uuid.UUID {
+	if accountID == nil {
 		return nil
 	}
-	member, err := s.memberRepo.FindMemberByActor(ctx, projectID, *userID, agentID)
+	member, err := s.memberRepo.FindMember(ctx, projectID, *accountID)
 	if err != nil {
 		return nil
 	}

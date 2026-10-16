@@ -18,7 +18,7 @@ Interactive diagram: [https://dbdiagram.io/d/Paca-69c212ae78c6c4bc7a4fc190](http
 | `000008_add_ai_agents.sql` | Adds AI agent tables: `agents`, `agent_mcp_servers`, `agent_skills`, `agent_chat_sessions`, `agent_conversations`, `agent_conversation_events`. Modifies `project_members` to add `member_type` and `agent_id` (makes `user_id` nullable) for agent membership support. |
 | `000017_add_agent_environment_variables.sql` | Adds `agent_environment_variables` (per-agent secret env vars, encrypted at rest). |
 | `000022_add_acp_agents.sql` | Adds ACP (Agent Client Protocol) agent support to `agents`: `agent_type` ('llm' \| 'acp'), `acp_provider`, `acp_command`, `acp_bridge_token_hash` — a second agent "shape" that delegates to a local coding CLI over a bridge daemon instead of running an LLM loop in-cluster. |
-| `000031_add_global_agents.sql` | Adds "global" agents — an agent with no owning project (`agents.project_id` nullable, `agent_scope` discriminator, `global_role_id`) that is instead attached to zero or more projects via ordinary `project_members` rows, the same mechanism used to add a human member. Adds `actor_user_id` to `agent_chat_sessions` and `agent_conversations` for chat sessions/conversations started from the home page or admin pages, outside any project. See the comment above the `agents` table below. |
+| `000031_add_global_agents.sql` | Adds "global" agents — an agent with no owning project (`agents.project_id` nullable, `agent_scope` discriminator, `global_role_id`) that is instead attached to zero or more projects via ordinary `project_members` rows, the same mechanism used to add a human member. Adds `actor_account_id` to `agent_chat_sessions` and `agent_conversations` for chat sessions/conversations started from the home page or admin pages, outside any project. See the comment above the `agents` table below. |
 | `000059_add_default_global_role.sql` | Adds `global_roles.is_default` (one default at a time, enforced by the partial unique index `uq_global_roles_one_default`) and marks `USER` the default where none is set. The API used to hardcode the role *named* `USER` for every new account; the default is data now, changed with `PUT /admin/global-roles/:roleId/set-default`. |
 | `000061_unify_activities.sql` | Creates the single `activities` table for every entity in a project (task, doc, sprint, view, automation, environment, member) with an `origin` column, copies all `task_activities` and `doc_activities` rows into it under their original IDs, then drops both old tables. |
 | `000064_iam_roles.sql` | IAM authorization. Creates `roles` (a JSON `policy` per role; platform roles have `project_id` NULL, project-owned roles carry their project) and `role_attachments` (role to user/agent, platform-wide or scoped to one project), then converts the legacy model in one transaction and self-checks it before commit: `global_roles` and `project_roles` become roles, `users.role_id`, `agents.global_role_id` and `project_members.project_role_id` become attachments, while restricted agents/environments (`access_mode = 'restricted'`) are deliberately **not** converted and become open until an admin adds `Deny` roles. The legacy tables are **not** dropped here. See [authorization](authorization.md). |
@@ -43,7 +43,7 @@ Migration `000066` gives every actor (user, agent, service account) one `account
 | Table | Holds |
 |---|---|
 | `accounts` | `id` (reuses the existing `users.id` / `agents.id`, so no foreign key or `role_attachments.principal_id` was rewritten), `kind` (`user`, `agent`, `service_account`), `name`, `description`, avatar keys, `created_by`, timestamps and `deleted_at`, the **only** soft-delete flag. No `status` column: revoking keys and deleting the account already cover it. |
-| `users` | Login data only: `username`, `email`, `password_hash`, `must_change_password`. `user_identities`, `password_set_tokens`, `user_view_configs`, `notifications.recipient_user_id` and `agent_chat_sessions.actor_user_id` stay on `users(id)`: they only make sense for humans. |
+| `users` | Login data only: `username`, `email`, `password_hash`, `must_change_password`. `user_identities` and `password_set_tokens` stay on `users(id)`: they only make sense for people who log in. Everything that names an actor or recipient (`notifications.recipient_account_id`, `agent_*.actor_account_id`, `user_view_configs.account_id`) references `accounts(id)` (migration `000068`). |
 | `agents` | `project_id` (NULL = global agent), `handle` and all agent configuration, including `acp_bridge_token_hash` (a bridge-to-API transport secret, not an account credential). |
 | service accounts | No extension table: they need nothing beyond `accounts` plus `api_keys` and `role_attachments`. |
 | `api_keys` | `account_id` (was `user_id`) and `created_by` (who minted it; the admin for a service account). An agent's MCP key is an ordinary `api_keys` row (`agents.mcp_api_key_hash` was migrated into it, named `MCP key`). |
@@ -426,7 +426,7 @@ Table plugin_extension_settings {
 // --- NOTIFICATIONS ---
 Table notifications {
   id                uuid [primary key]
-  recipient_user_id uuid [not null, ref: > users.id, note: 'The user who receives the notification']
+  recipient_account_id uuid [not null, ref: > accounts.id, note: 'The account that receives the notification']
   actor_member_id   uuid [null, ref: > project_members.id, note: 'The project member who triggered the notification']
   type              varchar [not null, note: 'assigned | mentioned']
   task_id           uuid [null, ref: > tasks.id]
@@ -459,7 +459,7 @@ Table api_keys {
 //   'global'             — project_id is NULL. Chats on the home page and
 //                          admin pages (no project context — see
 //                          agent_chat_sessions/agent_conversations'
-//                          actor_user_id below) and is attached to projects
+//                          actor_account_id below) and is attached to projects
 //                          only indirectly, by being added as an ordinary
 //                          project_members row — the exact same "invite a
 //                          member" action used for a human, just with
@@ -557,37 +557,37 @@ Table agent_skills {
   }
 }
 
-// project_id/member_id (a project chat) and actor_user_id (a global chat)
+// project_id/member_id (a project chat) and actor_account_id (a global chat)
 // are mutually exclusive — ck_agent_chat_sessions_actor (000031) requires
-// exactly one side set: project_id+member_id both NOT NULL and actor_user_id
-// NULL, or project_id+member_id both NULL and actor_user_id NOT NULL.
+// exactly one side set: project_id+member_id both NOT NULL and actor_account_id
+// NULL, or project_id+member_id both NULL and actor_account_id NOT NULL.
 Table agent_chat_sessions {
   id uuid [primary key]
   agent_id uuid [not null, ref: > agents.id]
-  project_id uuid [null, ref: > projects.id, note: 'NULL for a global chat session (see actor_user_id)']
+  project_id uuid [null, ref: > projects.id, note: 'NULL for a global chat session (see actor_account_id)']
   member_id uuid [null, ref: > project_members.id, note: 'The human member chatting with a project agent. NULL for a global chat session.']
-  actor_user_id uuid [null, ref: > users.id, note: 'The human chatting with a global agent from the home/admin pages, identified directly (no project_members row need exist). NULL for a project chat session. ON DELETE RESTRICT.']
+  actor_account_id uuid [null, ref: > accounts.id, note: 'The account chatting with a global agent from the home/admin pages, identified directly (no project_members row need exist). NULL for a project chat session. ON DELETE RESTRICT.']
   title varchar [null]
   last_message_at timestamp [null]
   created_at timestamp
   updated_at timestamp
 }
 
-// triggered_by_member_id and actor_user_id are never both set
+// triggered_by_member_id and actor_account_id are never both set
 // (ck_agent_conversations_actor, 000031) — three distinguishable actor
 // states: a project-scoped human member (triggered_by_member_id set), the
 // automation-workflow engine (both NULL, unchanged since 000018), or a human
-// chatting with a global agent (actor_user_id set, project_id NULL).
+// chatting with a global agent (actor_account_id set, project_id NULL).
 Table agent_conversations {
   id uuid [primary key, note: 'Also used as the ACP session/conversation identifier agent-runner passes to Goose']
   agent_id uuid [not null, ref: > agents.id]
-  project_id uuid [null, ref: > projects.id, note: 'NULL for a global-chat conversation (project_id IS NULL + actor_user_id IS NOT NULL)']
+  project_id uuid [null, ref: > projects.id, note: 'NULL for a global-chat conversation (project_id IS NULL + actor_account_id IS NOT NULL)']
   trigger_type varchar [not null, note: 'task_assigned | comment_mention | chat_message | description_write. Global chat reuses chat_message — project_id IS NULL is what distinguishes it.']
   task_id uuid [null, ref: > tasks.id]
   comment_id uuid [null]
   chat_session_id uuid [null, ref: > agent_chat_sessions.id]
-  triggered_by_member_id uuid [null, ref: > project_members.id, note: 'NULL for the automation engine or a global-chat conversation (see actor_user_id)']
-  actor_user_id uuid [null, ref: > users.id, note: 'Set only for a global-chat conversation. ON DELETE RESTRICT.']
+  triggered_by_member_id uuid [null, ref: > project_members.id, note: 'NULL for the automation engine or a global-chat conversation (see actor_account_id)']
+  actor_account_id uuid [null, ref: > accounts.id, note: 'Set only for a global-chat conversation. ON DELETE RESTRICT.']
   status varchar [not null, default: 'queued', note: 'queued | running | paused | finished | failed | stopped']
   container_id varchar [null]
   host_port integer [null]

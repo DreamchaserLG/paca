@@ -101,10 +101,10 @@ func (r *ConversationRepository) GetConversationAgentType(ctx context.Context, c
 }
 
 // GetConversationRealtimeContext mirrors get_conversation_realtime_context:
-// returns (project_id, owner_user_id) for routing a realtime event about
-// conversationID. owner_user_id is the user whose private room should receive
-// the event — the chat-session owner's users.id for a project chat (resolved
-// chat_session_id → member_id → user_id), or actor_user_id for a global chat;
+// returns (project_id, owner_account_id) for routing a realtime event about
+// conversationID. owner_account_id is the account whose private room should receive
+// the event — the chat-session owner's account id for a project chat (resolved
+// chat_session_id → member_id → account_id), or actor_account_id for a global chat;
 // it is nil for a sessionless (project-shared) conversation, which has no
 // single owner. Used by the ACP bridge's WebSocket relay
 // (internal/acpbridge/server.go), which handles events/turn_status for
@@ -113,26 +113,25 @@ func (r *ConversationRepository) GetConversationAgentType(ctx context.Context, c
 // running, the bridge needs a fresh per-conversation lookup since one
 // bridge session (a global-scope ACP agent) can relay conversations with
 // different project contexts, or none.
-func (r *ConversationRepository) GetConversationRealtimeContext(ctx context.Context, conversationID uuid.UUID) (projectID uuid.UUID, ownerUserID *uuid.UUID, err error) {
+func (r *ConversationRepository) GetConversationRealtimeContext(ctx context.Context, conversationID uuid.UUID) (projectID uuid.UUID, ownerAccountID *uuid.UUID, err error) {
 	var row struct {
-		ProjectID   uuid.NullUUID `db:"project_id"`
-		OwnerUserID uuid.NullUUID `db:"owner_user_id"`
+		ProjectID      uuid.NullUUID `db:"project_id"`
+		OwnerAccountID uuid.NullUUID `db:"owner_account_id"`
 	}
 	err = r.db.GetContext(ctx, &row,
 		`SELECT c.project_id,
-		        COALESCE(u.id, c.actor_user_id) AS owner_user_id
+		        COALESCE(pm.account_id, c.actor_account_id) AS owner_account_id
 		 FROM agent_conversations c
 		 LEFT JOIN agent_chat_sessions s ON s.id = c.chat_session_id
 		 LEFT JOIN project_members pm ON pm.id = s.member_id
-		 LEFT JOIN users u ON u.id = pm.account_id
 		 WHERE c.id = $1`, conversationID)
 	if err != nil {
 		return uuid.Nil, nil, fmt.Errorf("postgres: get realtime context for conversation %s: %w", conversationID, err)
 	}
-	if row.OwnerUserID.Valid {
-		ownerUserID = &row.OwnerUserID.UUID
+	if row.OwnerAccountID.Valid {
+		ownerAccountID = &row.OwnerAccountID.UUID
 	}
-	return row.ProjectID.UUID, ownerUserID, nil
+	return row.ProjectID.UUID, ownerAccountID, nil
 }
 
 // InsertEvent mirrors insert_conversation_event. payload must already be

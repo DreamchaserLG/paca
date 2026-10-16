@@ -322,10 +322,7 @@ func (r *fakeDocRepoIT) DeleteRecentSnapshotsExcept(_ context.Context, documentI
 // resolves, since that identity is never itself a project member.
 type fakeDocMemberLookup struct{}
 
-func (f *fakeDocMemberLookup) FindMemberByActor(_ context.Context, _, actorID uuid.UUID, agentID *uuid.UUID) (*projectdom.ProjectMember, error) {
-	if agentID != nil {
-		return &projectdom.ProjectMember{ID: *agentID}, nil
-	}
+func (f *fakeDocMemberLookup) FindMember(_ context.Context, _, actorID uuid.UUID) (*projectdom.ProjectMember, error) {
 	if actorID == userdom.SystemActorUserID {
 		return nil, projectdom.ErrMemberNotFound
 	}

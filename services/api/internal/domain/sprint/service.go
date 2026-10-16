@@ -100,7 +100,7 @@ type ViewService interface {
 	// filters) for a view, verifying it belongs to projectID, and returns the
 	// view carrying that personal config.  The change is private to the user:
 	// it never touches the shared view row and emits no project-wide event.
-	SetUserViewConfig(ctx context.Context, projectID, viewID, userID uuid.UUID, cfg ViewConfig) (*SprintView, error)
+	SetUserViewConfig(ctx context.Context, projectID, viewID, accountID uuid.UUID, cfg ViewConfig) (*SprintView, error)
 
 	// OverlayUserConfigs merges each view's Config with the user's personal
 	// override where one exists (field by field — a field the user never
@@ -108,12 +108,12 @@ type ViewService interface {
 	// default entirely otherwise. Also sets HasPersonalConfig on each view.
 	// It is safe to call with views obtained from a cache: only the returned
 	// copies are mutated. A nil user (unauthenticated) is a no-op.
-	OverlayUserConfigs(ctx context.Context, userID uuid.UUID, views []*SprintView) error
+	OverlayUserConfigs(ctx context.Context, accountID uuid.UUID, views []*SprintView) error
 
 	// ClearUserViewConfig removes the current user's personal override for a
 	// view, verifying it belongs to projectID, and returns the view now
 	// carrying the shared default config (HasPersonalConfig is false).
-	ClearUserViewConfig(ctx context.Context, projectID, viewID, userID uuid.UUID) (*SprintView, error)
+	ClearUserViewConfig(ctx context.Context, projectID, viewID, accountID uuid.UUID) (*SprintView, error)
 }
 
 // CreateViewInput carries fields required to create a sprint view.

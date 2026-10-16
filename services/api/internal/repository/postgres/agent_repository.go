@@ -118,7 +118,7 @@ type agentConversationRecord struct {
 	CommentID           *string `db:"comment_id"`
 	ChatSessionID       *string `db:"chat_session_id"`
 	TriggeredByMemberID *string `db:"triggered_by_member_id"`
-	ActorUserID         *string `db:"actor_user_id"`
+	ActorAccountID      *string `db:"actor_account_id"`
 	Audience            string  `db:"audience"`
 	Status              string  `db:"status"`
 	// EnvironmentID/EnvironmentFolderID replace the old container_id/
@@ -155,15 +155,15 @@ type agentConversationEventRecord struct {
 }
 
 type agentChatSessionRecord struct {
-	ID            string     `db:"id"`
-	AgentID       string     `db:"agent_id"`
-	ProjectID     *string    `db:"project_id"` // NULL for a global chat session
-	MemberID      *string    `db:"member_id"`  // NULL for a global chat session
-	ActorUserID   *string    `db:"actor_user_id"`
-	Title         *string    `db:"title"`
-	LastMessageAt *time.Time `db:"last_message_at"`
-	CreatedAt     time.Time  `db:"created_at"`
-	UpdatedAt     time.Time  `db:"updated_at"`
+	ID             string     `db:"id"`
+	AgentID        string     `db:"agent_id"`
+	ProjectID      *string    `db:"project_id"` // NULL for a global chat session
+	MemberID       *string    `db:"member_id"`  // NULL for a global chat session
+	ActorAccountID *string    `db:"actor_account_id"`
+	Title          *string    `db:"title"`
+	LastMessageAt  *time.Time `db:"last_message_at"`
+	CreatedAt      time.Time  `db:"created_at"`
+	UpdatedAt      time.Time  `db:"updated_at"`
 }
 
 // -------------------------------------------------------------------------
@@ -1080,7 +1080,7 @@ func (r *AgentRepository) DeleteEnvVar(ctx context.Context, id uuid.UUID) error 
 // latest row's value is used, not a sum — summing it would double-count
 // every earlier turn's already-cumulative figure.
 const conversationCols = `id, agent_id, project_id, trigger_type, task_id, comment_id, chat_session_id,
-	triggered_by_member_id, actor_user_id, audience, status, environment_id, environment_folder_id,
+	triggered_by_member_id, actor_account_id, audience, status, environment_id, environment_folder_id,
 	(SELECT COUNT(*) FROM agent_conversation_events e
 	 WHERE e.conversation_id = agent_conversations.id AND e.event_type IN ('ActionEvent', 'tool_call')) AS iteration_count,
 	COALESCE((SELECT SUM((e.payload->>'input_tokens')::bigint) FROM agent_conversation_events e
@@ -1125,10 +1125,10 @@ func (r *AgentRepository) ListConversations(ctx context.Context, in agentdom.Lis
 	} else if in.GlobalOnly {
 		b.whereClauses = append(b.whereClauses, "project_id IS NULL")
 	}
-	if in.ActorUserID != nil {
+	if in.ActorAccountID != nil {
 		p := b.placeholder()
-		b.args = append(b.args, in.ActorUserID.String())
-		b.whereClauses = append(b.whereClauses, "actor_user_id = "+p)
+		b.args = append(b.args, in.ActorAccountID.String())
+		b.whereClauses = append(b.whereClauses, "actor_account_id = "+p)
 	}
 	if in.ViewerMemberID != nil {
 		// Audience is enforced in SQL so the search subquery never touches a
@@ -1264,12 +1264,12 @@ func (r *AgentRepository) CreateConversation(ctx context.Context, c *agentdom.Ag
 	rec := conversationToRecord(c)
 	_, err := r.db.ExecContext(ctx, `
 		INSERT INTO agent_conversations (id, agent_id, project_id, trigger_type, task_id, comment_id, chat_session_id,
-		  triggered_by_member_id, actor_user_id, status, environment_id, environment_folder_id, error_message,
+		  triggered_by_member_id, actor_account_id, status, environment_id, environment_folder_id, error_message,
 		  repo_plugin_id, pr_url,
 		  started_at, finished_at, created_at, updated_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
 		rec.ID, rec.AgentID, rec.ProjectID, rec.TriggerType, rec.TaskID, rec.CommentID, rec.ChatSessionID,
-		rec.TriggeredByMemberID, rec.ActorUserID, rec.Status, rec.EnvironmentID, rec.EnvironmentFolderID, rec.ErrorMessage,
+		rec.TriggeredByMemberID, rec.ActorAccountID, rec.Status, rec.EnvironmentID, rec.EnvironmentFolderID, rec.ErrorMessage,
 		rec.RepoPluginID, rec.PRUrl,
 		rec.StartedAt, rec.FinishedAt, rec.CreatedAt, rec.UpdatedAt,
 	)
@@ -1734,7 +1734,7 @@ func pendingTriggerFromRecord(rec pendingTriggerRecord) (*agentdom.PendingTrigge
 // Chat Sessions
 // -------------------------------------------------------------------------
 
-const chatSessionCols = `id, agent_id, project_id, member_id, actor_user_id, title, last_message_at, created_at, updated_at`
+const chatSessionCols = `id, agent_id, project_id, member_id, actor_account_id, title, last_message_at, created_at, updated_at`
 
 // ListChatSessions returns all chat sessions for the given agent and member.
 func (r *AgentRepository) ListChatSessions(ctx context.Context, agentID, memberID uuid.UUID) ([]*agentdom.AgentChatSession, error) {
@@ -1753,14 +1753,14 @@ func (r *AgentRepository) ListChatSessions(ctx context.Context, agentID, memberI
 }
 
 // ListGlobalChatSessions returns all global chat sessions for the given
-// agent and human actor (ListChatSessions' sibling, keyed by actor_user_id
+// agent and human actor (ListChatSessions' sibling, keyed by actor_account_id
 // instead of member_id).
-func (r *AgentRepository) ListGlobalChatSessions(ctx context.Context, agentID, actorUserID uuid.UUID) ([]*agentdom.AgentChatSession, error) {
+func (r *AgentRepository) ListGlobalChatSessions(ctx context.Context, agentID, actorAccountID uuid.UUID) ([]*agentdom.AgentChatSession, error) {
 	var recs []agentChatSessionRecord
 	if err := r.db.SelectContext(ctx, &recs, `
 		SELECT `+chatSessionCols+` FROM agent_chat_sessions
-		WHERE agent_id = $1 AND actor_user_id = $2
-		ORDER BY created_at DESC`, agentID.String(), actorUserID.String()); err != nil {
+		WHERE agent_id = $1 AND actor_account_id = $2
+		ORDER BY created_at DESC`, agentID.String(), actorAccountID.String()); err != nil {
 		return nil, err
 	}
 	result := make([]*agentdom.AgentChatSession, 0, len(recs))
@@ -1786,9 +1786,9 @@ func (r *AgentRepository) FindChatSessionByID(ctx context.Context, id uuid.UUID)
 func (r *AgentRepository) CreateChatSession(ctx context.Context, s *agentdom.AgentChatSession) error {
 	rec := chatSessionToRecord(s)
 	_, err := r.db.ExecContext(ctx, `
-		INSERT INTO agent_chat_sessions (id, agent_id, project_id, member_id, actor_user_id, title, last_message_at, created_at, updated_at)
+		INSERT INTO agent_chat_sessions (id, agent_id, project_id, member_id, actor_account_id, title, last_message_at, created_at, updated_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-		rec.ID, rec.AgentID, rec.ProjectID, rec.MemberID, rec.ActorUserID, rec.Title, rec.LastMessageAt, rec.CreatedAt, rec.UpdatedAt,
+		rec.ID, rec.AgentID, rec.ProjectID, rec.MemberID, rec.ActorAccountID, rec.Title, rec.LastMessageAt, rec.CreatedAt, rec.UpdatedAt,
 	)
 	return err
 }
@@ -2076,9 +2076,9 @@ func conversationFromRecord(rec agentConversationRecord) *agentdom.AgentConversa
 		id := mustParseUUID(*rec.TriggeredByMemberID)
 		c.TriggeredByMemberID = &id
 	}
-	if rec.ActorUserID != nil {
-		id := mustParseUUID(*rec.ActorUserID)
-		c.ActorUserID = &id
+	if rec.ActorAccountID != nil {
+		id := mustParseUUID(*rec.ActorAccountID)
+		c.ActorAccountID = &id
 	}
 	if rec.RepoPluginID != nil {
 		id := mustParseUUID(*rec.RepoPluginID)
@@ -2125,9 +2125,9 @@ func conversationToRecord(c *agentdom.AgentConversation) agentConversationRecord
 		s := c.TriggeredByMemberID.String()
 		rec.TriggeredByMemberID = &s
 	}
-	if c.ActorUserID != nil {
-		s := c.ActorUserID.String()
-		rec.ActorUserID = &s
+	if c.ActorAccountID != nil {
+		s := c.ActorAccountID.String()
+		rec.ActorAccountID = &s
 	}
 	if c.RepoPluginID != nil {
 		s := c.RepoPluginID.String()
@@ -2187,9 +2187,9 @@ func chatSessionFromRecord(rec agentChatSessionRecord) *agentdom.AgentChatSessio
 		CreatedAt:     rec.CreatedAt,
 		UpdatedAt:     rec.UpdatedAt,
 	}
-	if rec.ActorUserID != nil {
-		id := mustParseUUID(*rec.ActorUserID)
-		s.ActorUserID = &id
+	if rec.ActorAccountID != nil {
+		id := mustParseUUID(*rec.ActorAccountID)
+		s.ActorAccountID = &id
 	}
 	return s
 }
@@ -2205,9 +2205,9 @@ func chatSessionToRecord(s *agentdom.AgentChatSession) agentChatSessionRecord {
 		CreatedAt:     s.CreatedAt,
 		UpdatedAt:     s.UpdatedAt,
 	}
-	if s.ActorUserID != nil {
-		id := s.ActorUserID.String()
-		rec.ActorUserID = &id
+	if s.ActorAccountID != nil {
+		id := s.ActorAccountID.String()
+		rec.ActorAccountID = &id
 	}
 	return rec
 }

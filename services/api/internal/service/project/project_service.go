@@ -245,7 +245,7 @@ func (s *Service) List(ctx context.Context, page, pageSize int) ([]*projectdom.P
 }
 
 // ListAccessible returns only the projects the given user is a member of.
-func (s *Service) ListAccessible(ctx context.Context, userID uuid.UUID, page, pageSize int) ([]*projectdom.Project, int64, error) {
+func (s *Service) ListAccessible(ctx context.Context, accountID uuid.UUID, page, pageSize int) ([]*projectdom.Project, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -253,7 +253,7 @@ func (s *Service) ListAccessible(ctx context.Context, userID uuid.UUID, page, pa
 		pageSize = 20
 	}
 	offset := (page - 1) * pageSize
-	return s.repo.ListAccessible(ctx, userID, offset, pageSize)
+	return s.repo.ListAccessible(ctx, accountID, offset, pageSize)
 }
 
 // GetByID returns the project with the given ID.

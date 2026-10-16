@@ -43,7 +43,7 @@ func (r *fakeNotificationRepo) ListForUser(_ context.Context, userID uuid.UUID, 
 
 	var all []*notificationdom.Notification
 	for _, n := range r.data {
-		if n.RecipientUserID == userID {
+		if n.RecipientAccountID == userID {
 			cp := *n
 			all = append(all, &cp)
 		}
@@ -87,7 +87,7 @@ func (r *fakeNotificationRepo) UnreadCount(_ context.Context, userID uuid.UUID) 
 	defer r.mu.RUnlock()
 	var count int64
 	for _, n := range r.data {
-		if n.RecipientUserID == userID && n.ReadAt == nil {
+		if n.RecipientAccountID == userID && n.ReadAt == nil {
 			count++
 		}
 	}
@@ -98,7 +98,7 @@ func (r *fakeNotificationRepo) MarkAsRead(_ context.Context, id, userID uuid.UUI
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	n, ok := r.data[id]
-	if !ok || n.RecipientUserID != userID {
+	if !ok || n.RecipientAccountID != userID {
 		return notificationdom.ErrNotificationNotFound
 	}
 	now := time.Now()
@@ -110,7 +110,7 @@ func (r *fakeNotificationRepo) MarkAllAsRead(_ context.Context, userID uuid.UUID
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, n := range r.data {
-		if n.RecipientUserID == userID && n.ReadAt == nil {
+		if n.RecipientAccountID == userID && n.ReadAt == nil {
 			now := time.Now()
 			n.ReadAt = &now
 		}
@@ -161,29 +161,19 @@ func (r *fakeMemberRepo) FindMemberByID(_ context.Context, id uuid.UUID) (*proje
 	return &cp, nil
 }
 
-func (r *fakeMemberRepo) FindMemberByUserProject(_ context.Context, userID, projectID uuid.UUID) (*projectdom.ProjectMember, error) {
+func (r *fakeMemberRepo) FindMember(_ context.Context, projectID, accountID uuid.UUID) (*projectdom.ProjectMember, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	m, ok := r.byUser[userProjectKey{userID, projectID}]
+	key := userProjectKey{accountID, projectID}
+	m, ok := r.byAgent[key]
 	if !ok {
-		return nil, fmt.Errorf("member not found for user %s project %s", userID, projectID)
+		m, ok = r.byUser[key]
+	}
+	if !ok {
+		return nil, fmt.Errorf("member not found for account %s project %s", accountID, projectID)
 	}
 	cp := *m
 	return &cp, nil
-}
-
-func (r *fakeMemberRepo) FindMemberByActor(ctx context.Context, projectID, actorID uuid.UUID, agentID *uuid.UUID) (*projectdom.ProjectMember, error) {
-	if agentID != nil {
-		r.mu.RLock()
-		m, ok := r.byAgent[userProjectKey{*agentID, projectID}]
-		r.mu.RUnlock()
-		if !ok {
-			return nil, fmt.Errorf("member not found for agent %s project %s", *agentID, projectID)
-		}
-		cp := *m
-		return &cp, nil
-	}
-	return r.FindMemberByUserProject(ctx, actorID, projectID)
 }
 
 func (r *fakeMemberRepo) CountMembers(context.Context, uuid.UUID, projectdom.MemberFilter) (int64, error) {
@@ -319,7 +309,7 @@ func countNotifications(repo *fakeNotificationRepo, recipientID uuid.UUID) int {
 	defer repo.mu.RUnlock()
 	var count int
 	for _, n := range repo.data {
-		if n.RecipientUserID == recipientID {
+		if n.RecipientAccountID == recipientID {
 			count++
 		}
 	}
@@ -330,7 +320,7 @@ func findNotification(repo *fakeNotificationRepo, recipientID uuid.UUID, nType n
 	repo.mu.RLock()
 	defer repo.mu.RUnlock()
 	for _, n := range repo.data {
-		if n.RecipientUserID == recipientID && n.Type == nType {
+		if n.RecipientAccountID == recipientID && n.Type == nType {
 			return n
 		}
 	}
@@ -344,13 +334,13 @@ func TestNotifyAssigned_OK(t *testing.T) {
 	svc := New(repo, members, nil)
 
 	projectID := uuid.New()
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 	assigneeUserID := uuid.New()
 	actorMemberID := uuid.New()
 	assigneeMemberID := uuid.New()
 
 	members.add(&projectdom.ProjectMember{
-		ID: actorMemberID, ProjectID: projectID, UserID: actorUserID, Username: "actor",
+		ID: actorMemberID, ProjectID: projectID, UserID: actorAccountID, Username: "actor",
 	})
 	members.add(&projectdom.ProjectMember{
 		ID: assigneeMemberID, ProjectID: projectID, UserID: assigneeUserID, Username: "assignee",
@@ -361,7 +351,7 @@ func TestNotifyAssigned_OK(t *testing.T) {
 		TaskID:              taskID,
 		ProjectID:           projectID,
 		NewAssigneeMemberID: assigneeMemberID,
-		ActorUserID:         actorUserID,
+		ActorID:             actorAccountID,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -375,8 +365,8 @@ func TestNotifyAssigned_OK(t *testing.T) {
 	if n == nil {
 		t.Fatal("expected to find assigned notification")
 	}
-	if n.RecipientUserID != assigneeUserID {
-		t.Errorf("expected RecipientUserID=%s, got %s", assigneeUserID, n.RecipientUserID)
+	if n.RecipientAccountID != assigneeUserID {
+		t.Errorf("expected RecipientAccountID=%s, got %s", assigneeUserID, n.RecipientAccountID)
 	}
 	if n.ActorMemberID == nil || *n.ActorMemberID != actorMemberID {
 		t.Errorf("expected ActorMemberID=%s, got %v", actorMemberID, n.ActorMemberID)
@@ -419,11 +409,9 @@ func TestNotifyAssigned_AgentActor_ResolvesAgentMember(t *testing.T) {
 		TaskID:              taskID,
 		ProjectID:           projectID,
 		NewAssigneeMemberID: assigneeMemberID,
-		// A pure agent-authenticated request has no meaningful human actor
-		// user ID to resolve against — ActorAgentID is what identifies the
-		// actor here.
-		ActorUserID:  uuid.New(),
-		ActorAgentID: &agentID,
+		// An agent-authenticated request carries the agent's own account id
+		// as the actor.
+		ActorID: agentID,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -456,7 +444,7 @@ func TestNotifyAssigned_SelfAssignmentSuppressed(t *testing.T) {
 		TaskID:              uuid.New(),
 		ProjectID:           projectID,
 		NewAssigneeMemberID: memberID,
-		ActorUserID:         userID,
+		ActorID:             userID,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -476,7 +464,7 @@ func TestNotifyAssigned_MemberNotFoundSkipsSilently(t *testing.T) {
 		TaskID:              uuid.New(),
 		ProjectID:           uuid.New(),
 		NewAssigneeMemberID: uuid.New(),
-		ActorUserID:         uuid.New(),
+		ActorID:             uuid.New(),
 	})
 	if err != nil {
 		t.Fatalf("expected nil error when member not found, got %v", err)
@@ -495,7 +483,7 @@ func TestNotifyAssigned_ActorNotInProjectStillNotifies(t *testing.T) {
 	projectID := uuid.New()
 	assigneeUserID := uuid.New()
 	assigneeMemberID := uuid.New()
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 
 	members.add(&projectdom.ProjectMember{
 		ID: assigneeMemberID, ProjectID: projectID, UserID: assigneeUserID, Username: "assignee",
@@ -505,7 +493,7 @@ func TestNotifyAssigned_ActorNotInProjectStillNotifies(t *testing.T) {
 		TaskID:              uuid.New(),
 		ProjectID:           projectID,
 		NewAssigneeMemberID: assigneeMemberID,
-		ActorUserID:         actorUserID,
+		ActorID:             actorAccountID,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -528,7 +516,7 @@ func TestNotifyAssigned_RepoError(t *testing.T) {
 	projectID := uuid.New()
 	assigneeUserID := uuid.New()
 	assigneeMemberID := uuid.New()
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 
 	members.add(&projectdom.ProjectMember{
 		ID: assigneeMemberID, ProjectID: projectID, UserID: assigneeUserID, Username: "assignee",
@@ -538,7 +526,7 @@ func TestNotifyAssigned_RepoError(t *testing.T) {
 		TaskID:              uuid.New(),
 		ProjectID:           projectID,
 		NewAssigneeMemberID: assigneeMemberID,
-		ActorUserID:         actorUserID,
+		ActorID:             actorAccountID,
 	})
 	if err == nil {
 		t.Fatal("expected error from repo.Create failure")
@@ -553,14 +541,14 @@ func TestNotifyMentioned_OK(t *testing.T) {
 
 	projectID := uuid.New()
 	taskID := uuid.New()
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 	actorMemberID := uuid.New()
 	userA := uuid.New()
 	memberA := uuid.New()
 	userB := uuid.New()
 	memberB := uuid.New()
 
-	members.add(&projectdom.ProjectMember{ID: actorMemberID, ProjectID: projectID, UserID: actorUserID, Username: "commenter"})
+	members.add(&projectdom.ProjectMember{ID: actorMemberID, ProjectID: projectID, UserID: actorAccountID, Username: "commenter"})
 	members.add(&projectdom.ProjectMember{ID: memberA, ProjectID: projectID, UserID: userA, Username: "alice"})
 	members.add(&projectdom.ProjectMember{ID: memberB, ProjectID: projectID, UserID: userB, Username: "bob"})
 
@@ -569,7 +557,7 @@ func TestNotifyMentioned_OK(t *testing.T) {
 		ProjectID:     projectID,
 		CommentText:   "Hey @alice and @bob check this out",
 		ActorMemberID: actorMemberID,
-		ActorUserID:   actorUserID,
+		ActorID:       actorAccountID,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -581,7 +569,7 @@ func TestNotifyMentioned_OK(t *testing.T) {
 	if got := countNotifications(repo, userB); got != 1 {
 		t.Errorf("expected 1 notification for bob, got %d", got)
 	}
-	if got := countNotifications(repo, actorUserID); got != 0 {
+	if got := countNotifications(repo, actorAccountID); got != 0 {
 		t.Errorf("expected 0 notifications for actor, got %d", got)
 	}
 
@@ -614,7 +602,7 @@ func TestNotifyMentioned_SelfMentionSuppressed(t *testing.T) {
 		ProjectID:     projectID,
 		CommentText:   "I am talking to @myself",
 		ActorMemberID: memberID,
-		ActorUserID:   userID,
+		ActorID:       userID,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -631,12 +619,12 @@ func TestNotifyMentioned_DuplicateMentionsDeduped(t *testing.T) {
 	svc := New(repo, members, nil)
 
 	projectID := uuid.New()
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 	actorMemberID := uuid.New()
 	userA := uuid.New()
 	memberA := uuid.New()
 
-	members.add(&projectdom.ProjectMember{ID: actorMemberID, ProjectID: projectID, UserID: actorUserID, Username: "commenter"})
+	members.add(&projectdom.ProjectMember{ID: actorMemberID, ProjectID: projectID, UserID: actorAccountID, Username: "commenter"})
 	members.add(&projectdom.ProjectMember{ID: memberA, ProjectID: projectID, UserID: userA, Username: "alice"})
 
 	err := svc.NotifyMentioned(ctx, notificationdom.NotifyMentionedInput{
@@ -644,7 +632,7 @@ func TestNotifyMentioned_DuplicateMentionsDeduped(t *testing.T) {
 		ProjectID:     projectID,
 		CommentText:   "@alice please @alice review this @alice again",
 		ActorMemberID: actorMemberID,
-		ActorUserID:   actorUserID,
+		ActorID:       actorAccountID,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -665,7 +653,7 @@ func TestNotifyMentioned_NoMentionsInText(t *testing.T) {
 		ProjectID:     uuid.New(),
 		CommentText:   "Just a regular comment with no mentions",
 		ActorMemberID: uuid.New(),
-		ActorUserID:   uuid.New(),
+		ActorID:       uuid.New(),
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -682,17 +670,17 @@ func TestNotifyMentioned_NonMemberMentionIgnored(t *testing.T) {
 	svc := New(repo, members, nil)
 
 	projectID := uuid.New()
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 	actorMemberID := uuid.New()
 
-	members.add(&projectdom.ProjectMember{ID: actorMemberID, ProjectID: projectID, UserID: actorUserID, Username: "commenter"})
+	members.add(&projectdom.ProjectMember{ID: actorMemberID, ProjectID: projectID, UserID: actorAccountID, Username: "commenter"})
 
 	err := svc.NotifyMentioned(ctx, notificationdom.NotifyMentionedInput{
 		TaskID:        uuid.New(),
 		ProjectID:     projectID,
 		CommentText:   "Hey @nonexistent and @stranger",
 		ActorMemberID: actorMemberID,
-		ActorUserID:   actorUserID,
+		ActorID:       actorAccountID,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -709,12 +697,12 @@ func TestNotifyMentioned_MixedValidAndInvalidMentions(t *testing.T) {
 	svc := New(repo, members, nil)
 
 	projectID := uuid.New()
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 	actorMemberID := uuid.New()
 	userA := uuid.New()
 	memberA := uuid.New()
 
-	members.add(&projectdom.ProjectMember{ID: actorMemberID, ProjectID: projectID, UserID: actorUserID, Username: "commenter"})
+	members.add(&projectdom.ProjectMember{ID: actorMemberID, ProjectID: projectID, UserID: actorAccountID, Username: "commenter"})
 	members.add(&projectdom.ProjectMember{ID: memberA, ProjectID: projectID, UserID: userA, Username: "alice"})
 
 	err := svc.NotifyMentioned(ctx, notificationdom.NotifyMentionedInput{
@@ -722,7 +710,7 @@ func TestNotifyMentioned_MixedValidAndInvalidMentions(t *testing.T) {
 		ProjectID:     projectID,
 		CommentText:   "@alice can you check? cc @unknown @nobody",
 		ActorMemberID: actorMemberID,
-		ActorUserID:   actorUserID,
+		ActorID:       actorAccountID,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -742,12 +730,12 @@ func TestNotifyMentioned_CaseInsensitiveMatch(t *testing.T) {
 	svc := New(repo, members, nil)
 
 	projectID := uuid.New()
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 	actorMemberID := uuid.New()
 	userA := uuid.New()
 	memberA := uuid.New()
 
-	members.add(&projectdom.ProjectMember{ID: actorMemberID, ProjectID: projectID, UserID: actorUserID, Username: "commenter"})
+	members.add(&projectdom.ProjectMember{ID: actorMemberID, ProjectID: projectID, UserID: actorAccountID, Username: "commenter"})
 	members.add(&projectdom.ProjectMember{ID: memberA, ProjectID: projectID, UserID: userA, Username: "Alice"})
 
 	err := svc.NotifyMentioned(ctx, notificationdom.NotifyMentionedInput{
@@ -755,7 +743,7 @@ func TestNotifyMentioned_CaseInsensitiveMatch(t *testing.T) {
 		ProjectID:     projectID,
 		CommentText:   "Hey @alice please review",
 		ActorMemberID: actorMemberID,
-		ActorUserID:   actorUserID,
+		ActorID:       actorAccountID,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -772,12 +760,12 @@ func TestNotifyMentioned_RepoCreateErrorBestEffort(t *testing.T) {
 	svc := New(failingRepo, members, nil)
 
 	projectID := uuid.New()
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 	actorMemberID := uuid.New()
 	userA := uuid.New()
 	memberA := uuid.New()
 
-	members.add(&projectdom.ProjectMember{ID: actorMemberID, ProjectID: projectID, UserID: actorUserID, Username: "commenter"})
+	members.add(&projectdom.ProjectMember{ID: actorMemberID, ProjectID: projectID, UserID: actorAccountID, Username: "commenter"})
 	members.add(&projectdom.ProjectMember{ID: memberA, ProjectID: projectID, UserID: userA, Username: "alice"})
 
 	err := svc.NotifyMentioned(ctx, notificationdom.NotifyMentionedInput{
@@ -785,7 +773,7 @@ func TestNotifyMentioned_RepoCreateErrorBestEffort(t *testing.T) {
 		ProjectID:     projectID,
 		CommentText:   "@alice check this",
 		ActorMemberID: actorMemberID,
-		ActorUserID:   actorUserID,
+		ActorID:       actorAccountID,
 	})
 	if err != nil {
 		t.Fatalf("expected nil error (best-effort), got %v", err)
@@ -799,12 +787,12 @@ func TestNotifyMentioned_NilPublisherNoPanic(t *testing.T) {
 	svc := New(repo, members, nil)
 
 	projectID := uuid.New()
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 	actorMemberID := uuid.New()
 	userA := uuid.New()
 	memberA := uuid.New()
 
-	members.add(&projectdom.ProjectMember{ID: actorMemberID, ProjectID: projectID, UserID: actorUserID, Username: "commenter"})
+	members.add(&projectdom.ProjectMember{ID: actorMemberID, ProjectID: projectID, UserID: actorAccountID, Username: "commenter"})
 	members.add(&projectdom.ProjectMember{ID: memberA, ProjectID: projectID, UserID: userA, Username: "alice"})
 
 	err := svc.NotifyMentioned(ctx, notificationdom.NotifyMentionedInput{
@@ -812,7 +800,7 @@ func TestNotifyMentioned_NilPublisherNoPanic(t *testing.T) {
 		ProjectID:     projectID,
 		CommentText:   "@alice hello",
 		ActorMemberID: actorMemberID,
-		ActorUserID:   actorUserID,
+		ActorID:       actorAccountID,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -826,19 +814,19 @@ func TestNotifyAssigned_NilPublisherNoPanic(t *testing.T) {
 	svc := New(repo, members, nil)
 
 	projectID := uuid.New()
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 	assigneeUserID := uuid.New()
 	actorMemberID := uuid.New()
 	assigneeMemberID := uuid.New()
 
-	members.add(&projectdom.ProjectMember{ID: actorMemberID, ProjectID: projectID, UserID: actorUserID, Username: "actor"})
+	members.add(&projectdom.ProjectMember{ID: actorMemberID, ProjectID: projectID, UserID: actorAccountID, Username: "actor"})
 	members.add(&projectdom.ProjectMember{ID: assigneeMemberID, ProjectID: projectID, UserID: assigneeUserID, Username: "assignee"})
 
 	err := svc.NotifyAssigned(ctx, notificationdom.NotifyAssignedInput{
 		TaskID:              uuid.New(),
 		ProjectID:           projectID,
 		NewAssigneeMemberID: assigneeMemberID,
-		ActorUserID:         actorUserID,
+		ActorID:             actorAccountID,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -938,7 +926,7 @@ func TestNotifyMentioned_EmptyCommentText(t *testing.T) {
 		ProjectID:     uuid.New(),
 		CommentText:   "",
 		ActorMemberID: uuid.New(),
-		ActorUserID:   uuid.New(),
+		ActorID:       uuid.New(),
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -961,7 +949,7 @@ func TestNotifyMentioned_MembersListErrorSkipsSilently(t *testing.T) {
 		ProjectID:     projectID,
 		CommentText:   "@alice hello",
 		ActorMemberID: uuid.New(),
-		ActorUserID:   uuid.New(),
+		ActorID:       uuid.New(),
 	})
 	if err != nil {
 		t.Fatalf("expected nil error when ListAllMembers returns empty, got %v", err)
@@ -975,10 +963,10 @@ func TestNotifyMentioned_MembersListErrorSkipsSilently(t *testing.T) {
 
 func addTestNotification(repo *fakeNotificationRepo, recipientID uuid.UUID, createdAt time.Time) *notificationdom.Notification {
 	n := &notificationdom.Notification{
-		ID:              uuid.New(),
-		RecipientUserID: recipientID,
-		Type:            notificationdom.NotificationTypeMentioned,
-		CreatedAt:       createdAt,
+		ID:                 uuid.New(),
+		RecipientAccountID: recipientID,
+		Type:               notificationdom.NotificationTypeMentioned,
+		CreatedAt:          createdAt,
 	}
 	repo.data[n.ID] = n
 	return n
@@ -1112,10 +1100,10 @@ func TestNotifyDocMentioned_NonMemberIgnored(t *testing.T) {
 	svc := New(repo, members, nil).WithEventPublishing(users, "https://paca.example")
 
 	projectID := uuid.New()
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 	strangerID := uuid.New() // never added as a member of projectID
 
-	svc.NotifyDocMentioned(ctx, strangerID, actorUserID, projectID, uuid.New())
+	svc.NotifyDocMentioned(ctx, strangerID, actorAccountID, projectID, uuid.New())
 
 	if got := users.callCount(); got != 0 {
 		t.Errorf("expected no user lookup for a mention naming a non-member, got %d calls", got)
@@ -1130,11 +1118,11 @@ func TestNotifyDocMentioned_MemberNotified(t *testing.T) {
 	svc := New(repo, members, nil).WithEventPublishing(users, "https://paca.example")
 
 	projectID := uuid.New()
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 	mentionedUserID := uuid.New()
 	members.add(&projectdom.ProjectMember{ID: uuid.New(), ProjectID: projectID, UserID: mentionedUserID, Username: "alice"})
 
-	svc.NotifyDocMentioned(ctx, mentionedUserID, actorUserID, projectID, uuid.New())
+	svc.NotifyDocMentioned(ctx, mentionedUserID, actorAccountID, projectID, uuid.New())
 
 	if got := users.callCount(); got != 1 {
 		t.Errorf("expected the actor-name lookup to proceed for a mentioned project member, got %d calls", got)
@@ -1167,10 +1155,10 @@ func TestNotifyTaskDescriptionMentioned_NonMemberIgnored(t *testing.T) {
 	svc := New(repo, members, nil).WithEventPublishing(users, "https://paca.example")
 
 	projectID := uuid.New()
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 	strangerID := uuid.New() // never added as a member of projectID
 
-	svc.NotifyTaskDescriptionMentioned(ctx, strangerID, actorUserID, projectID, uuid.New())
+	svc.NotifyTaskDescriptionMentioned(ctx, strangerID, actorAccountID, projectID, uuid.New())
 
 	if got := users.callCount(); got != 0 {
 		t.Errorf("expected no user lookup for a mention naming a non-member, got %d calls", got)
@@ -1185,11 +1173,11 @@ func TestNotifyTaskDescriptionMentioned_MemberNotified(t *testing.T) {
 	svc := New(repo, members, nil).WithEventPublishing(users, "https://paca.example")
 
 	projectID := uuid.New()
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 	mentionedUserID := uuid.New()
 	members.add(&projectdom.ProjectMember{ID: uuid.New(), ProjectID: projectID, UserID: mentionedUserID, Username: "alice"})
 
-	svc.NotifyTaskDescriptionMentioned(ctx, mentionedUserID, actorUserID, projectID, uuid.New())
+	svc.NotifyTaskDescriptionMentioned(ctx, mentionedUserID, actorAccountID, projectID, uuid.New())
 
 	if got := users.callCount(); got != 1 {
 		t.Errorf("expected the actor-name lookup to proceed for a mentioned project member, got %d calls", got)
@@ -1210,18 +1198,18 @@ func TestNotifyAssigned_ResolvesTaskTitle(t *testing.T) {
 	svc := New(repo, members, nil).WithTitleLookup(tasks, nil)
 
 	projectID := uuid.New()
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 	assigneeUserID := uuid.New()
 	actorMemberID := uuid.New()
 	assigneeMemberID := uuid.New()
-	members.add(&projectdom.ProjectMember{ID: actorMemberID, ProjectID: projectID, UserID: actorUserID, Username: "actor"})
+	members.add(&projectdom.ProjectMember{ID: actorMemberID, ProjectID: projectID, UserID: actorAccountID, Username: "actor"})
 	members.add(&projectdom.ProjectMember{ID: assigneeMemberID, ProjectID: projectID, UserID: assigneeUserID, Username: "assignee"})
 
 	if err := svc.NotifyAssigned(ctx, notificationdom.NotifyAssignedInput{
 		TaskID:              uuid.New(),
 		ProjectID:           projectID,
 		NewAssigneeMemberID: assigneeMemberID,
-		ActorUserID:         actorUserID,
+		ActorID:             actorAccountID,
 	}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1239,11 +1227,11 @@ func TestNotifyMentioned_ResolvesTaskTitleOnce(t *testing.T) {
 	svc := New(repo, members, nil).WithTitleLookup(tasks, nil)
 
 	projectID := uuid.New()
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 	actorMemberID := uuid.New()
 	alice := uuid.New()
 	bob := uuid.New()
-	members.add(&projectdom.ProjectMember{ID: actorMemberID, ProjectID: projectID, UserID: actorUserID, Username: "actor"})
+	members.add(&projectdom.ProjectMember{ID: actorMemberID, ProjectID: projectID, UserID: actorAccountID, Username: "actor"})
 	members.add(&projectdom.ProjectMember{ID: uuid.New(), ProjectID: projectID, UserID: alice, Username: "alice"})
 	members.add(&projectdom.ProjectMember{ID: uuid.New(), ProjectID: projectID, UserID: bob, Username: "bob"})
 
@@ -1252,7 +1240,7 @@ func TestNotifyMentioned_ResolvesTaskTitleOnce(t *testing.T) {
 		ProjectID:     projectID,
 		CommentText:   "hey @alice and @bob",
 		ActorMemberID: actorMemberID,
-		ActorUserID:   actorUserID,
+		ActorID:       actorAccountID,
 	}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1267,7 +1255,7 @@ func TestNotifyMentioned_ResolvesTaskTitleOnce(t *testing.T) {
 func TestNotifyDocMentioned_ResolvesTitleOnlyForMember(t *testing.T) {
 	ctx := context.Background()
 	projectID := uuid.New()
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 
 	// Member path: title resolved exactly once.
 	repo := newFakeNotificationRepo()
@@ -1277,7 +1265,7 @@ func TestNotifyDocMentioned_ResolvesTitleOnlyForMember(t *testing.T) {
 	svc := New(repo, members, nil).WithEventPublishing(users, "https://paca.example").WithTitleLookup(nil, docs)
 	mentioned := uuid.New()
 	members.add(&projectdom.ProjectMember{ID: uuid.New(), ProjectID: projectID, UserID: mentioned, Username: "alice"})
-	svc.NotifyDocMentioned(ctx, mentioned, actorUserID, projectID, uuid.New())
+	svc.NotifyDocMentioned(ctx, mentioned, actorAccountID, projectID, uuid.New())
 	if got := docs.callCount(); got != 1 {
 		t.Errorf("expected the document title to be resolved once for a mentioned member, got %d lookups", got)
 	}
@@ -1285,7 +1273,7 @@ func TestNotifyDocMentioned_ResolvesTitleOnlyForMember(t *testing.T) {
 	// Non-member path: membership check short-circuits before any title lookup.
 	docs2 := &fakeDocRepo{title: "Q4 roadmap"}
 	svc2 := New(newFakeNotificationRepo(), newFakeMemberRepo(), nil).WithEventPublishing(newFakeUserRepo(), "https://paca.example").WithTitleLookup(nil, docs2)
-	svc2.NotifyDocMentioned(ctx, uuid.New(), actorUserID, projectID, uuid.New())
+	svc2.NotifyDocMentioned(ctx, uuid.New(), actorAccountID, projectID, uuid.New())
 	if got := docs2.callCount(); got != 0 {
 		t.Errorf("expected no document title lookup for a mention naming a non-member, got %d lookups", got)
 	}
@@ -1294,7 +1282,7 @@ func TestNotifyDocMentioned_ResolvesTitleOnlyForMember(t *testing.T) {
 func TestNotifyTaskDescriptionMentioned_ResolvesTitleOnlyForMember(t *testing.T) {
 	ctx := context.Background()
 	projectID := uuid.New()
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 
 	repo := newFakeNotificationRepo()
 	members := newFakeMemberRepo()
@@ -1303,14 +1291,14 @@ func TestNotifyTaskDescriptionMentioned_ResolvesTitleOnlyForMember(t *testing.T)
 	svc := New(repo, members, nil).WithEventPublishing(users, "https://paca.example").WithTitleLookup(tasks, nil)
 	mentioned := uuid.New()
 	members.add(&projectdom.ProjectMember{ID: uuid.New(), ProjectID: projectID, UserID: mentioned, Username: "alice"})
-	svc.NotifyTaskDescriptionMentioned(ctx, mentioned, actorUserID, projectID, uuid.New())
+	svc.NotifyTaskDescriptionMentioned(ctx, mentioned, actorAccountID, projectID, uuid.New())
 	if got := tasks.callCount(); got != 1 {
 		t.Errorf("expected the task title to be resolved once for a mentioned member, got %d lookups", got)
 	}
 
 	tasks2 := &fakeTaskRepo{title: "Ship the landing page"}
 	svc2 := New(newFakeNotificationRepo(), newFakeMemberRepo(), nil).WithEventPublishing(newFakeUserRepo(), "https://paca.example").WithTitleLookup(tasks2, nil)
-	svc2.NotifyTaskDescriptionMentioned(ctx, uuid.New(), actorUserID, projectID, uuid.New())
+	svc2.NotifyTaskDescriptionMentioned(ctx, uuid.New(), actorAccountID, projectID, uuid.New())
 	if got := tasks2.callCount(); got != 0 {
 		t.Errorf("expected no task title lookup for a mention naming a non-member, got %d lookups", got)
 	}
@@ -1331,11 +1319,11 @@ func TestNotifyAssigned_PublishesEntityTitle(t *testing.T) {
 		WithTitleLookup(tasks, nil)
 
 	projectID := uuid.New()
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 	assigneeUserID := uuid.New()
 	actorMemberID := uuid.New()
 	assigneeMemberID := uuid.New()
-	members.add(&projectdom.ProjectMember{ID: actorMemberID, ProjectID: projectID, UserID: actorUserID, Username: "actor"})
+	members.add(&projectdom.ProjectMember{ID: actorMemberID, ProjectID: projectID, UserID: actorAccountID, Username: "actor"})
 	members.add(&projectdom.ProjectMember{ID: assigneeMemberID, ProjectID: projectID, UserID: assigneeUserID, Username: "assignee"})
 	email := "assignee@example.com"
 	users.byID[assigneeUserID] = &userdom.User{ID: assigneeUserID, FullName: "Assignee", Email: &email}
@@ -1344,7 +1332,7 @@ func TestNotifyAssigned_PublishesEntityTitle(t *testing.T) {
 		TaskID:              uuid.New(),
 		ProjectID:           projectID,
 		NewAssigneeMemberID: assigneeMemberID,
-		ActorUserID:         actorUserID,
+		ActorID:             actorAccountID,
 	}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -90,8 +90,8 @@ func TestPublishRealtime_ProjectScoped(t *testing.T) {
 	if payload["project_id"] != projectID.String() {
 		t.Errorf("project_id = %v, want %s", payload["project_id"], projectID)
 	}
-	if _, present := payload["actor_user_id"]; present {
-		t.Errorf("actor_user_id = %v, want absent for a project-scoped event", payload["actor_user_id"])
+	if _, present := payload["actor_account_id"]; present {
+		t.Errorf("actor_account_id = %v, want absent for a project-scoped event", payload["actor_account_id"])
 	}
 	if payload["event_index"] != float64(5) { // JSON numbers decode as float64
 		t.Errorf("event_index = %v, want 5", payload["event_index"])
@@ -100,7 +100,7 @@ func TestPublishRealtime_ProjectScoped(t *testing.T) {
 
 // TestPublishRealtime_GlobalChatOmitsProjectID mirrors the routing
 // contract services/realtime's subscriber.ts implements: an agent.* event
-// with no project_id falls through to routing by actor_user_id instead
+// with no project_id falls through to routing by actor_account_id instead
 // (a global agent's home-page/admin chat) — so project_id must be an
 // entirely absent key, not present-but-empty, or subscriber.ts's
 // `typeof projectId === "string" && projectId` check would need to also
@@ -109,18 +109,18 @@ func TestPublishRealtime_ProjectScoped(t *testing.T) {
 func TestPublishRealtime_GlobalChatOmitsProjectID(t *testing.T) {
 	pub, client := newTestPublisher(t)
 	convID := uuid.New()
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 
 	msg := subscribeAndPublish(t, client, ChannelRealtime, func() error {
 		return pub.PublishRealtime(context.Background(), uuid.Nil, convID,
-			"agent.conversation.finished", nil, &actorUserID)
+			"agent.conversation.finished", nil, &actorAccountID)
 	})
 	payload := msg["payload"].(map[string]any)
 	if _, present := payload["project_id"]; present {
 		t.Errorf("project_id = %v, want entirely absent for a global-chat event", payload["project_id"])
 	}
-	if payload["actor_user_id"] != actorUserID.String() {
-		t.Errorf("actor_user_id = %v, want %s", payload["actor_user_id"], actorUserID)
+	if payload["actor_account_id"] != actorAccountID.String() {
+		t.Errorf("actor_account_id = %v, want %s", payload["actor_account_id"], actorAccountID)
 	}
 }
 

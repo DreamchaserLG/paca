@@ -540,7 +540,8 @@ func applyTaskFilter(b *queryBuilder, filter taskdom.TaskFilter) {
 			b.args = append(b.args, pattern)
 			clause := fmt.Sprintf("title ILIKE %s OR ('#' || task_number::text) ILIKE %s", p1, p2)
 			// Custom fields flagged use_in_search: match their stored value
-			// (arrays, e.g. multi_select, are matched on their JSON text).
+			// (arrays, e.g. multi_select, are matched on their JSON text; for
+			// objects that text also includes key names and punctuation).
 			p4 := b.placeholder()
 			b.args = append(b.args, pattern)
 			clause += fmt.Sprintf(` OR EXISTS (

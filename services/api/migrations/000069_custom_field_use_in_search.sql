@@ -6,6 +6,12 @@
 BEGIN;
 
 ALTER TABLE custom_field_definitions
-    ADD COLUMN use_in_search BOOLEAN NOT NULL DEFAULT FALSE;
+    ADD COLUMN IF NOT EXISTS use_in_search BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Partial index: the search predicate only ever looks up flagged definitions
+-- of a project, which is a tiny subset of the table.
+CREATE INDEX IF NOT EXISTS idx_custom_field_definitions_use_in_search
+    ON custom_field_definitions (project_id)
+    WHERE use_in_search;
 
 COMMIT;

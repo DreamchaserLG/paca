@@ -167,6 +167,15 @@ export function TaskDetailModal({
 	const [titleDraft, setTitleDraft] = useState("");
 	const titleInputRef = useRef<HTMLTextAreaElement>(null);
 
+	// Click enters edit mode immediately, except when the click ends a drag
+	// selection, so the title text can still be selected and copied.
+	function handleTitleClick() {
+		if (!canEdit || !window.getSelection()?.isCollapsed) return;
+		setTitleDraft(task?.title ?? "");
+		setEditingTitle(true);
+		setTimeout(() => titleInputRef.current?.focus(), 0);
+	}
+
 	// ── Navigation ────────────────────────────────────────────────────────────
 	function navigateToTask(taskId: string) {
 		if (!projectId) return;
@@ -403,12 +412,7 @@ export function TaskDetailModal({
 											"cursor-text hover:bg-muted/15 rounded-md px-2 -ml-2 py-1 transition-all duration-150",
 									)}
 									data-testid="task-title"
-									onClick={() => {
-										if (!canEdit) return;
-										setTitleDraft(task.title);
-										setEditingTitle(true);
-										setTimeout(() => titleInputRef.current?.focus(), 0);
-									}}
+									onClick={handleTitleClick}
 								>
 									{task.title}
 								</h1>

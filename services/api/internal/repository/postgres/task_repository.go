@@ -539,6 +539,16 @@ func applyTaskFilter(b *queryBuilder, filter taskdom.TaskFilter) {
 			p2 := b.placeholder()
 			b.args = append(b.args, pattern)
 			clause := fmt.Sprintf("title ILIKE %s OR ('#' || task_number::text) ILIKE %s", p1, p2)
+			// Custom fields flagged use_in_search: match their stored value
+			// (arrays, e.g. multi_select, are matched on their JSON text).
+			p4 := b.placeholder()
+			b.args = append(b.args, pattern)
+			clause += fmt.Sprintf(` OR EXISTS (
+				SELECT 1 FROM custom_field_definitions cfd
+				WHERE cfd.project_id = tasks.project_id AND cfd.use_in_search
+				AND CASE WHEN jsonb_typeof(tasks.custom_fields -> cfd.field_key) IN ('array','object')
+					THEN (tasks.custom_fields -> cfd.field_key)::text
+					ELSE tasks.custom_fields ->> cfd.field_key END ILIKE %s)`, p4)
 			if filter.SearchContent {
 				p3 := b.placeholder()
 				b.args = append(b.args, pattern)
@@ -1855,11 +1865,12 @@ type customFieldDefinitionRecord struct {
 	FieldType   string    `db:"field_type"`
 	Options     []byte    `db:"options"`
 	IsRequired  bool      `db:"is_required"`
+	UseInSearch bool      `db:"use_in_search"`
 	CreatedAt   time.Time `db:"created_at"`
 	UpdatedAt   time.Time `db:"updated_at"`
 }
 
-const customFieldCols = `id, project_id, field_key, display_name, field_type, options, is_required, created_at, updated_at`
+const customFieldCols = `id, project_id, field_key, display_name, field_type, options, is_required, use_in_search, created_at, updated_at`
 
 // ListCustomFieldDefinitions returns all custom field definitions for a project ordered by display_name.
 func (r *TaskRepository) ListCustomFieldDefinitions(ctx context.Context, projectID uuid.UUID) ([]*taskdom.CustomFieldDefinition, error) {
@@ -1898,10 +1909,10 @@ func (r *TaskRepository) CreateCustomFieldDefinition(ctx context.Context, f *tas
 		return err
 	}
 	_, err = r.db.ExecContext(ctx, `
-		INSERT INTO custom_field_definitions (id, project_id, field_key, display_name, field_type, options, is_required, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+		INSERT INTO custom_field_definitions (id, project_id, field_key, display_name, field_type, options, is_required, use_in_search, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
 		f.ID.String(), f.ProjectID.String(), f.FieldKey, f.DisplayName,
-		string(f.FieldType), opts, f.IsRequired, f.CreatedAt, f.UpdatedAt,
+		string(f.FieldType), opts, f.IsRequired, f.UseInSearch, f.CreatedAt, f.UpdatedAt,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -1919,9 +1930,9 @@ func (r *TaskRepository) UpdateCustomFieldDefinition(ctx context.Context, f *tas
 		return err
 	}
 	_, err = r.db.ExecContext(ctx, `
-		UPDATE custom_field_definitions SET display_name=$1, field_type=$2, options=$3, is_required=$4, updated_at=$5
-		WHERE id=$6`,
-		f.DisplayName, string(f.FieldType), opts, f.IsRequired, f.UpdatedAt, f.ID.String(),
+		UPDATE custom_field_definitions SET display_name=$1, field_type=$2, options=$3, is_required=$4, use_in_search=$5, updated_at=$6
+		WHERE id=$7`,
+		f.DisplayName, string(f.FieldType), opts, f.IsRequired, f.UseInSearch, f.UpdatedAt, f.ID.String(),
 	)
 	if err != nil {
 		return fmt.Errorf("custom field repo: update: %w", err)
@@ -2036,6 +2047,7 @@ func toCustomFieldEntity(r *customFieldDefinitionRecord) (*taskdom.CustomFieldDe
 		FieldType:   taskdom.FieldType(r.FieldType),
 		Options:     opts,
 		IsRequired:  r.IsRequired,
+		UseInSearch: r.UseInSearch,
 		CreatedAt:   r.CreatedAt,
 		UpdatedAt:   r.UpdatedAt,
 	}, nil

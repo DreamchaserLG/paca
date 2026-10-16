@@ -1032,7 +1032,8 @@
 				"displayName": "Nom affiché",
 				"fieldKey": "Clé du champ",
 				"type": "Type",
-				"required": "Requis"
+				"required": "Requis",
+				"useInSearch": "Utiliser dans la recherche"
 			},
 			"yes": "Oui",
 			"no": "Non",
@@ -1054,6 +1055,8 @@
 			"noColor": "Aucune couleur",
 			"requiredLabel": "Requis",
 			"requiredHint": "Les utilisateurs doivent renseigner ce champ lors de la création ou de la modification d'une tâche.",
+			"useInSearchLabel": "Utiliser dans la recherche",
+			"useInSearchHint": "La recherche de tâches inclut aussi la valeur de ce champ.",
 			"fieldTypes": {
 				"text": "Texte",
 				"number": "Nombre",

@@ -1628,6 +1628,7 @@ func (h *TaskHandler) CreateCustomFieldDefinition(w http.ResponseWriter, r *http
 		FieldType:   req.FieldType,
 		Options:     req.CustomFieldOptionsToDomain(),
 		IsRequired:  req.IsRequired,
+		UseInSearch: req.UseInSearch,
 	})
 	if err != nil {
 		presenter.Error(w, r, err)
@@ -1659,6 +1660,7 @@ func (h *TaskHandler) UpdateCustomFieldDefinition(w http.ResponseWriter, r *http
 		FieldType:   req.FieldType,
 		Options:     req.CustomFieldOptionsToDomain(),
 		IsRequired:  req.IsRequired,
+		UseInSearch: req.UseInSearch,
 	})
 	if err != nil {
 		presenter.Error(w, r, err)

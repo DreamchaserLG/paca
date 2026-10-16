@@ -1032,7 +1032,8 @@
 				"displayName": "表示名",
 				"fieldKey": "フィールドキー",
 				"type": "タイプ",
-				"required": "必須"
+				"required": "必須",
+				"useInSearch": "検索に使用"
 			},
 			"yes": "はい",
 			"no": "いいえ",
@@ -1054,6 +1055,8 @@
 			"noColor": "色なし",
 			"requiredLabel": "必須",
 			"requiredHint": "タスクの作成・編集時にユーザーはこのフィールドを入力する必要があります。",
+			"useInSearchLabel": "検索に使用",
+			"useInSearchHint": "タスク検索でこのフィールドの値も対象になります。",
 			"fieldTypes": {
 				"text": "テキスト",
 				"number": "数値",

@@ -733,6 +733,7 @@ func (s *Service) CreateCustomFieldDefinition(ctx context.Context, in taskdom.Cr
 		FieldType:   in.FieldType,
 		Options:     opts,
 		IsRequired:  in.IsRequired,
+		UseInSearch: in.UseInSearch,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
@@ -769,6 +770,9 @@ func (s *Service) UpdateCustomFieldDefinition(ctx context.Context, projectID, id
 	}
 	if in.IsRequired != nil {
 		f.IsRequired = *in.IsRequired
+	}
+	if in.UseInSearch != nil {
+		f.UseInSearch = *in.UseInSearch
 	}
 	f.UpdatedAt = time.Now()
 

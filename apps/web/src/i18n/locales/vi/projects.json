@@ -1032,7 +1032,8 @@
 				"displayName": "Tên hiển thị",
 				"fieldKey": "Khóa trường",
 				"type": "Loại",
-				"required": "Bắt buộc"
+				"required": "Bắt buộc",
+				"useInSearch": "Dùng trong tìm kiếm"
 			},
 			"yes": "Có",
 			"no": "Không",
@@ -1054,6 +1055,8 @@
 			"noColor": "Không màu",
 			"requiredLabel": "Bắt buộc",
 			"requiredHint": "Người dùng phải điền trường này khi tạo hoặc chỉnh sửa nhiệm vụ.",
+			"useInSearchLabel": "Dùng trong tìm kiếm",
+			"useInSearchHint": "Tìm kiếm công việc cũng khớp với giá trị của trường này.",
 			"fieldTypes": {
 				"text": "Văn bản",
 				"number": "Số",

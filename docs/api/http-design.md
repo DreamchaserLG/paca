@@ -1400,7 +1400,7 @@ Error codes:
 
 Function:
 
-- update mutable fields: `display_name`, `field_type`, `options`, `is_required`;
+- update mutable fields: `display_name`, `field_type`, `options`, `is_required`, `use_in_search`;
 - `field_key` is **immutable** and cannot be changed after creation;
 - only supplied fields are updated (partial update).
 

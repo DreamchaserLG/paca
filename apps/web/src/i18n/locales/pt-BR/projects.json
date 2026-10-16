@@ -1032,7 +1032,8 @@
 				"displayName": "Nome de exibição",
 				"fieldKey": "Chave do campo",
 				"type": "Tipo",
-				"required": "Obrigatório"
+				"required": "Obrigatório",
+				"useInSearch": "Usar na busca"
 			},
 			"yes": "Sim",
 			"no": "Não",
@@ -1054,6 +1055,8 @@
 			"noColor": "Sem cor",
 			"requiredLabel": "Obrigatório",
 			"requiredHint": "Os usuários devem preencher este campo ao criar ou editar uma tarefa.",
+			"useInSearchLabel": "Usar na busca",
+			"useInSearchHint": "A busca de tarefas também considera o valor deste campo.",
 			"fieldTypes": {
 				"text": "Texto",
 				"number": "Número",

@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -43,6 +44,7 @@ type TaskHandler struct {
 	avatarSvc       attachmentdom.AvatarService
 	notificationSvc notificationdom.Service
 	autofillRepo    taskdom.AutofillRepository
+	memberRepo      projectdom.MemberRepository
 }
 
 // NewTaskHandler returns a TaskHandler wired to the task service, view service,
@@ -111,7 +113,7 @@ const assignedToMeMemberLookupConcurrency = 20
 // the global user ID, so a membership lookup is required before the tasks
 // can be queried.
 type projectServiceForAssigned interface {
-	ListAccessible(ctx context.Context, userID uuid.UUID, page, pageSize int) ([]*projectdom.Project, int64, error)
+	ListAccessible(ctx context.Context, accountID uuid.UUID, page, pageSize int) ([]*projectdom.Project, int64, error)
 	ListAllMembers(ctx context.Context, projectID uuid.UUID) ([]*projectdom.ProjectMember, error)
 	// ListMembers is used to resolve the people behind a page of tasks
 	// when a list request asks for include=assignees,reporter.
@@ -125,6 +127,26 @@ func WithTaskAssignedProjectService(svc projectServiceForAssigned) TaskHandlerOp
 	return func(h *TaskHandler) {
 		h.projectSvc = svc
 	}
+}
+
+// WithTaskMemberRepository attaches the project member repository used to
+// default a new task's reporter to its creator's project_members.id. Without
+// it, tasks created without an explicit reporter_id have no reporter.
+func WithTaskMemberRepository(repo projectdom.MemberRepository) TaskHandlerOption {
+	return func(h *TaskHandler) { h.memberRepo = repo }
+}
+
+// checkReporter rejects a reporter that is not an active member of projectID.
+// It is a no-op when no member repository is configured.
+func (h *TaskHandler) checkReporter(ctx context.Context, projectID, memberID uuid.UUID) error {
+	if h.memberRepo == nil {
+		return nil
+	}
+	m, err := h.memberRepo.FindMemberByID(ctx, memberID)
+	if errors.Is(err, projectdom.ErrMemberNotFound) || (err == nil && m.ProjectID != projectID) {
+		return apierr.New(apierr.CodeBadRequest, "reporter_id must be a member of this project")
+	}
+	return err
 }
 
 // WithTaskAutofillRepository configures recording which fields a user
@@ -828,14 +850,8 @@ func (h *TaskHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 // first), keyset-paginated via the same opaque "cursor" query param used by
 // ListTasks. Powers the cross-project "assigned to me" widget on the home page.
 func (h *TaskHandler) ListAssignedToMe(w http.ResponseWriter, r *http.Request) {
-	claims := middleware.ClaimsFrom(r)
-	if claims == nil {
-		presenter.Error(w, r, apierr.New(apierr.CodeUnauthenticated, "unauthenticated"))
-		return
-	}
-	userID, err := uuid.Parse(claims.Subject)
-	if err != nil {
-		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid subject claim"))
+	accountID, ok := requireAccountID(w, r)
+	if !ok {
 		return
 	}
 
@@ -864,7 +880,7 @@ func (h *TaskHandler) ListAssignedToMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	projects, _, err := h.projectSvc.ListAccessible(r.Context(), userID, 1, 10000)
+	projects, _, err := h.projectSvc.ListAccessible(r.Context(), accountID, 1, 10000)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
@@ -890,7 +906,7 @@ func (h *TaskHandler) ListAssignedToMe(w http.ResponseWriter, r *http.Request) {
 				return listErr
 			}
 			for _, m := range members {
-				if m.UserID == userID {
+				if m.AccountID == accountID {
 					mu.Lock()
 					memberIDs = append(memberIDs, m.ID)
 					memberProjects = append(memberProjects, projectID)
@@ -1034,6 +1050,27 @@ func (h *TaskHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// An explicit reporter must be a member of this project; otherwise default
+	// it to whoever is creating the task. A caller with no project membership
+	// (e.g. an admin) just gets none; any other lookup failure is surfaced.
+	reporterID := req.ReporterID
+	if reporterID != nil {
+		if err := h.checkReporter(r.Context(), projectID, *reporterID); err != nil {
+			presenter.Error(w, r, err)
+			return
+		}
+	} else if h.memberRepo != nil {
+		id, err := callerMemberID(r, h.memberRepo, projectID)
+		switch {
+		case err == nil:
+			reporterID = &id
+		case errors.Is(err, projectdom.ErrMemberNotFound):
+		default:
+			presenter.Error(w, r, err)
+			return
+		}
+	}
+
 	t, err := h.svc.CreateTask(r.Context(), taskdom.CreateTaskInput{
 		ProjectID:      projectID,
 		TaskTypeID:     req.TaskTypeID,
@@ -1045,7 +1082,7 @@ func (h *TaskHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 		Importance:     req.Importance,
 		StoryPoints:    req.StoryPoints,
 		AssigneeIDs:    req.AssigneeIDs,
-		ReporterID:     req.ReporterID,
+		ReporterID:     reporterID,
 		CustomFields:   req.CustomFields,
 		StartDate:      req.StartDate,
 		DueDate:        req.DueDate,
@@ -1092,17 +1129,11 @@ func (h *TaskHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 
 	// Record creation activity (best-effort).
 	if actorID, ok := middleware.ActorIDFromContext(r.Context()); ok {
-		agentID, _ := middleware.AgentIDFromContext(r.Context())
-		var agentIDPtr *uuid.UUID
-		if agentID != uuid.Nil {
-			agentIDPtr = &agentID
-		}
 		content, _ := json.Marshal(map[string]any{"title": t.Title})
 		_ = h.activitySvc.RecordActivity(r.Context(), taskdom.RecordActivityInput{
 			TaskID:       t.ID,
 			ProjectID:    projectID,
 			ActorID:      &actorID,
-			ActorAgentID: agentIDPtr,
 			ActivityType: taskdom.ActivityTypeTaskCreated,
 			Content:      content,
 		})
@@ -1110,7 +1141,7 @@ func (h *TaskHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 		// Enqueue one assignment event per assignee so the NotificationConsumer
 		// can create the in-app notification asynchronously (best-effort).
 		for _, memberID := range req.AssigneeIDs {
-			_ = events.PublishAssignmentChanged(r.Context(), h.publisher, t.ID, projectID, memberID, nil, actorID, agentIDPtr, nil)
+			_ = events.PublishAssignmentChanged(r.Context(), h.publisher, t.ID, projectID, memberID, nil, actorID, nil)
 		}
 	}
 
@@ -1137,6 +1168,13 @@ func (h *TaskHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	if req.Description.Set && req.Description.Value != nil {
 		if err := dto.ValidateBlockNoteContent(req.Description.Value); err != nil {
 			presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "description: "+err.Error()))
+			return
+		}
+	}
+
+	if req.ReporterID.Set && req.ReporterID.Value != nil {
+		if err := h.checkReporter(r.Context(), projectID, *req.ReporterID.Value); err != nil {
+			presenter.Error(w, r, err)
 			return
 		}
 	}
@@ -1208,11 +1246,6 @@ func (h *TaskHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 
 	// Record update activity (best-effort).
 	if actorID, ok := middleware.ActorIDFromContext(r.Context()); ok && oldTask != nil {
-		agentID, _ := middleware.AgentIDFromContext(r.Context())
-		var agentIDPtr *uuid.UUID
-		if agentID != uuid.Nil {
-			agentIDPtr = &agentID
-		}
 		changes := h.taskChangedFields(r.Context(), oldTask, req)
 		if len(changes) > 0 {
 			content, _ := json.Marshal(map[string]any{"changes": changes})
@@ -1220,7 +1253,6 @@ func (h *TaskHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 				TaskID:       taskID,
 				ProjectID:    projectID,
 				ActorID:      &actorID,
-				ActorAgentID: agentIDPtr,
 				ActivityType: taskdom.ActivityTypeTaskUpdated,
 				Content:      content,
 			})
@@ -1239,7 +1271,7 @@ func (h *TaskHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 				if _, alreadyAssigned := oldSet[memberID]; alreadyAssigned {
 					continue
 				}
-				_ = events.PublishAssignmentChanged(r.Context(), h.publisher, taskID, projectID, memberID, nil, actorID, agentIDPtr, nil)
+				_ = events.PublishAssignmentChanged(r.Context(), h.publisher, taskID, projectID, memberID, nil, actorID, nil)
 			}
 		}
 
@@ -1469,16 +1501,10 @@ func (h *TaskHandler) DeleteTask(w http.ResponseWriter, r *http.Request) {
 
 	// Record deletion activity (best-effort).
 	if actorID, ok := middleware.ActorIDFromContext(r.Context()); ok {
-		agentID, _ := middleware.AgentIDFromContext(r.Context())
-		var agentIDPtr *uuid.UUID
-		if agentID != uuid.Nil {
-			agentIDPtr = &agentID
-		}
 		_ = h.activitySvc.RecordActivity(r.Context(), taskdom.RecordActivityInput{
 			TaskID:       taskID,
 			ProjectID:    projectID,
 			ActorID:      &actorID,
-			ActorAgentID: agentIDPtr,
 			ActivityType: taskdom.ActivityTypeTaskDeleted,
 			Content:      json.RawMessage(`{}`),
 		})
@@ -1740,17 +1766,10 @@ func (h *TaskHandler) AddComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	agentID, _ := middleware.AgentIDFromContext(r.Context())
-	var agentIDPtr *uuid.UUID
-	if agentID != uuid.Nil {
-		agentIDPtr = &agentID
-	}
-
 	a, err := h.activitySvc.AddComment(r.Context(), taskdom.AddCommentInput{
 		TaskID:    taskID,
 		ProjectID: projectID,
 		ActorID:   actorID,
-		AgentID:   agentIDPtr,
 		Content:   req.Content,
 	})
 	if err != nil {
@@ -1789,13 +1808,7 @@ func (h *TaskHandler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	agentID, _ := middleware.AgentIDFromContext(r.Context())
-	var agentIDPtr *uuid.UUID
-	if agentID != uuid.Nil {
-		agentIDPtr = &agentID
-	}
-
-	a, err := h.activitySvc.UpdateComment(r.Context(), commentID, projectID, actorID, agentIDPtr, req.Content)
+	a, err := h.activitySvc.UpdateComment(r.Context(), commentID, projectID, actorID, req.Content)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
@@ -1823,13 +1836,7 @@ func (h *TaskHandler) DeleteComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	agentID, _ := middleware.AgentIDFromContext(r.Context())
-	var agentIDPtr *uuid.UUID
-	if agentID != uuid.Nil {
-		agentIDPtr = &agentID
-	}
-
-	if err := h.activitySvc.DeleteComment(r.Context(), commentID, projectID, actorID, agentIDPtr); err != nil {
+	if err := h.activitySvc.DeleteComment(r.Context(), commentID, projectID, actorID); err != nil {
 		presenter.Error(w, r, err)
 		return
 	}
@@ -1910,11 +1917,6 @@ func (h *TaskHandler) CreateTaskLink(w http.ResponseWriter, r *http.Request) {
 
 	// Record link creation activity (best-effort).
 	if actorID, ok := middleware.ActorIDFromContext(r.Context()); ok {
-		agentID, _ := middleware.AgentIDFromContext(r.Context())
-		var agentIDPtr *uuid.UUID
-		if agentID != uuid.Nil {
-			agentIDPtr = &agentID
-		}
 		content, _ := json.Marshal(map[string]any{
 			"target_task_id": req.TargetTaskID,
 			"link_type":      req.LinkType,
@@ -1923,7 +1925,6 @@ func (h *TaskHandler) CreateTaskLink(w http.ResponseWriter, r *http.Request) {
 			TaskID:       taskID,
 			ProjectID:    projectID,
 			ActorID:      &actorID,
-			ActorAgentID: agentIDPtr,
 			ActivityType: taskdom.ActivityTypeTaskLinkAdded,
 			Content:      content,
 		})
@@ -1957,17 +1958,11 @@ func (h *TaskHandler) DeleteTaskLink(w http.ResponseWriter, r *http.Request) {
 
 	// Record link deletion activity (best-effort).
 	if actorID, ok := middleware.ActorIDFromContext(r.Context()); ok {
-		agentID, _ := middleware.AgentIDFromContext(r.Context())
-		var agentIDPtr *uuid.UUID
-		if agentID != uuid.Nil {
-			agentIDPtr = &agentID
-		}
 		content, _ := json.Marshal(map[string]any{"link_id": linkID})
 		_ = h.activitySvc.RecordActivity(r.Context(), taskdom.RecordActivityInput{
 			TaskID:       taskID,
 			ProjectID:    projectID,
 			ActorID:      &actorID,
-			ActorAgentID: agentIDPtr,
 			ActivityType: taskdom.ActivityTypeTaskLinkRemoved,
 			Content:      content,
 		})

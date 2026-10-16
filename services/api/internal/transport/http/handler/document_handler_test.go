@@ -98,10 +98,10 @@ func (f *fakeDocActivitySvc) ListActivities(_ context.Context, _, _ uuid.UUID, c
 func (f *fakeDocActivitySvc) AddComment(_ context.Context, in docdom.AddCommentInput) (*docdom.Activity, error) {
 	return &docdom.Activity{ID: uuid.New(), DocumentID: in.DocumentID, Content: in.Content}, nil
 }
-func (f *fakeDocActivitySvc) UpdateComment(_ context.Context, id uuid.UUID, _ uuid.UUID, _ uuid.UUID, _ *uuid.UUID, content json.RawMessage) (*docdom.Activity, error) {
+func (f *fakeDocActivitySvc) UpdateComment(_ context.Context, id uuid.UUID, _ uuid.UUID, _ uuid.UUID, content json.RawMessage) (*docdom.Activity, error) {
 	return &docdom.Activity{ID: id, Content: content}, nil
 }
-func (f *fakeDocActivitySvc) DeleteComment(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ uuid.UUID, _ *uuid.UUID) error {
+func (f *fakeDocActivitySvc) DeleteComment(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ uuid.UUID) error {
 	return nil
 }
 

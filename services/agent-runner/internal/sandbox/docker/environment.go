@@ -508,7 +508,7 @@ func (m *Manager) recreateEnvironmentIfMissingEnv(ctx context.Context, backendRe
 // PACA_API_URL/PACA_GATEWAY_URL are deployment-level; PACA_API_KEY is the
 // agent's own key, stable for that agent until it is revoked. PACA_WORKDIR/PACA_ACTOR_USER_ID/
 // PACA_REPO_PLUGIN_IDS are conversation-scoped instead — trigger.Workdir,
-// trigger.ActorUserID, and trigger.RepoPluginIDs, none of which describe
+// trigger.ActorAccountID, and trigger.RepoPluginIDs, none of which describe
 // this environment's own identity, unlike PACA_AGENT_ID/PACA_PROJECT_ID
 // (deliberately excluded from this list — see below) — but they need the
 // exact same treatment: Goose's EnvKeys lookup resolves each against the

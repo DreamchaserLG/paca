@@ -1374,7 +1374,8 @@
 		"common": {
 			"empty": "비어 있음",
 			"dash": "—",
-			"unassigned": "담당자 없음"
+			"unassigned": "담당자 없음",
+			"none": "없음"
 		},
 		"notFound": {
 			"title": "작업을 찾을 수 없습니다",

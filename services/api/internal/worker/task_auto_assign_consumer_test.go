@@ -211,8 +211,8 @@ func TestProcessTask_RecordsActivityOnSuccessfulAssignment(t *testing.T) {
 	if got.TaskID != taskID || got.ActivityType != taskdom.ActivityTypeTaskUpdated {
 		t.Fatalf("unexpected recorded activity: %+v", got)
 	}
-	if got.ActorID != nil || got.ActorAgentID != nil {
-		t.Errorf("expected a system-attributed activity (nil actor), got ActorID=%v ActorAgentID=%v", got.ActorID, got.ActorAgentID)
+	if got.ActorID != nil {
+		t.Errorf("expected a system-attributed activity (nil actor), got ActorID=%v", got.ActorID)
 	}
 	var payload struct {
 		Changes []taskdom.FieldChange `json:"changes"`
@@ -273,8 +273,8 @@ func TestProcessTask_LowConfidenceRevertsToManualAndRecordsActivity(t *testing.T
 	if got.TaskID != taskID || got.ActivityType != taskdom.ActivityTypeAutoAssignSkipped {
 		t.Fatalf("unexpected recorded activity: %+v", got)
 	}
-	if got.ActorID != nil || got.ActorAgentID != nil {
-		t.Errorf("expected a system-attributed activity (nil actor), got ActorID=%v ActorAgentID=%v", got.ActorID, got.ActorAgentID)
+	if got.ActorID != nil {
+		t.Errorf("expected a system-attributed activity (nil actor), got ActorID=%v", got.ActorID)
 	}
 	var payload struct {
 		Reason     string  `json:"reason"`

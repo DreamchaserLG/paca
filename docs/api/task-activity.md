@@ -214,8 +214,7 @@ Fields:
   entity_type    = "task"
   entity_id      = <task uuid>
   origin         = "user" | "agent" | "automation" | "jev" | "system" | ...
-  actor_id       = <user uuid>   (optional)
-  actor_agent_id = <agent uuid>  (optional)
+  actor_id       = <account uuid: user, agent or service account>  (optional)
 ```
 
 ### Stream Payload

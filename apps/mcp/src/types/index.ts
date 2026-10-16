@@ -897,7 +897,7 @@ export interface AddAutomationEdgeInput {
 // another conversation's transcript (e.g. one attached as chat context).
 // Field-for-field mirror of services/api's dto.AgentConversationResponse /
 // dto.AgentConversationEventResponse. ProjectID/TriggeredByMemberID are unset
-// for a global-chat conversation, which carries ActorUserID instead — see
+// for a global-chat conversation, which carries ActorAccountID instead — see
 // that DTO's doc comment.
 
 export type ConversationStatus =
@@ -923,7 +923,7 @@ export interface AgentConversation {
 	task_id?: string | null;
 	chat_session_id?: string | null;
 	triggered_by_member_id?: string | null;
-	actor_user_id?: string | null;
+	actor_account_id?: string | null;
 	status: ConversationStatus;
 	iteration_count: number;
 	input_tokens: number;

@@ -50,12 +50,8 @@ func urlID(r *http.Request, param, what string) (uuid.UUID, error) {
 
 // attachmentCreator is the account recorded as the creator of new attachments.
 func attachmentCreator(r *http.Request) *uuid.UUID {
-	claims := middleware.ClaimsFrom(r)
-	if claims == nil {
-		return nil
-	}
-	id, err := uuid.Parse(claims.Subject)
-	if err != nil {
+	id, ok := middleware.ActorIDFromContext(r.Context())
+	if !ok {
 		return nil
 	}
 	return &id

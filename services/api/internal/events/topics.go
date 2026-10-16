@@ -159,7 +159,7 @@ const (
 
 	// --- Notification events ------------------------------------------------
 	// TopicNotificationCreated is published to ChannelRealtime when a new
-	// notification is created.  The payload includes recipient_user_id so the
+	// notification is created.  The payload includes recipient_account_id so the
 	// realtime service can route the event to the correct user room.
 	TopicNotificationCreated = "notification.created"
 

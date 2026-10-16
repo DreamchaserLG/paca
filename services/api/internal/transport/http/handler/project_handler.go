@@ -180,7 +180,6 @@ func (h *ProjectHandler) toProjectResponse(ctx context.Context, p *projectdom.Pr
 // Users with the global projects.read permission receive all projects.
 // All other authenticated users receive only the projects they are a member of.
 func (h *ProjectHandler) ListProjects(w http.ResponseWriter, r *http.Request) {
-	claims := middleware.ClaimsFrom(r)
 	page, pageSize, err := pagingParams(r)
 	if err != nil {
 		presenter.Error(w, r, err)
@@ -192,13 +191,12 @@ func (h *ProjectHandler) ListProjects(w http.ResponseWriter, r *http.Request) {
 		total    int64
 	)
 
-	userID, parseErr := uuid.Parse(claims.Subject)
-	if parseErr != nil {
-		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid subject claim"))
+	accountID, ok := requireAccountID(w, r)
+	if !ok {
 		return
 	}
 
-	hasGlobalRead, authzErr := h.hasPlatformProjectsRead(r, userID)
+	hasGlobalRead, authzErr := h.hasPlatformProjectsRead(r, accountID)
 	if authzErr != nil {
 		presenter.Error(w, r, authzErr)
 		return
@@ -207,7 +205,7 @@ func (h *ProjectHandler) ListProjects(w http.ResponseWriter, r *http.Request) {
 	if hasGlobalRead {
 		projects, total, err = h.svc.List(r.Context(), page, pageSize)
 	} else {
-		projects, total, err = h.svc.ListAccessible(r.Context(), userID, page, pageSize)
+		projects, total, err = h.svc.ListAccessible(r.Context(), accountID, page, pageSize)
 	}
 	if err != nil {
 		presenter.Error(w, r, err)
@@ -224,11 +222,11 @@ func (h *ProjectHandler) ListProjects(w http.ResponseWriter, r *http.Request) {
 // hasPlatformProjectsRead reports whether the caller may read every project:
 // projects:read on the project collection "project" (the platform-wide
 // projects.read). Judged as the token's subject, as before.
-func (h *ProjectHandler) hasPlatformProjectsRead(r *http.Request, userID uuid.UUID) (bool, error) {
+func (h *ProjectHandler) hasPlatformProjectsRead(r *http.Request, accountID uuid.UUID) (bool, error) {
 	if h.authorizer == nil {
 		return false, nil
 	}
-	return iam.AllowedAll(r.Context(), h.authorizer, iam.User(userID.String()), "project", iam.ActionProjectsRead)
+	return iam.AllowedAll(r.Context(), h.authorizer, iam.User(accountID.String()), "project", iam.ActionProjectsRead)
 }
 
 // GetWorkspaceStats handles GET /projects/workspace-stats.
@@ -238,18 +236,12 @@ func (h *ProjectHandler) hasPlatformProjectsRead(r *http.Request, userID uuid.UU
 // platform-wide user count (see userdom.Service.CountUsers), not scoped to
 // the caller's accessible projects.
 func (h *ProjectHandler) GetWorkspaceStats(w http.ResponseWriter, r *http.Request) {
-	claims := middleware.ClaimsFrom(r)
-	if claims == nil {
-		presenter.Error(w, r, apierr.New(apierr.CodeUnauthenticated, "unauthenticated"))
-		return
-	}
-	userID, parseErr := uuid.Parse(claims.Subject)
-	if parseErr != nil {
-		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid subject claim"))
+	accountID, ok := requireAccountID(w, r)
+	if !ok {
 		return
 	}
 
-	hasGlobalRead, authzErr := h.hasPlatformProjectsRead(r, userID)
+	hasGlobalRead, authzErr := h.hasPlatformProjectsRead(r, accountID)
 	if authzErr != nil {
 		presenter.Error(w, r, authzErr)
 		return
@@ -262,7 +254,7 @@ func (h *ProjectHandler) GetWorkspaceStats(w http.ResponseWriter, r *http.Reques
 	if hasGlobalRead {
 		projects, _, err = h.svc.List(r.Context(), 1, 10000)
 	} else {
-		projects, _, err = h.svc.ListAccessible(r.Context(), userID, 1, 10000)
+		projects, _, err = h.svc.ListAccessible(r.Context(), accountID, 1, 10000)
 	}
 	if err != nil {
 		presenter.Error(w, r, err)
@@ -525,14 +517,8 @@ func (h *ProjectHandler) InitiateAvatarUpload(w http.ResponseWriter, r *http.Req
 		presenter.Error(w, r, err)
 		return
 	}
-	claims := middleware.ClaimsFrom(r)
-	if claims == nil {
-		presenter.Error(w, r, apierr.New(apierr.CodeUnauthenticated, "unauthenticated"))
-		return
-	}
-	uploaderID, err := uuid.Parse(claims.Subject)
-	if err != nil {
-		presenter.Error(w, r, apierr.New(apierr.CodeUnauthenticated, "invalid subject in token"))
+	uploaderID, ok := requireAccountID(w, r)
+	if !ok {
 		return
 	}
 

@@ -70,18 +70,15 @@ func (r *fakeCommentActivityRepo) find(id uuid.UUID) *activitydom.Activity {
 	return a
 }
 
-// fakeCommentMemberRepo mirrors production FindMemberByActor semantics
+// fakeCommentMemberRepo mirrors production FindMember semantics
 // closely enough to exercise the unidentified-actor branch: the
-// userdom.SystemActorUserID identity (with no agentID) is never itself a
+// userdom.SystemActorUserID identity is never itself a
 // project member, exactly like the real repository.
 type fakeCommentMemberRepo struct {
 	membersByUser map[uuid.UUID]*projectdom.ProjectMember
 }
 
-func (r *fakeCommentMemberRepo) FindMemberByActor(_ context.Context, _ uuid.UUID, actorID uuid.UUID, agentID *uuid.UUID) (*projectdom.ProjectMember, error) {
-	if agentID != nil {
-		return &projectdom.ProjectMember{ID: *agentID, MemberType: "agent"}, nil
-	}
+func (r *fakeCommentMemberRepo) FindMember(_ context.Context, _ uuid.UUID, actorID uuid.UUID) (*projectdom.ProjectMember, error) {
 	if actorID == userdom.SystemActorUserID {
 		// Matches production: the system/agent-bot identity is never itself
 		// a project member.
@@ -113,7 +110,6 @@ func TestActivitySvc_AddComment_UnidentifiedSystemActor_ReturnsClearError(t *tes
 		DocumentID: documentID,
 		ProjectID:  projectID,
 		ActorID:    userdom.SystemActorUserID, // shared agent key, no X-Agent-ID
-		AgentID:    nil,
 		Content:    validCommentContent(),
 	})
 
@@ -139,7 +135,6 @@ func TestActivitySvc_AddComment_GenuineNonMember_ReturnsMemberNotFound(t *testin
 		DocumentID: documentID,
 		ProjectID:  projectID,
 		ActorID:    realUserID,
-		AgentID:    nil,
 		Content:    validCommentContent(),
 	})
 
@@ -198,7 +193,7 @@ func TestActivitySvc_UpdateComment_UnidentifiedSystemActor_ReturnsClearError(t *
 	memberRepo := &fakeCommentMemberRepo{membersByUser: map[uuid.UUID]*projectdom.ProjectMember{}}
 	svc := docsvc.NewActivityService(activitysvc.New(repo.log, memberRepo, nil), repo)
 
-	_, err := svc.UpdateComment(context.Background(), commentID, projectID, userdom.SystemActorUserID, nil, validCommentContent())
+	_, err := svc.UpdateComment(context.Background(), commentID, projectID, userdom.SystemActorUserID, validCommentContent())
 
 	if !errors.Is(err, docdom.ErrCommentActorUnidentified) {
 		t.Fatalf("expected ErrCommentActorUnidentified, got %v", err)
@@ -222,7 +217,7 @@ func TestActivitySvc_DeleteComment_UnidentifiedSystemActor_ReturnsClearError(t *
 	memberRepo := &fakeCommentMemberRepo{membersByUser: map[uuid.UUID]*projectdom.ProjectMember{}}
 	svc := docsvc.NewActivityService(activitysvc.New(repo.log, memberRepo, nil), repo)
 
-	err := svc.DeleteComment(context.Background(), commentID, projectID, userdom.SystemActorUserID, nil)
+	err := svc.DeleteComment(context.Background(), commentID, projectID, userdom.SystemActorUserID)
 
 	if !errors.Is(err, docdom.ErrCommentActorUnidentified) {
 		t.Fatalf("expected ErrCommentActorUnidentified, got %v", err)
@@ -303,7 +298,7 @@ func TestActivitySvc_UpdateComment_WrongProject_ReturnsNotFound(t *testing.T) {
 	}}
 	svc := docsvc.NewActivityService(activitysvc.New(repo.log, memberRepo, nil), repo)
 
-	_, err := svc.UpdateComment(context.Background(), commentID, attackerProjectID, author, nil, validCommentContent())
+	_, err := svc.UpdateComment(context.Background(), commentID, attackerProjectID, author, validCommentContent())
 	if !errors.Is(err, docdom.ErrActivityNotFound) {
 		t.Fatalf("expected ErrActivityNotFound for cross-project UpdateComment, got %v", err)
 	}
@@ -329,7 +324,7 @@ func TestActivitySvc_DeleteComment_WrongProject_ReturnsNotFound(t *testing.T) {
 	}}
 	svc := docsvc.NewActivityService(activitysvc.New(repo.log, memberRepo, nil), repo)
 
-	err := svc.DeleteComment(context.Background(), commentID, attackerProjectID, author, nil)
+	err := svc.DeleteComment(context.Background(), commentID, attackerProjectID, author)
 	if !errors.Is(err, docdom.ErrActivityNotFound) {
 		t.Fatalf("expected ErrActivityNotFound for cross-project DeleteComment, got %v", err)
 	}

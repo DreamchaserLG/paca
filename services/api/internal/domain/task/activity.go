@@ -95,7 +95,7 @@ type FieldChange struct {
 
 // Origin identifies what caused an activity, independently of the actor.
 //
-// It exists because ActorID/ActorAgentID are both nil for every system-driven
+// It exists because ActorID is nil for every system-driven
 // change, so they cannot distinguish "the automation engine did this" from
 // "Jev autofill did this" — and that distinction is load-bearing: the
 // automation consumer matches triggers off task.updated events, so an event
@@ -150,12 +150,12 @@ type ActivityService interface {
 	// projectID is used to verify the comment's task belongs to the expected
 	// project, in addition to resolving the actor to a project member.
 	// Returns ErrActivityForbidden when actorID != comment's author.
-	UpdateComment(ctx context.Context, id uuid.UUID, projectID uuid.UUID, actorID uuid.UUID, agentID *uuid.UUID, content json.RawMessage) (*Activity, error)
+	UpdateComment(ctx context.Context, id uuid.UUID, projectID uuid.UUID, actorID uuid.UUID, content json.RawMessage) (*Activity, error)
 	// DeleteComment soft-deletes a comment.
 	// projectID is used to verify the comment's task belongs to the expected
 	// project, in addition to resolving the actor to a project member.
 	// Returns ErrActivityForbidden when actorID != comment's author.
-	DeleteComment(ctx context.Context, id uuid.UUID, projectID uuid.UUID, actorID uuid.UUID, agentID *uuid.UUID) error
+	DeleteComment(ctx context.Context, id uuid.UUID, projectID uuid.UUID, actorID uuid.UUID) error
 }
 
 // ActivityRecorder is the minimal interface used to persist system-generated
@@ -169,8 +169,7 @@ type ActivityRecorder interface {
 type AddCommentInput struct {
 	TaskID    uuid.UUID
 	ProjectID uuid.UUID
-	ActorID   uuid.UUID  // authenticated user UUID; resolved to member UUID by the service
-	AgentID   *uuid.UUID // agent UUID set when the request comes from an agent
+	ActorID   uuid.UUID // authenticated user UUID; resolved to member UUID by the service
 	Content   json.RawMessage
 }
 
@@ -179,7 +178,6 @@ type RecordActivityInput struct {
 	TaskID       uuid.UUID
 	ProjectID    uuid.UUID  // needed by consumer to resolve ActorID (user) → member ID
 	ActorID      *uuid.UUID // nil is allowed for system events; contains the user UUID
-	ActorAgentID *uuid.UUID // agent UUID when the actor is an agent (takes priority over ActorID for resolution)
 	ActivityType ActivityType
 	Content      json.RawMessage
 	// Origin identifies what caused this activity. Left unset it is treated

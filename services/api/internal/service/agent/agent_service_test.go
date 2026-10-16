@@ -120,7 +120,7 @@ type mockAgentRepo struct {
 	createGlobalAgent                    func(ctx context.Context, agent *agentdom.Agent) error
 	softDeleteGlobalAgentCascade         func(ctx context.Context, agentID uuid.UUID) error
 	listInvitedProjectIDs                func(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error)
-	listGlobalChatSessions               func(ctx context.Context, agentID, actorUserID uuid.UUID) ([]*agentdom.AgentChatSession, error)
+	listGlobalChatSessions               func(ctx context.Context, agentID, actorAccountID uuid.UUID) ([]*agentdom.AgentChatSession, error)
 	countRunningConversations            func(ctx context.Context, agentID uuid.UUID) (int, error)
 	countRunningConversationsInFolder    func(ctx context.Context, environmentID uuid.UUID, folderID *uuid.UUID) (int, error)
 	createPendingTrigger                 func(ctx context.Context, t *agentdom.PendingTrigger) error
@@ -538,9 +538,9 @@ func (m *mockAgentRepo) ListChatSessions(ctx context.Context, agentID, memberID 
 	return nil, nil
 }
 
-func (m *mockAgentRepo) ListGlobalChatSessions(ctx context.Context, agentID, actorUserID uuid.UUID) ([]*agentdom.AgentChatSession, error) {
+func (m *mockAgentRepo) ListGlobalChatSessions(ctx context.Context, agentID, actorAccountID uuid.UUID) ([]*agentdom.AgentChatSession, error) {
 	if m.listGlobalChatSessions != nil {
-		return m.listGlobalChatSessions(ctx, agentID, actorUserID)
+		return m.listGlobalChatSessions(ctx, agentID, actorAccountID)
 	}
 	return nil, nil
 }
@@ -1278,7 +1278,7 @@ func TestDeleteGlobalAgent_RejectsProjectScopedAgent(t *testing.T) {
 
 func TestStartGlobalChatSession_Success(t *testing.T) {
 	agentID := uuid.New()
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 	var createdSession *agentdom.AgentChatSession
 	var createdConv *agentdom.AgentConversation
 
@@ -1297,7 +1297,7 @@ func TestStartGlobalChatSession_Success(t *testing.T) {
 	}
 	svc := New(repo, &mockProjectRepo{}, nil, &mockPluginRepo{})
 
-	session, conv, err := svc.StartGlobalChatSession(context.Background(), agentID, actorUserID, "hello", nil, "")
+	session, conv, err := svc.StartGlobalChatSession(context.Background(), agentID, actorAccountID, "hello", nil, "")
 
 	assert.NoError(t, err)
 	assert.NotNil(t, session)
@@ -1307,15 +1307,15 @@ func TestStartGlobalChatSession_Success(t *testing.T) {
 	if assert.NotNil(t, createdSession) {
 		assert.Equal(t, uuid.Nil, createdSession.ProjectID)
 		assert.Equal(t, uuid.Nil, createdSession.MemberID)
-		if assert.NotNil(t, createdSession.ActorUserID) {
-			assert.Equal(t, actorUserID, *createdSession.ActorUserID)
+		if assert.NotNil(t, createdSession.ActorAccountID) {
+			assert.Equal(t, actorAccountID, *createdSession.ActorAccountID)
 		}
 	}
 	if assert.NotNil(t, createdConv) {
 		assert.Equal(t, uuid.Nil, createdConv.ProjectID)
 		assert.Nil(t, createdConv.TriggeredByMemberID)
-		if assert.NotNil(t, createdConv.ActorUserID) {
-			assert.Equal(t, actorUserID, *createdConv.ActorUserID)
+		if assert.NotNil(t, createdConv.ActorAccountID) {
+			assert.Equal(t, actorAccountID, *createdConv.ActorAccountID)
 		}
 	}
 }
@@ -1795,10 +1795,10 @@ func TestGetConversationForAgent_SpoofedCurrentConversation_Rejected(t *testing.
 // user's conversation simply by knowing its ID").
 func TestGetConversationForAgent_Global_SameActor_Allowed(t *testing.T) {
 	agentID := uuid.New()
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 	targetID, currentID := uuid.New(), uuid.New()
-	target := &agentdom.AgentConversation{ID: targetID, AgentID: agentID, ActorUserID: &actorUserID}
-	current := &agentdom.AgentConversation{ID: currentID, AgentID: agentID, ActorUserID: &actorUserID}
+	target := &agentdom.AgentConversation{ID: targetID, AgentID: agentID, ActorAccountID: &actorAccountID}
+	current := &agentdom.AgentConversation{ID: currentID, AgentID: agentID, ActorAccountID: &actorAccountID}
 	repo := &mockAgentRepo{
 		findConversationByID: func(_ context.Context, id uuid.UUID) (*agentdom.AgentConversation, error) {
 			if id == targetID {
@@ -1821,9 +1821,9 @@ func TestGetConversationForAgent_Global_DifferentActor_Rejected(t *testing.T) {
 	attackerActorUserID := uuid.New()
 	targetID, currentID := uuid.New(), uuid.New()
 	// target: the victim's own private global conversation with the shared agent.
-	target := &agentdom.AgentConversation{ID: targetID, AgentID: agentID, ActorUserID: &victimActorUserID}
+	target := &agentdom.AgentConversation{ID: targetID, AgentID: agentID, ActorAccountID: &victimActorUserID}
 	// current: the attacker's own, unrelated conversation with that same agent.
-	current := &agentdom.AgentConversation{ID: currentID, AgentID: agentID, ActorUserID: &attackerActorUserID}
+	current := &agentdom.AgentConversation{ID: currentID, AgentID: agentID, ActorAccountID: &attackerActorUserID}
 	repo := &mockAgentRepo{
 		findConversationByID: func(_ context.Context, id uuid.UUID) (*agentdom.AgentConversation, error) {
 			if id == targetID {
@@ -2078,14 +2078,14 @@ func TestGetConversationForAgent_SelfRead_AllowedWithoutConversationsRead(t *tes
 
 func TestGetConversationForAgent_CrossConversation_RequiresConversationsRead_GlobalGrant_Allowed(t *testing.T) {
 	agentID := uuid.New()
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 	targetID, currentID := uuid.New(), uuid.New()
 	// Global, same actor on both sides — authorizeAgentConversationRead
 	// alone would already allow this (see
 	// TestGetConversationForAgent_Global_SameActor_Allowed); conversations.read
 	// must not additionally block it.
-	target := &agentdom.AgentConversation{ID: targetID, AgentID: agentID, ActorUserID: &actorUserID}
-	current := &agentdom.AgentConversation{ID: currentID, AgentID: agentID, ActorUserID: &actorUserID}
+	target := &agentdom.AgentConversation{ID: targetID, AgentID: agentID, ActorAccountID: &actorAccountID}
+	current := &agentdom.AgentConversation{ID: currentID, AgentID: agentID, ActorAccountID: &actorAccountID}
 	repo := &mockAgentRepo{
 		findConversationByID: func(_ context.Context, id uuid.UUID) (*agentdom.AgentConversation, error) {
 			if id == targetID {
@@ -2236,12 +2236,12 @@ func TestSendChatMessage_SessionOfAnotherAgent_NotFound(t *testing.T) {
 }
 
 func TestGetGlobalConversation_Success(t *testing.T) {
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 	conversationID := uuid.New()
 	conversation := &agentdom.AgentConversation{
-		ID:          conversationID,
-		ActorUserID: &actorUserID,
-		Status:      "running",
+		ID:             conversationID,
+		ActorAccountID: &actorAccountID,
+		Status:         "running",
 	}
 
 	repo := &mockAgentRepo{
@@ -2251,7 +2251,7 @@ func TestGetGlobalConversation_Success(t *testing.T) {
 	}
 	svc := New(repo, &mockProjectRepo{}, nil, &mockPluginRepo{})
 
-	result, err := svc.GetGlobalConversation(context.Background(), conversationID, actorUserID)
+	result, err := svc.GetGlobalConversation(context.Background(), conversationID, actorAccountID)
 
 	assert.NoError(t, err)
 	assert.Equal(t, conversationID, result.ID)
@@ -2268,9 +2268,9 @@ func TestGetGlobalConversation_WrongActor(t *testing.T) {
 	attacker := uuid.New()
 	conversationID := uuid.New()
 	conversation := &agentdom.AgentConversation{
-		ID:          conversationID,
-		ActorUserID: &realOwner,
-		Status:      "running",
+		ID:             conversationID,
+		ActorAccountID: &realOwner,
+		Status:         "running",
 	}
 
 	repo := &mockAgentRepo{
@@ -2288,10 +2288,10 @@ func TestGetGlobalConversation_WrongActor(t *testing.T) {
 
 // TestGetGlobalConversation_RejectsProjectScopedConversation guards the
 // other half of the scope check: a project-scoped conversation must never
-// be reachable through the global-chat endpoints, even if ActorUserID were
+// be reachable through the global-chat endpoints, even if ActorAccountID were
 // somehow populated on it.
 func TestGetGlobalConversation_RejectsProjectScopedConversation(t *testing.T) {
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 	projectID := uuid.New()
 	conversationID := uuid.New()
 	conversation := &agentdom.AgentConversation{
@@ -2307,7 +2307,7 @@ func TestGetGlobalConversation_RejectsProjectScopedConversation(t *testing.T) {
 	}
 	svc := New(repo, &mockProjectRepo{}, nil, &mockPluginRepo{})
 
-	_, err := svc.GetGlobalConversation(context.Background(), conversationID, actorUserID)
+	_, err := svc.GetGlobalConversation(context.Background(), conversationID, actorAccountID)
 
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, agentdom.ErrConversationNotFound)
@@ -2323,9 +2323,9 @@ func TestGlobalConversationMutators_RejectWrongActor(t *testing.T) {
 	attacker := uuid.New()
 	conversationID := uuid.New()
 	conversation := &agentdom.AgentConversation{
-		ID:          conversationID,
-		ActorUserID: &realOwner,
-		Status:      "running",
+		ID:             conversationID,
+		ActorAccountID: &realOwner,
+		Status:         "running",
 	}
 	repo := &mockAgentRepo{
 		findConversationByID: func(_ context.Context, _ uuid.UUID) (*agentdom.AgentConversation, error) {
@@ -2730,12 +2730,12 @@ func TestSendConversationMessage_EnvironmentAttachedResumeBlockedByFolderCapacit
 // sibling — sendACPGlobalConversationMessage had the exact same gap.
 func TestSendGlobalConversationMessage_ACPResumeBlockedAtCapacity(t *testing.T) {
 	conversationID := uuid.New()
-	actorUserID := uuid.New()
+	actorAccountID := uuid.New()
 	conversation := &agentdom.AgentConversation{
-		ID:          conversationID,
-		ActorUserID: &actorUserID,
-		TriggerType: "chat_message",
-		Status:      "finished",
+		ID:             conversationID,
+		ActorAccountID: &actorAccountID,
+		TriggerType:    "chat_message",
+		Status:         "finished",
 	}
 
 	claimCalled := false
@@ -2756,7 +2756,7 @@ func TestSendGlobalConversationMessage_ACPResumeBlockedAtCapacity(t *testing.T) 
 	}
 	svc := New(repo, &mockProjectRepo{}, nil, &mockPluginRepo{})
 
-	err := svc.SendGlobalConversationMessage(context.Background(), conversationID, "keep going", actorUserID, nil, "")
+	err := svc.SendGlobalConversationMessage(context.Background(), conversationID, "keep going", actorAccountID, nil, "")
 
 	var apiErr *apierr.Error
 	if assert.ErrorAs(t, err, &apiErr) {

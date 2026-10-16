@@ -64,9 +64,9 @@ func (p *Publisher) PublishEvent(
 //
 // projectID zero (uuid.Nil) is a global-chat conversation and is omitted
 // from the payload entirely, matching Python's `if project_id is not
-// None:` — not sent as an empty string. actorUserID is nil for a
+// None:` — not sent as an empty string. actorAccountID is nil for a
 // project-scoped conversation; services/realtime's routeEvent needs at
-// least one of project_id/actor_user_id present to know which room to
+// least one of project_id/actor_account_id present to know which room to
 // fan this out to (see the Python doc comment this mirrors).
 //
 // conversationID zero (uuid.Nil), unlike projectID, is sent as a literal
@@ -80,7 +80,7 @@ func (p *Publisher) PublishRealtime(
 	conversationID uuid.UUID,
 	eventType string,
 	extraPayload map[string]any,
-	actorUserID *uuid.UUID,
+	actorAccountID *uuid.UUID,
 ) error {
 	conversationIDStr := conversationID.String()
 	if conversationID == uuid.Nil {
@@ -90,8 +90,8 @@ func (p *Publisher) PublishRealtime(
 	if projectID != uuid.Nil {
 		payload["project_id"] = projectID.String()
 	}
-	if actorUserID != nil {
-		payload["actor_user_id"] = actorUserID.String()
+	if actorAccountID != nil {
+		payload["actor_account_id"] = actorAccountID.String()
 	}
 	for k, v := range extraPayload {
 		payload[k] = v

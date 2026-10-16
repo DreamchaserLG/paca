@@ -19,11 +19,10 @@ import (
 	activitysvc "github.com/Paca-AI/api/internal/service/activity"
 )
 
-// memberLookup resolves an actor to a project member: FindMemberByActor for
-// comment authors (via activitysvc), FindMemberByAgent for @-mentioned agents.
+// memberLookup resolves an account to a project member: comment authors (via
+// activitysvc) and @-mentioned agents alike.
 type memberLookup interface {
 	activitysvc.MemberLookup
-	FindMemberByAgent(ctx context.Context, projectID, agentID uuid.UUID) (*projectdom.ProjectMember, error)
 }
 
 // taskLookup is the minimal interface ActivitySvc needs to verify that a
@@ -119,19 +118,15 @@ func (s *ActivitySvc) RecordActivity(ctx context.Context, in taskdom.RecordActiv
 		a.Content = json.RawMessage("{}")
 	}
 	payload := activitysvc.EntityPayload(a, taskComments.IDKey)
-	if in.ActorAgentID != nil {
-		payload["actor_agent_id"] = in.ActorAgentID.String()
-	}
 	s.act.Record(ctx, activitysvc.Entry{
-		ProjectID:    in.ProjectID,
-		EntityType:   events.EntityTask,
-		EntityID:     in.TaskID,
-		Topic:        a.ActivityType,
-		Payload:      payload,
-		ActorID:      in.ActorID,
-		ActorAgentID: in.ActorAgentID,
-		Origin:       activitysvc.OriginFor(events.Origin(in.Origin), in.ActorID, in.ActorAgentID),
-		Plugins:      true,
+		ProjectID:  in.ProjectID,
+		EntityType: events.EntityTask,
+		EntityID:   in.TaskID,
+		Topic:      a.ActivityType,
+		Payload:    payload,
+		ActorID:    in.ActorID,
+		Origin:     activitysvc.OriginFor(ctx, events.Origin(in.Origin), in.ActorID),
+		Plugins:    true,
 	})
 	return nil
 }
@@ -162,7 +157,6 @@ func (s *ActivitySvc) AddComment(ctx context.Context, in taskdom.AddCommentInput
 		ProjectID: in.ProjectID,
 		EntityID:  in.TaskID,
 		ActorID:   in.ActorID,
-		AgentID:   in.AgentID,
 		Content:   in.Content,
 	})
 	if err != nil {
@@ -188,7 +182,7 @@ func (s *ActivitySvc) handleMentions(ctx context.Context, in taskdom.AddCommentI
 			ProjectID:       in.ProjectID,
 			CommentText:     commentText,
 			ActorMemberID:   member.ID,
-			ActorUserID:     in.ActorID,
+			ActorID:         in.ActorID,
 			MentionedUserID: mentionedUserID,
 		})
 	}
@@ -217,7 +211,7 @@ func (s *ActivitySvc) handleMentions(ctx context.Context, in taskdom.AddCommentI
 // triggerMentionedAgent starts a conversation when mentionedID is an agent
 // member, reporting whether it was one.
 func (s *ActivitySvc) triggerMentionedAgent(ctx context.Context, in taskdom.AddCommentInput, commentID uuid.UUID, member *projectdom.ProjectMember, mentionedID uuid.UUID, commentText string) bool {
-	agentMember, err := s.memberRepo.FindMemberByAgent(ctx, in.ProjectID, mentionedID)
+	agentMember, err := s.memberRepo.FindMember(ctx, in.ProjectID, mentionedID)
 	if err != nil || !agentMember.IsAgent() || agentMember.AgentID == nil {
 		return false
 	}
@@ -242,7 +236,8 @@ func (s *ActivitySvc) triggerMentionedAgent(ctx context.Context, in taskdom.AddC
 		_ = s.RecordActivity(ctx, taskdom.RecordActivityInput{
 			TaskID:       in.TaskID,
 			ProjectID:    in.ProjectID,
-			ActorAgentID: &agentID,
+			ActorID:      &agentID,
+			Origin:       taskdom.OriginAgent,
 			ActivityType: taskdom.ActivityTypeAgentSessionStarted,
 			Content:      content,
 		})
@@ -251,8 +246,8 @@ func (s *ActivitySvc) triggerMentionedAgent(ctx context.Context, in taskdom.AddC
 }
 
 // UpdateComment edits the content of an existing comment.
-func (s *ActivitySvc) UpdateComment(ctx context.Context, id uuid.UUID, projectID uuid.UUID, actorID uuid.UUID, agentID *uuid.UUID, content json.RawMessage) (*taskdom.Activity, error) {
-	a, err := s.act.UpdateComment(ctx, taskComments, id, projectID, actorID, agentID, content)
+func (s *ActivitySvc) UpdateComment(ctx context.Context, id uuid.UUID, projectID uuid.UUID, actorID uuid.UUID, content json.RawMessage) (*taskdom.Activity, error) {
+	a, err := s.act.UpdateComment(ctx, taskComments, id, projectID, actorID, content)
 	if err != nil {
 		return nil, err
 	}
@@ -260,8 +255,8 @@ func (s *ActivitySvc) UpdateComment(ctx context.Context, id uuid.UUID, projectID
 }
 
 // DeleteComment soft-deletes a comment.
-func (s *ActivitySvc) DeleteComment(ctx context.Context, id uuid.UUID, projectID uuid.UUID, actorID uuid.UUID, agentID *uuid.UUID) error {
-	return s.act.DeleteComment(ctx, taskComments, id, projectID, actorID, agentID)
+func (s *ActivitySvc) DeleteComment(ctx context.Context, id uuid.UUID, projectID uuid.UUID, actorID uuid.UUID) error {
+	return s.act.DeleteComment(ctx, taskComments, id, projectID, actorID)
 }
 
 // toTaskActivity maps a log entry to the task timeline's shape.

@@ -15,14 +15,14 @@ import (
 
 // notificationReadRow is the result of the enriched SELECT … JOIN query.
 type notificationReadRow struct {
-	ID              string     `db:"id"`
-	RecipientUserID string     `db:"recipient_user_id"`
-	ActorMemberID   *string    `db:"actor_member_id"`
-	Type            string     `db:"type"`
-	TaskID          *string    `db:"task_id"`
-	ProjectID       string     `db:"project_id"`
-	ReadAt          *time.Time `db:"read_at"`
-	CreatedAt       time.Time  `db:"created_at"`
+	ID                 string     `db:"id"`
+	RecipientAccountID string     `db:"recipient_account_id"`
+	ActorMemberID      *string    `db:"actor_member_id"`
+	Type               string     `db:"type"`
+	TaskID             *string    `db:"task_id"`
+	ProjectID          string     `db:"project_id"`
+	ReadAt             *time.Time `db:"read_at"`
+	CreatedAt          time.Time  `db:"created_at"`
 
 	// Joined fields.
 	ActorFullName       *string `db:"actor_full_name"`
@@ -58,7 +58,7 @@ func NewNotificationRepository(db *sqlx.DB) *NotificationRepository {
 // --- Helpers ----------------------------------------------------------------
 
 const notificationReadCols = `
-	n.id, n.recipient_user_id, n.actor_member_id, n.type,
+	n.id, n.recipient_account_id, n.actor_member_id, n.type,
 	n.task_id, n.project_id, n.read_at, n.created_at,
 	aac.name AS actor_full_name,
 	COALESCE(u.username, ag.handle) AS actor_username,
@@ -74,13 +74,13 @@ const notificationReadCols = `
 
 func notificationFromRow(r notificationReadRow) *notificationdom.Notification {
 	n := &notificationdom.Notification{
-		ID:              uuid.MustParse(r.ID),
-		RecipientUserID: uuid.MustParse(r.RecipientUserID),
-		Type:            notificationdom.NotificationType(r.Type),
-		ProjectID:       uuid.MustParse(r.ProjectID),
-		ProjectName:     r.ProjectName,
-		ReadAt:          r.ReadAt,
-		CreatedAt:       r.CreatedAt,
+		ID:                 uuid.MustParse(r.ID),
+		RecipientAccountID: uuid.MustParse(r.RecipientAccountID),
+		Type:               notificationdom.NotificationType(r.Type),
+		ProjectID:          uuid.MustParse(r.ProjectID),
+		ProjectName:        r.ProjectName,
+		ReadAt:             r.ReadAt,
+		CreatedAt:          r.CreatedAt,
 	}
 	if r.ActorMemberID != nil {
 		id := uuid.MustParse(*r.ActorMemberID)
@@ -127,9 +127,9 @@ func (r *NotificationRepository) Create(ctx context.Context, n *notificationdom.
 		taskID = &s
 	}
 	_, err := r.db.ExecContext(ctx, `
-		INSERT INTO notifications (id, recipient_user_id, actor_member_id, type, task_id, project_id, read_at, created_at)
+		INSERT INTO notifications (id, recipient_account_id, actor_member_id, type, task_id, project_id, read_at, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		n.ID.String(), n.RecipientUserID.String(), actorMemberID,
+		n.ID.String(), n.RecipientAccountID.String(), actorMemberID,
 		string(n.Type), taskID, n.ProjectID.String(), n.ReadAt, n.CreatedAt,
 	)
 	if err != nil {
@@ -173,7 +173,7 @@ func (r *NotificationRepository) ListForUser(ctx context.Context, userID uuid.UU
 		LEFT JOIN agents ag ON ag.id = pm.account_id
 		LEFT JOIN tasks t ON t.id = n.task_id AND t.deleted_at IS NULL
 		JOIN projects p ON p.id = n.project_id
-		WHERE n.recipient_user_id = $1` + whereCursor + `
+		WHERE n.recipient_account_id = $1` + whereCursor + `
 		ORDER BY n.created_at DESC, n.id DESC
 		LIMIT ` + limitPlaceholder
 	if err := r.db.SelectContext(ctx, &rows, query, args...); err != nil {
@@ -196,7 +196,7 @@ func (r *NotificationRepository) ListForUser(ctx context.Context, userID uuid.UU
 func (r *NotificationRepository) UnreadCount(ctx context.Context, userID uuid.UUID) (int64, error) {
 	var count int64
 	err := r.db.GetContext(ctx, &count, `
-		SELECT COUNT(*) FROM notifications WHERE recipient_user_id = $1 AND read_at IS NULL`, userID.String())
+		SELECT COUNT(*) FROM notifications WHERE recipient_account_id = $1 AND read_at IS NULL`, userID.String())
 	if err != nil {
 		return 0, fmt.Errorf("notification repo: unread count: %w", err)
 	}
@@ -207,7 +207,7 @@ func (r *NotificationRepository) UnreadCount(ctx context.Context, userID uuid.UU
 // Idempotent: calling it on an already-read notification succeeds as a no-op.
 func (r *NotificationRepository) MarkAsRead(ctx context.Context, id, userID uuid.UUID) error {
 	result, err := r.db.ExecContext(ctx, `
-		UPDATE notifications SET read_at = $1 WHERE id = $2 AND recipient_user_id = $3`,
+		UPDATE notifications SET read_at = $1 WHERE id = $2 AND recipient_account_id = $3`,
 		time.Now(), id.String(), userID.String(),
 	)
 	if err != nil {
@@ -223,7 +223,7 @@ func (r *NotificationRepository) MarkAsRead(ctx context.Context, id, userID uuid
 // MarkAllAsRead sets read_at on all unread notifications for userID.
 func (r *NotificationRepository) MarkAllAsRead(ctx context.Context, userID uuid.UUID) error {
 	_, err := r.db.ExecContext(ctx, `
-		UPDATE notifications SET read_at = $1 WHERE recipient_user_id = $2 AND read_at IS NULL`,
+		UPDATE notifications SET read_at = $1 WHERE recipient_account_id = $2 AND read_at IS NULL`,
 		time.Now(), userID.String(),
 	)
 	if err != nil {

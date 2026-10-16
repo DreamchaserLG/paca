@@ -618,12 +618,15 @@ func (h *PluginHandler) ProxyRequest(w http.ResponseWriter, r *http.Request) {
 	// The kind of the authenticated account, so the runtime's permission_check
 	// judges the caller as the same principal the router's gates do.
 	accountKind := ""
-	if p, ok := middleware.PrincipalFrom(r); ok {
-		accountKind = string(p.Kind)
+	principal, authenticated := middleware.PrincipalFrom(r)
+	if authenticated {
+		accountKind = string(principal.Kind)
 	}
-	if claims != nil {
+	if claims != nil && authenticated {
 		callerRole = claims.Role
-		userIDStr = claims.Subject
+		// Plugins receive the account id as "user_id" (the wire name predates
+		// service accounts and agents); keep that field for compatibility.
+		userIDStr = principal.AccountID.String()
 
 		// Resolve project member only when the route's manifest explicitly declares
 		// project-scoped permission enforcement.  Plugin routes that don't carry a
@@ -641,12 +644,7 @@ func (h *PluginHandler) ProxyRequest(w http.ResponseWriter, r *http.Request) {
 					presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid projectId in path"))
 					return
 				}
-				userID, err := uuid.Parse(claims.Subject)
-				if err != nil {
-					presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid subject claim"))
-					return
-				}
-				member, err := h.memberRepo.FindMemberByUserProject(r.Context(), userID, projectID)
+				member, err := h.memberRepo.FindMember(r.Context(), projectID, principal.AccountID)
 				if err != nil {
 					// API-key-authenticated callers (a service account or an agent)
 					// may hold workspace-wide permissions without being a project member.

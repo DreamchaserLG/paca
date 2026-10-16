@@ -241,28 +241,6 @@ func (r *fakeProjectRepo) FindMember(_ context.Context, projectID, userID uuid.U
 	return cloneMember(m), nil
 }
 
-func (r *fakeProjectRepo) FindMemberByAgent(_ context.Context, projectID, agentID uuid.UUID) (*projectdom.ProjectMember, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	for _, m := range r.members {
-		if m.ProjectID == projectID && m.AgentID != nil && *m.AgentID == agentID {
-			return cloneMember(m), nil
-		}
-	}
-	return nil, projectdom.ErrMemberNotFound
-}
-
-func (r *fakeProjectRepo) FindMemberByActor(_ context.Context, projectID, actorID uuid.UUID, agentID *uuid.UUID) (*projectdom.ProjectMember, error) {
-	if agentID != nil {
-		return r.FindMemberByAgent(context.Background(), projectID, *agentID)
-	}
-	return r.FindMemberByUserProject(context.Background(), actorID, projectID)
-}
-
-func (r *fakeProjectRepo) FindMemberByUserProject(_ context.Context, userID, projectID uuid.UUID) (*projectdom.ProjectMember, error) {
-	return r.FindMember(context.Background(), projectID, userID)
-}
 func (r *fakeProjectRepo) FindMemberByID(_ context.Context, id uuid.UUID) (*projectdom.ProjectMember, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

@@ -2228,7 +2228,7 @@ func (c *AutomationConsumer) applyTriggerAIAgentOnTask(ctx context.Context, proj
 		if recErr := c.activityRec.RecordActivity(ctx, taskdom.RecordActivityInput{
 			TaskID:       task.ID,
 			ProjectID:    projectID,
-			ActorAgentID: &agentID,
+			ActorID:      &agentID,
 			Origin:       taskdom.OriginAutomation,
 			ActivityType: taskdom.ActivityTypeAgentSessionStarted,
 			Content:      content,
@@ -2462,7 +2462,7 @@ func (c *AutomationConsumer) applyUpdateTask(ctx context.Context, projectID uuid
 		for _, memberID := range *in.AssigneeIDs {
 			if !slices.Contains(oldAssignees, memberID) {
 				extra := map[string]any{"automation_name": automationName}
-				_ = events.PublishAssignmentChanged(ctx, c.publisher, task.ID, projectID, memberID, nil, userdom.SystemActorUserID, nil, extra)
+				_ = events.PublishAssignmentChanged(ctx, c.publisher, task.ID, projectID, memberID, nil, userdom.SystemActorUserID, extra)
 			}
 		}
 	}

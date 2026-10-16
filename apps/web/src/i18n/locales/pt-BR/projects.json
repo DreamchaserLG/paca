@@ -1374,7 +1374,8 @@
 		"common": {
 			"empty": "Vazio",
 			"dash": "—",
-			"unassigned": "Sem responsável"
+			"unassigned": "Sem responsável",
+			"none": "Nenhum"
 		},
 		"notFound": {
 			"title": "Tarefa não encontrada",

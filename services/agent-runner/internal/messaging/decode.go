@@ -45,7 +45,7 @@ func decodeTrigger(values map[string]interface{}) (agent.Trigger, error) {
 		CommentID:      optionalUUIDPtr(values, "comment_id"),
 		ChatSessionID:  optionalUUIDPtr(values, "chat_session_id"),
 		ActorMemberID:  optionalUUIDPtr(values, "actor_member_id"),
-		ActorUserID:    optionalUUIDPtr(values, "actor_user_id"),
+		ActorAccountID: optionalUUIDPtr(values, "actor_account_id"),
 		TriggerType:    agent.TriggerType(triggerType),
 		Message:        message,
 	}

@@ -132,7 +132,7 @@ type ConversationService interface {
 	// GetConversation/GetGlobalConversation both require a human
 	// member/actor identity a bare agent doesn't have (agents aren't
 	// project members, and a project-scoped agent's trigger never carries
-	// an actor_user_id), so this can't just delegate to either of those.
+	// an actor_account_id), so this can't just delegate to either of those.
 	//
 	// It is NOT enough to check "is this the requested conversation's own
 	// agent" and stop there: the same agent can be talking to many
@@ -201,32 +201,32 @@ type ConversationService interface {
 	// -- Global chat conversations (ProjectID == uuid.Nil). Thin siblings of
 	// the methods above with the ownership check inverted (ProjectID must be
 	// uuid.Nil instead of matching a given projectID) and the actor
-	// identified by ActorUserID instead of a resolved project_members.id.
+	// identified by ActorAccountID instead of a resolved project_members.id.
 
 	// ListGlobalConversations returns the caller's own global-chat
-	// conversations (never another user's — actorUserID is forced
+	// conversations (never another user's — actorAccountID is forced
 	// server-side, not client-suppliable) matching the filter. Global chat
 	// has no project-team concept to grant shared visibility the way project
 	// conversations do, so this stays scoped to the caller.
-	ListGlobalConversations(ctx context.Context, actorUserID uuid.UUID, in ListConversationsFilter, limit int) (convs []*AgentConversation, hasMore bool, err error)
+	ListGlobalConversations(ctx context.Context, actorAccountID uuid.UUID, in ListConversationsFilter, limit int) (convs []*AgentConversation, hasMore bool, err error)
 	// GetGlobalConversation returns a single conversation after verifying it
-	// is both a global-chat conversation and owned by actorUserID — the
+	// is both a global-chat conversation and owned by actorAccountID — the
 	// global-chat equivalent of GetConversation's projectID ownership check.
 	// Every other Global* conversation method below funnels through this for
-	// its existence+ownership gate, so actorUserID must never be dropped
+	// its existence+ownership gate, so actorAccountID must never be dropped
 	// from any of them.
-	GetGlobalConversation(ctx context.Context, conversationID, actorUserID uuid.UUID) (*AgentConversation, error)
-	StopGlobalConversation(ctx context.Context, conversationID, actorUserID uuid.UUID) error
-	PauseGlobalConversation(ctx context.Context, conversationID, actorUserID uuid.UUID) error
+	GetGlobalConversation(ctx context.Context, conversationID, actorAccountID uuid.UUID) (*AgentConversation, error)
+	StopGlobalConversation(ctx context.Context, conversationID, actorAccountID uuid.UUID) error
+	PauseGlobalConversation(ctx context.Context, conversationID, actorAccountID uuid.UUID) error
 	// UpdateGlobalConversationTitle/DeleteGlobalConversation are
 	// UpdateConversationTitle/DeleteConversation's global-chat siblings —
 	// see those doc comments.
-	UpdateGlobalConversationTitle(ctx context.Context, conversationID, actorUserID uuid.UUID, title string) (*AgentConversation, error)
-	DeleteGlobalConversation(ctx context.Context, conversationID, actorUserID uuid.UUID) error
-	GlobalHeartbeat(ctx context.Context, conversationID, actorUserID uuid.UUID) error
+	UpdateGlobalConversationTitle(ctx context.Context, conversationID, actorAccountID uuid.UUID, title string) (*AgentConversation, error)
+	DeleteGlobalConversation(ctx context.Context, conversationID, actorAccountID uuid.UUID) error
+	GlobalHeartbeat(ctx context.Context, conversationID, actorAccountID uuid.UUID) error
 	// SendGlobalConversationMessage is SendConversationMessage's global-chat
 	// sibling — see its doc comment for onBusy.
-	SendGlobalConversationMessage(ctx context.Context, conversationID uuid.UUID, message string, actorUserID uuid.UUID, contextItems []ContextItemRef, onBusy string) error
+	SendGlobalConversationMessage(ctx context.Context, conversationID uuid.UUID, message string, actorAccountID uuid.UUID, contextItems []ContextItemRef, onBusy string) error
 }
 
 // ChatSessionService defines chat session use cases.
@@ -248,9 +248,9 @@ type ChatSessionService interface {
 	// page / admin pages — no project context). See ChatSession's doc
 	// comment.
 
-	ListGlobalChatSessions(ctx context.Context, agentID, actorUserID uuid.UUID) ([]*AgentChatSession, error)
-	StartGlobalChatSession(ctx context.Context, agentID, actorUserID uuid.UUID, message string, contextItems []ContextItemRef, onBusy string) (*AgentChatSession, *AgentConversation, error)
-	SendGlobalChatMessage(ctx context.Context, sessionID, actorUserID uuid.UUID, message string, contextItems []ContextItemRef, onBusy string) (*AgentConversation, error)
+	ListGlobalChatSessions(ctx context.Context, agentID, actorAccountID uuid.UUID) ([]*AgentChatSession, error)
+	StartGlobalChatSession(ctx context.Context, agentID, actorAccountID uuid.UUID, message string, contextItems []ContextItemRef, onBusy string) (*AgentChatSession, *AgentConversation, error)
+	SendGlobalChatMessage(ctx context.Context, sessionID, actorAccountID uuid.UUID, message string, contextItems []ContextItemRef, onBusy string) (*AgentConversation, error)
 }
 
 // --- Input types ---

@@ -1390,7 +1390,8 @@
 		"common": {
 			"empty": "Пусто",
 			"dash": "—",
-			"unassigned": "Не назначено"
+			"unassigned": "Не назначено",
+			"none": "Нет"
 		},
 		"notFound": {
 			"title": "Задача не найдена",

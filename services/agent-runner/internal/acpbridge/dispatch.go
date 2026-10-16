@@ -84,7 +84,7 @@ func (d *Dispatcher) DispatchTrigger(ctx context.Context, trigger agent.Trigger,
 	if timeoutMinutes <= 0 {
 		timeoutMinutes = 1
 	}
-	go d.watchdog(trigger.ConversationID, trigger.ProjectID, time.Duration(timeoutMinutes)*time.Minute, trigger.ActorUserID)
+	go d.watchdog(trigger.ConversationID, trigger.ProjectID, time.Duration(timeoutMinutes)*time.Minute, trigger.ActorAccountID)
 	return nil
 }
 
@@ -95,7 +95,7 @@ func (d *Dispatcher) failOffline(ctx context.Context, trigger agent.Trigger) err
 	}
 	d.publishQueueStatus(ctx, trigger.ConversationID, "failed")
 	if err := d.Publisher.PublishRealtime(ctx, trigger.ProjectID, trigger.ConversationID,
-		"agent.conversation.failed", nil, trigger.ActorUserID); err != nil {
+		"agent.conversation.failed", nil, trigger.ActorAccountID); err != nil {
 		d.Log.Warn("acpbridge: failed to publish realtime status",
 			"conversation_id", trigger.ConversationID, "error", err)
 	}
@@ -115,7 +115,7 @@ func (d *Dispatcher) failOffline(ctx context.Context, trigger agent.Trigger) err
 // asyncio.create_task, not tied to the caller's own context) — a long-lived
 // timer that must survive after DispatchTrigger itself has already
 // returned.
-func (d *Dispatcher) watchdog(conversationID, projectID uuid.UUID, timeout time.Duration, actorUserID *uuid.UUID) {
+func (d *Dispatcher) watchdog(conversationID, projectID uuid.UUID, timeout time.Duration, actorAccountID *uuid.UUID) {
 	time.Sleep(timeout)
 	ctx := context.Background()
 	failed, err := d.ConvRepo.FailIfNotTerminal(ctx, conversationID, timeoutMessage)
@@ -131,7 +131,7 @@ func (d *Dispatcher) watchdog(conversationID, projectID uuid.UUID, timeout time.
 		"conversation_id", conversationID, "timeout", timeout)
 	d.publishQueueStatus(ctx, conversationID, "failed")
 	if err := d.Publisher.PublishRealtime(ctx, projectID, conversationID,
-		"agent.conversation.failed", nil, actorUserID); err != nil {
+		"agent.conversation.failed", nil, actorAccountID); err != nil {
 		d.Log.Warn("acpbridge: failed to publish realtime status",
 			"conversation_id", conversationID, "error", err)
 	}

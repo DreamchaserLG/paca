@@ -24,8 +24,8 @@ const (
 // Notification is a single notification entry.
 type Notification struct {
 	ID uuid.UUID
-	// RecipientUserID is the users.id of the user who receives this notification.
-	RecipientUserID uuid.UUID
+	// RecipientAccountID is the users.id of the user who receives this notification.
+	RecipientAccountID uuid.UUID
 	// ActorMemberID is the project_members.id of the user who triggered the
 	// notification.  Nil when the actor account has been deleted.
 	ActorMemberID *uuid.UUID
@@ -66,11 +66,11 @@ type Notification struct {
 
 // CreateNotificationInput carries the data needed to create a notification.
 type CreateNotificationInput struct {
-	RecipientUserID uuid.UUID
-	ActorMemberID   *uuid.UUID
-	Type            NotificationType
-	TaskID          *uuid.UUID
-	ProjectID       uuid.UUID
+	RecipientAccountID uuid.UUID
+	ActorMemberID      *uuid.UUID
+	Type               NotificationType
+	TaskID             *uuid.UUID
+	ProjectID          uuid.UUID
 }
 
 // Repository defines persistence operations for notifications.
@@ -105,13 +105,13 @@ type Service interface {
 	NotifyMentioned(ctx context.Context, in NotifyMentionedInput) error
 	// NotifyDocMentioned publishes a plugin event (no in-app row — see the
 	// implementation's doc comment) for a user newly @mentioned in a
-	// document's content. Does nothing if mentionedUserID == actorUserID.
-	NotifyDocMentioned(ctx context.Context, mentionedUserID, actorUserID uuid.UUID, projectID, docID uuid.UUID)
+	// document's content. Does nothing if mentionedUserID == actorID.
+	NotifyDocMentioned(ctx context.Context, mentionedUserID, actorID uuid.UUID, projectID, docID uuid.UUID)
 	// NotifyTaskDescriptionMentioned publishes a plugin event for a user
 	// newly @mentioned in a task's description (as opposed to a comment,
 	// which NotifyMentioned handles). Does nothing if mentionedUserID ==
-	// actorUserID.
-	NotifyTaskDescriptionMentioned(ctx context.Context, mentionedUserID, actorUserID uuid.UUID, projectID, taskID uuid.UUID)
+	// actorID.
+	NotifyTaskDescriptionMentioned(ctx context.Context, mentionedUserID, actorID uuid.UUID, projectID, taskID uuid.UUID)
 	// ListNotifications returns up to limit notifications for the authenticated
 	// user, keyset-paginated via cursorAfter — see Repository.ListForUser.
 	ListNotifications(ctx context.Context, userID uuid.UUID, limit int, cursorAfter *string) (items []*Notification, hasMore bool, err error)
@@ -129,14 +129,9 @@ type NotifyAssignedInput struct {
 	ProjectID uuid.UUID
 	// NewAssigneeMemberID is the project_members.id of the new assignee.
 	NewAssigneeMemberID uuid.UUID
-	// ActorUserID is the users.id of the person who made the assignment.
+	// ActorID is the account id of whoever made the assignment.
 	// Used to resolve the actor to a member and to skip self-assignment.
-	ActorUserID uuid.UUID
-	// ActorAgentID is the agent's id when the assignment was made by an AI
-	// agent (an agent-authenticated API request) rather than a human. When
-	// set, it takes precedence over ActorUserID for resolving the actor's
-	// project member — see projectdom.MemberRepository.FindMemberByActor.
-	ActorAgentID *uuid.UUID
+	ActorID uuid.UUID
 }
 
 // NotifyMentionedInput carries data for a mention notification.
@@ -148,8 +143,8 @@ type NotifyMentionedInput struct {
 	CommentText string
 	// ActorMemberID is the project_members.id of the commenter.
 	ActorMemberID uuid.UUID
-	// ActorUserID is the users.id of the commenter (used to exclude self-mention).
-	ActorUserID uuid.UUID
+	// ActorID is the account id of the commenter (used to exclude self-mention).
+	ActorID uuid.UUID
 	// MentionedUserID is an optional direct reference to the mentioned user's ID.
 	// When provided, it takes precedence over username parsing from CommentText.
 	MentionedUserID *uuid.UUID

@@ -1374,7 +1374,8 @@
 		"common": {
 			"empty": "Vide",
 			"dash": "—",
-			"unassigned": "Non attribué"
+			"unassigned": "Non attribué",
+			"none": "Aucun"
 		},
 		"notFound": {
 			"title": "Tâche introuvable",

@@ -1374,7 +1374,8 @@
 		"common": {
 			"empty": "Trống",
 			"dash": "—",
-			"unassigned": "Chưa giao"
+			"unassigned": "Chưa giao",
+			"none": "Không có"
 		},
 		"notFound": {
 			"title": "Không tìm thấy nhiệm vụ",

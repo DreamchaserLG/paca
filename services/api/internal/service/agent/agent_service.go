@@ -1708,7 +1708,7 @@ func (s *Service) authorizeConversationsReadForConversation(ctx context.Context,
 // scoped) and GetGlobalConversation (global) exactly rather than
 // re-deriving a separate, easier-to-get-wrong rule:
 //   - global (current.ProjectID is nil): target must also be global and
-//     share the same actor_user_id — GetGlobalConversation's own rule.
+//     share the same actor_account_id — GetGlobalConversation's own rule.
 //   - project-scoped: target must be in the same project, and either
 //     project_shared (visible to any project member already) or
 //     owner-private to the same chat-session member current belongs to —
@@ -1717,8 +1717,8 @@ func (s *Service) authorizeConversationsReadForConversation(ctx context.Context,
 func (s *Service) authorizeAgentConversationRead(ctx context.Context, current, target *agentdom.AgentConversation) error {
 	if current.ProjectID == uuid.Nil {
 		if target.ProjectID != uuid.Nil ||
-			current.ActorUserID == nil || target.ActorUserID == nil ||
-			*target.ActorUserID != *current.ActorUserID {
+			current.ActorAccountID == nil || target.ActorAccountID == nil ||
+			*target.ActorAccountID != *current.ActorAccountID {
 			return agentdom.ErrConversationNotFound
 		}
 		return nil
@@ -2054,7 +2054,7 @@ func (s *Service) resumeConversationMessage(ctx context.Context, projectID uuid.
 // -------------------------------------------------------------------------
 // Global Conversations (ProjectID == uuid.Nil) — siblings of the
 // Conversations methods above, scoped to "no project" instead of a given
-// projectID, with the actor identified by ActorUserID instead of a
+// projectID, with the actor identified by ActorAccountID instead of a
 // project_members.id. Global-chat conversations never gather repo/PR tools
 // (repo_plugin_ids is omitted from their trigger payloads) — repository
 // access is inherently project-shaped and out of scope for a conversation
@@ -2062,25 +2062,25 @@ func (s *Service) resumeConversationMessage(ctx context.Context, projectID uuid.
 // -------------------------------------------------------------------------
 
 // ListGlobalConversations returns a page of the caller's own global-chat
-// conversations matching the filter. GlobalOnly and ActorUserID are forced
+// conversations matching the filter. GlobalOnly and ActorAccountID are forced
 // server-side — a caller can never list another user's global conversations
 // by passing a different actor, unlike the project-scoped listing which is
 // visible to the whole project team.
-func (s *Service) ListGlobalConversations(ctx context.Context, actorUserID uuid.UUID, in agentdom.ListConversationsFilter, limit int) ([]*agentdom.AgentConversation, bool, error) {
+func (s *Service) ListGlobalConversations(ctx context.Context, actorAccountID uuid.UUID, in agentdom.ListConversationsFilter, limit int) ([]*agentdom.AgentConversation, bool, error) {
 	in.GlobalOnly = true
 	in.ProjectID = nil
-	in.ActorUserID = &actorUserID
+	in.ActorAccountID = &actorAccountID
 	return s.repo.ListConversations(ctx, in, limit)
 }
 
 // GetGlobalConversation returns a single conversation after verifying it is
 // both a global-chat conversation (ProjectID == uuid.Nil) AND owned by
-// actorUserID — the global-chat equivalent of GetConversation's projectID
+// actorAccountID — the global-chat equivalent of GetConversation's projectID
 // ownership check. Without the actor check, any authenticated user could
 // read, control, or inject messages into another user's global-chat
 // conversation simply by knowing its ID, since global conversations have no
 // project-team membership to gate access the way project conversations do.
-func (s *Service) GetGlobalConversation(ctx context.Context, conversationID, actorUserID uuid.UUID) (*agentdom.AgentConversation, error) {
+func (s *Service) GetGlobalConversation(ctx context.Context, conversationID, actorAccountID uuid.UUID) (*agentdom.AgentConversation, error) {
 	c, err := s.repo.FindConversationByID(ctx, conversationID)
 	if err != nil {
 		return nil, err
@@ -2090,15 +2090,15 @@ func (s *Service) GetGlobalConversation(ctx context.Context, conversationID, act
 	if c.DeletedAt != nil {
 		return nil, agentdom.ErrConversationNotFound
 	}
-	if c.ProjectID != uuid.Nil || c.ActorUserID == nil || *c.ActorUserID != actorUserID {
+	if c.ProjectID != uuid.Nil || c.ActorAccountID == nil || *c.ActorAccountID != actorAccountID {
 		return nil, agentdom.ErrConversationNotFound
 	}
 	return c, nil
 }
 
 // StopGlobalConversation stops a global conversation that is not already finished.
-func (s *Service) StopGlobalConversation(ctx context.Context, conversationID, actorUserID uuid.UUID) error {
-	c, err := s.GetGlobalConversation(ctx, conversationID, actorUserID)
+func (s *Service) StopGlobalConversation(ctx context.Context, conversationID, actorAccountID uuid.UUID) error {
+	c, err := s.GetGlobalConversation(ctx, conversationID, actorAccountID)
 	if err != nil {
 		return err
 	}
@@ -2113,8 +2113,8 @@ func (s *Service) StopGlobalConversation(ctx context.Context, conversationID, ac
 
 // UpdateGlobalConversationTitle implements
 // agentdom.Service.UpdateGlobalConversationTitle.
-func (s *Service) UpdateGlobalConversationTitle(ctx context.Context, conversationID, actorUserID uuid.UUID, title string) (*agentdom.AgentConversation, error) {
-	if _, err := s.GetGlobalConversation(ctx, conversationID, actorUserID); err != nil {
+func (s *Service) UpdateGlobalConversationTitle(ctx context.Context, conversationID, actorAccountID uuid.UUID, title string) (*agentdom.AgentConversation, error) {
+	if _, err := s.GetGlobalConversation(ctx, conversationID, actorAccountID); err != nil {
 		return nil, err
 	}
 	if err := s.repo.UpdateConversationTitle(ctx, conversationID, title); err != nil {
@@ -2124,8 +2124,8 @@ func (s *Service) UpdateGlobalConversationTitle(ctx context.Context, conversatio
 }
 
 // DeleteGlobalConversation implements agentdom.Service.DeleteGlobalConversation.
-func (s *Service) DeleteGlobalConversation(ctx context.Context, conversationID, actorUserID uuid.UUID) error {
-	c, err := s.GetGlobalConversation(ctx, conversationID, actorUserID)
+func (s *Service) DeleteGlobalConversation(ctx context.Context, conversationID, actorAccountID uuid.UUID) error {
+	c, err := s.GetGlobalConversation(ctx, conversationID, actorAccountID)
 	if err != nil {
 		return err
 	}
@@ -2138,8 +2138,8 @@ func (s *Service) DeleteGlobalConversation(ctx context.Context, conversationID, 
 }
 
 // PauseGlobalConversation interrupts a global conversation's in-flight turn.
-func (s *Service) PauseGlobalConversation(ctx context.Context, conversationID, actorUserID uuid.UUID) error {
-	c, err := s.GetGlobalConversation(ctx, conversationID, actorUserID)
+func (s *Service) PauseGlobalConversation(ctx context.Context, conversationID, actorAccountID uuid.UUID) error {
+	c, err := s.GetGlobalConversation(ctx, conversationID, actorAccountID)
 	if err != nil {
 		return err
 	}
@@ -2152,8 +2152,8 @@ func (s *Service) PauseGlobalConversation(ctx context.Context, conversationID, a
 }
 
 // GlobalHeartbeat refreshes a global conversation's idle timer.
-func (s *Service) GlobalHeartbeat(ctx context.Context, conversationID, actorUserID uuid.UUID) error {
-	if _, err := s.GetGlobalConversation(ctx, conversationID, actorUserID); err != nil {
+func (s *Service) GlobalHeartbeat(ctx context.Context, conversationID, actorAccountID uuid.UUID) error {
+	if _, err := s.GetGlobalConversation(ctx, conversationID, actorAccountID); err != nil {
 		return err
 	}
 	return s.publishTrigger(ctx, events.TopicAgentHeartbeat, map[string]any{
@@ -2162,11 +2162,11 @@ func (s *Service) GlobalHeartbeat(ctx context.Context, conversationID, actorUser
 }
 
 // SendGlobalConversationMessage publishes a chat message to an active global conversation.
-func (s *Service) SendGlobalConversationMessage(ctx context.Context, conversationID uuid.UUID, message string, actorUserID uuid.UUID, contextItems []agentdom.ContextItemRef, onBusy string) error {
+func (s *Service) SendGlobalConversationMessage(ctx context.Context, conversationID uuid.UUID, message string, actorAccountID uuid.UUID, contextItems []agentdom.ContextItemRef, onBusy string) error {
 	if err := validateOnBusy(onBusy); err != nil {
 		return err
 	}
-	c, err := s.GetGlobalConversation(ctx, conversationID, actorUserID)
+	c, err := s.GetGlobalConversation(ctx, conversationID, actorAccountID)
 	if err != nil {
 		return err
 	}
@@ -2176,17 +2176,17 @@ func (s *Service) SendGlobalConversationMessage(ctx context.Context, conversatio
 		return err
 	}
 	if agent.AgentType == agentdom.AgentTypeACP {
-		return s.sendACPGlobalConversationMessage(ctx, c, message, actorUserID, contextItems, onBusy)
+		return s.sendACPGlobalConversationMessage(ctx, c, message, actorAccountID, contextItems, onBusy)
 	}
 
 	if agentdom.ConversationStatus(c.Status) != agentdom.ConversationStatusRunning {
 		return agentdom.ErrConversationNotRunning
 	}
 	payload := map[string]any{
-		"conversation_id": conversationID.String(),
-		"agent_id":        c.AgentID.String(),
-		"message":         message,
-		"actor_user_id":   actorUserID.String(),
+		"conversation_id":  conversationID.String(),
+		"agent_id":         c.AgentID.String(),
+		"message":          message,
+		"actor_account_id": actorAccountID.String(),
 	}
 	if len(contextItems) > 0 {
 		b, _ := json.Marshal(contextItems)
@@ -2205,7 +2205,7 @@ func (s *Service) SendGlobalConversationMessage(ctx context.Context, conversatio
 // a global conversation's EnvironmentID is always nil and only the
 // agent-level check (checkParallelismCapacity, not checkDispatchCapacity)
 // applies.
-func (s *Service) sendACPGlobalConversationMessage(ctx context.Context, c *agentdom.AgentConversation, message string, actorUserID uuid.UUID, contextItems []agentdom.ContextItemRef, onBusy string) error {
+func (s *Service) sendACPGlobalConversationMessage(ctx context.Context, c *agentdom.AgentConversation, message string, actorAccountID uuid.UUID, contextItems []agentdom.ContextItemRef, onBusy string) error {
 	status := agentdom.ConversationStatus(c.Status)
 	if status == agentdom.ConversationStatusRunning || status == agentdom.ConversationStatusQueued {
 		return agentdom.ErrConversationBusy
@@ -2228,11 +2228,11 @@ func (s *Service) sendACPGlobalConversationMessage(ctx context.Context, c *agent
 		return agentdom.ErrConversationBusy
 	}
 	payload := map[string]any{
-		"conversation_id": c.ID.String(),
-		"agent_id":        c.AgentID.String(),
-		"trigger_type":    c.TriggerType,
-		"actor_user_id":   actorUserID.String(),
-		"message":         message,
+		"conversation_id":  c.ID.String(),
+		"agent_id":         c.AgentID.String(),
+		"trigger_type":     c.TriggerType,
+		"actor_account_id": actorAccountID.String(),
+		"message":          message,
 	}
 	if len(contextItems) > 0 {
 		b, _ := json.Marshal(contextItems)
@@ -2615,7 +2615,7 @@ func (s *Service) SendChatMessage(ctx context.Context, projectID, agentID, sessi
 
 // -------------------------------------------------------------------------
 // Global Chat Sessions — siblings of the Chat Sessions methods above,
-// keyed by actor_user_id instead of a project's memberID.
+// keyed by actor_account_id instead of a project's memberID.
 // -------------------------------------------------------------------------
 
 // requireGlobalAgent fails with the agent lookup's error (ErrAgentNotFound)
@@ -2628,16 +2628,16 @@ func (s *Service) requireGlobalAgent(ctx context.Context, agentID uuid.UUID) err
 
 // ListGlobalChatSessions returns all global chat sessions for the given
 // agent and human actor.
-func (s *Service) ListGlobalChatSessions(ctx context.Context, agentID, actorUserID uuid.UUID) ([]*agentdom.AgentChatSession, error) {
+func (s *Service) ListGlobalChatSessions(ctx context.Context, agentID, actorAccountID uuid.UUID) ([]*agentdom.AgentChatSession, error) {
 	if err := s.requireGlobalAgent(ctx, agentID); err != nil {
 		return nil, err
 	}
-	return s.repo.ListGlobalChatSessions(ctx, agentID, actorUserID)
+	return s.repo.ListGlobalChatSessions(ctx, agentID, actorAccountID)
 }
 
 // StartGlobalChatSession creates a new global chat session and publishes
 // the initial message trigger.
-func (s *Service) StartGlobalChatSession(ctx context.Context, agentID, actorUserID uuid.UUID, message string, contextItems []agentdom.ContextItemRef, onBusy string) (*agentdom.AgentChatSession, *agentdom.AgentConversation, error) {
+func (s *Service) StartGlobalChatSession(ctx context.Context, agentID, actorAccountID uuid.UUID, message string, contextItems []agentdom.ContextItemRef, onBusy string) (*agentdom.AgentChatSession, *agentdom.AgentConversation, error) {
 	// validateOnBusy runs before requireGlobalAgent: a malformed onBusy
 	// value is a client-input error that shouldn't depend on the target
 	// agent — see TestStartGlobalChatSession_RejectsInvalidOnBusy, which
@@ -2658,18 +2658,18 @@ func (s *Service) StartGlobalChatSession(ctx context.Context, agentID, actorUser
 	now := time.Now()
 
 	session := &agentdom.AgentChatSession{
-		ID:            uuid.New(),
-		AgentID:       agentID,
-		ActorUserID:   &actorUserID,
-		LastMessageAt: &now,
-		CreatedAt:     now,
-		UpdatedAt:     now,
+		ID:             uuid.New(),
+		AgentID:        agentID,
+		ActorAccountID: &actorAccountID,
+		LastMessageAt:  &now,
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
 	if err := s.repo.CreateChatSession(ctx, session); err != nil {
 		return nil, nil, err
 	}
 
-	conv, err := s.createGlobalConversation(ctx, agentID, actorUserID, agentdom.AgentConversation{
+	conv, err := s.createGlobalConversation(ctx, agentID, actorAccountID, agentdom.AgentConversation{
 		TriggerType:   "chat_message",
 		ChatSessionID: &session.ID,
 	})
@@ -2679,7 +2679,7 @@ func (s *Service) StartGlobalChatSession(ctx context.Context, agentID, actorUser
 
 	// needsClaim=true: this conversation was just created fresh above, still
 	// "queued", never claimed by anything else.
-	if err := s.publishGlobalChatTrigger(ctx, agentID, conv.ID, session.ID, actorUserID, message, contextItems, dispatchNow, true); err != nil {
+	if err := s.publishGlobalChatTrigger(ctx, agentID, conv.ID, session.ID, actorAccountID, message, contextItems, dispatchNow, true); err != nil {
 		return nil, nil, err
 	}
 
@@ -2689,7 +2689,7 @@ func (s *Service) StartGlobalChatSession(ctx context.Context, agentID, actorUser
 // SendGlobalChatMessage sends a message to an existing global chat session
 // and publishes the trigger. Mirrors SendChatMessage's resume/terminal
 // handling — see its doc comment for the pause/resume rationale.
-func (s *Service) SendGlobalChatMessage(ctx context.Context, sessionID, actorUserID uuid.UUID, message string, contextItems []agentdom.ContextItemRef, onBusy string) (*agentdom.AgentConversation, error) {
+func (s *Service) SendGlobalChatMessage(ctx context.Context, sessionID, actorAccountID uuid.UUID, message string, contextItems []agentdom.ContextItemRef, onBusy string) (*agentdom.AgentConversation, error) {
 	if err := validateOnBusy(onBusy); err != nil {
 		return nil, err
 	}
@@ -2697,7 +2697,7 @@ func (s *Service) SendGlobalChatMessage(ctx context.Context, sessionID, actorUse
 	if err != nil {
 		return nil, err
 	}
-	if session.ProjectID != uuid.Nil || session.ActorUserID == nil || *session.ActorUserID != actorUserID {
+	if session.ProjectID != uuid.Nil || session.ActorAccountID == nil || *session.ActorAccountID != actorAccountID {
 		return nil, agentdom.ErrChatSessionNotFound
 	}
 	if err := s.requireGlobalAgent(ctx, session.AgentID); err != nil {
@@ -2767,7 +2767,7 @@ func (s *Service) SendGlobalChatMessage(ctx context.Context, sessionID, actorUse
 			return nil, err
 		}
 		freshConversation = true
-		conv, err = s.createGlobalConversation(ctx, session.AgentID, actorUserID, agentdom.AgentConversation{
+		conv, err = s.createGlobalConversation(ctx, session.AgentID, actorAccountID, agentdom.AgentConversation{
 			TriggerType:   "chat_message",
 			ChatSessionID: &sessionID,
 		})
@@ -2778,7 +2778,7 @@ func (s *Service) SendGlobalChatMessage(ctx context.Context, sessionID, actorUse
 	// else: resume — reuse the same conversation_id so ai-agent reattaches
 	// to the sandbox it kept alive rather than cold-starting a new one.
 
-	if err := s.publishGlobalChatTrigger(ctx, session.AgentID, conv.ID, sessionID, actorUserID, message, contextItems, dispatchNow, freshConversation); err != nil {
+	if err := s.publishGlobalChatTrigger(ctx, session.AgentID, conv.ID, sessionID, actorAccountID, message, contextItems, dispatchNow, freshConversation); err != nil {
 		return nil, err
 	}
 
@@ -2858,17 +2858,17 @@ func (s *Service) createConversation(ctx context.Context, projectID, agentID uui
 // createGlobalConversation is createConversation's global-chat sibling:
 // there is no project_id and the actor is a user directly rather than a
 // resolved project_members.id.
-func (s *Service) createGlobalConversation(ctx context.Context, agentID, actorUserID uuid.UUID, template agentdom.AgentConversation) (*agentdom.AgentConversation, error) {
+func (s *Service) createGlobalConversation(ctx context.Context, agentID, actorAccountID uuid.UUID, template agentdom.AgentConversation) (*agentdom.AgentConversation, error) {
 	now := time.Now()
 	conv := &agentdom.AgentConversation{
-		ID:            uuid.New(),
-		AgentID:       agentID,
-		TriggerType:   template.TriggerType,
-		ChatSessionID: template.ChatSessionID,
-		ActorUserID:   &actorUserID,
-		Status:        string(agentdom.ConversationStatusQueued),
-		CreatedAt:     now,
-		UpdatedAt:     now,
+		ID:             uuid.New(),
+		AgentID:        agentID,
+		TriggerType:    template.TriggerType,
+		ChatSessionID:  template.ChatSessionID,
+		ActorAccountID: &actorAccountID,
+		Status:         string(agentdom.ConversationStatusQueued),
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
 	if err := s.repo.CreateConversation(ctx, conv); err != nil {
 		return nil, err
@@ -3878,18 +3878,18 @@ func (s *Service) publishChatTrigger(ctx context.Context, agentID, convID, sessi
 }
 
 // publishGlobalChatTrigger is publishChatTrigger's global-chat sibling — no
-// project_id, actor identified by actor_user_id, and repo_plugin_ids
+// project_id, actor identified by actor_account_id, and repo_plugin_ids
 // omitted entirely (repo/PR tools are excluded from global-chat
 // conversations; see the Global Conversations section's doc comment).
 // needsClaim: see publishChatTrigger's identical doc comment.
-func (s *Service) publishGlobalChatTrigger(ctx context.Context, agentID, convID, sessionID, actorUserID uuid.UUID, message string, contextItems []agentdom.ContextItemRef, dispatchNow, needsClaim bool) error {
+func (s *Service) publishGlobalChatTrigger(ctx context.Context, agentID, convID, sessionID, actorAccountID uuid.UUID, message string, contextItems []agentdom.ContextItemRef, dispatchNow, needsClaim bool) error {
 	payload := map[string]any{
-		"conversation_id": convID.String(),
-		"agent_id":        agentID.String(),
-		"chat_session_id": sessionID.String(),
-		"actor_user_id":   actorUserID.String(),
-		"trigger_type":    "chat_message",
-		"message":         message,
+		"conversation_id":  convID.String(),
+		"agent_id":         agentID.String(),
+		"chat_session_id":  sessionID.String(),
+		"actor_account_id": actorAccountID.String(),
+		"trigger_type":     "chat_message",
+		"message":          message,
 	}
 	if len(contextItems) > 0 {
 		b, _ := json.Marshal(contextItems)

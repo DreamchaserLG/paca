@@ -44,7 +44,7 @@ export function projectRoomName(
 // agent chat events — agent.* events with no project_id (a conversation with
 // a global agent from the home page / admin pages, see services/ai-agent's
 // core.streams.publish_realtime) route here instead of a project room, keyed
-// on payload.actor_user_id. Mirrors the existing
+// on payload.actor_account_id. Mirrors the existing
 // `user:${userId}:notifications` per-user room, auto-joined at connect time
 // (see server.ts) rather than via an explicit "join" — there's no
 // project-membership permission check to run first, since this is just the

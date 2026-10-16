@@ -27,7 +27,6 @@ import {
 	type TaskStatus,
 	type TaskType,
 } from "@/lib/project-api";
-import { memberAvatar } from "@/lib/provider-logos";
 import { getTaskTypeIconComponent } from "../../task-types/task-type-icons";
 import { AssigneePicker } from "../assignee-picker";
 import type { PriorityMeta } from "../priority";
@@ -37,6 +36,7 @@ import {
 	IMPORTANCE_BUCKET_VALUES,
 	PRIORITY_LEVELS,
 } from "../priority";
+import { ReporterPicker } from "../reporter-picker";
 import { TaskTypeSelector } from "../task-type-selector";
 import { useEpicSearch } from "../use-epic-search";
 import {
@@ -46,7 +46,7 @@ import {
 } from "../view-utils";
 import { AddFieldDialog } from "./add-field-dialog";
 import { FieldRow } from "./primitives";
-import type { SelectOption, UserOption } from "./property-field";
+import type { SelectOption } from "./property-field";
 import { PropertyField } from "./property-field";
 import { NumberEditor } from "./property-field/number-editor";
 import { StoryPointsEditor } from "./property-field/story-points-editor";
@@ -91,14 +91,6 @@ interface PropertiesPanelProps {
 	onUpdate?: (payload: UpdatePayload) => void;
 	/** Navigate to a task's detail page */
 	onNavigateToTask?: (taskId: string) => void;
-}
-
-function toUserOption(m: ProjectMember): UserOption {
-	return {
-		value: m.id,
-		label: m.full_name || m.username,
-		avatar: memberAvatar(m),
-	};
 }
 
 const SPRINT_GROUP_ORDER = { active: 0, planned: 1, completed: 2 } as const;
@@ -177,8 +169,6 @@ export function PropertiesPanel({
 						: undefined,
 			})),
 	];
-
-	const reporterUserOption = reporter ? toUserOption(reporter) : null;
 
 	return (
 		<>
@@ -331,14 +321,15 @@ export function PropertiesPanel({
 					canEdit={canEdit}
 				/>
 
-				<PropertyField
-					label={t("taskDetail.properties.reporter")}
-					mode="user"
-					userValue={reporterUserOption}
-					users={[]}
-					canEdit={false}
-					hidden={!reporter}
-				/>
+				<FieldRow label={t("taskDetail.properties.reporter")}>
+					<ReporterPicker
+						projectId={task.project_id}
+						reporter={reporter}
+						reporterId={task.reporter_id ?? null}
+						canEdit={canEdit}
+						onChange={(reporter_id) => onUpdate?.({ reporter_id })}
+					/>
+				</FieldRow>
 
 				<PropertyField
 					label={t("taskDetail.properties.sprint")}

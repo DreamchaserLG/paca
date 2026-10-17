@@ -200,6 +200,57 @@ function hasMentionsInContent(content: any): boolean {
 	return false;
 }
 
+// Legacy/corrupt comments may contain link nodes without href or content
+// (#589). Repair only those nodes before export; keep the remaining document
+// readable without inventing a URL or changing the stored BlockNote data.
+function normalizeMalformedLinks(value: any): any {
+	if (Array.isArray(value)) return value.map(normalizeMalformedLinks);
+	if (!value || typeof value !== "object") return value;
+
+	const node = Object.fromEntries(
+		Object.entries(value).map(([key, child]) => [
+			key,
+			normalizeMalformedLinks(child),
+		]),
+	);
+	if (
+		node.type !== "link" ||
+		(typeof node.href === "string" &&
+			Array.isArray(node.content) &&
+			node.content.every(
+				(part: any) =>
+					part !== null &&
+					typeof part === "object" &&
+					part.type === "text" &&
+					typeof part.text === "string" &&
+					part.styles !== null &&
+					typeof part.styles === "object" &&
+					!Array.isArray(part.styles),
+			))
+	) {
+		return node;
+	}
+
+	const contentText = Array.isArray(node.content)
+		? node.content
+				.map((part: any) =>
+					typeof part === "string"
+						? part
+						: typeof part?.text === "string"
+							? part.text
+							: "",
+				)
+				.join("")
+		: typeof node.content === "string"
+			? node.content
+			: "";
+	return {
+		type: "text",
+		text: contentText || (typeof node.text === "string" ? node.text : ""),
+		styles: {},
+	};
+}
+
 /**
  * Converts BlockNote JSON blocks to Markdown string.
  * @param blocks - Array of BlockNote block objects
@@ -220,10 +271,10 @@ export function blocknoteToMarkdown(
 	}
 	if (blocks.length === 0) return "";
 
-	let _blocksToConvert = blocks;
+	let _blocksToConvert = normalizeMalformedLinks(blocks);
 
-	if (hasMentions(blocks)) {
-		_blocksToConvert = convertMentionsToText(blocks);
+	if (hasMentions(_blocksToConvert)) {
+		_blocksToConvert = convertMentionsToText(_blocksToConvert);
 	}
 
 	const e = getEditor();

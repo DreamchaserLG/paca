@@ -4,11 +4,7 @@
 // used. document.execCommand("copy") has no such restriction, so it's the
 // fallback whenever the modern API is unavailable or rejects.
 export async function copyToClipboard(text: string): Promise<boolean> {
-	if (
-		typeof window !== "undefined" &&
-		window.isSecureContext &&
-		navigator.clipboard?.writeText
-	) {
+	if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
 		try {
 			await navigator.clipboard.writeText(text);
 			return true;
@@ -19,6 +15,15 @@ export async function copyToClipboard(text: string): Promise<boolean> {
 
 	if (typeof document === "undefined") return false;
 
+	const previouslyFocused = document.activeElement as HTMLElement | null;
+	// Mount the textarea inside the active dialog (if any) rather than on
+	// <body>: modal focus traps pull focus back into their container the moment
+	// it moves outside, which would drop our selection before the copy runs.
+	const container =
+		previouslyFocused?.closest<HTMLElement>(
+			'[role="dialog"], [role="alertdialog"]',
+		) ?? document.body;
+
 	const textarea = document.createElement("textarea");
 	textarea.value = text;
 	textarea.setAttribute("readonly", "");
@@ -28,19 +33,22 @@ export async function copyToClipboard(text: string): Promise<boolean> {
 	textarea.style.top = "0";
 	textarea.style.left = "0";
 	textarea.style.opacity = "0";
-	// Keep focus/selection inside the active element (e.g. a modal's focus
-	// trap) from being lost permanently.
-	const previouslyFocused = document.activeElement as HTMLElement | null;
-	document.body.appendChild(textarea);
-	textarea.focus();
-	textarea.select();
-	let ok: boolean;
+	// 16px avoids iOS Safari zooming the page when the field is focused.
+	textarea.style.fontSize = "16px";
+
+	let ok = false;
 	try {
+		container.appendChild(textarea);
+		textarea.focus({ preventScroll: true });
+		textarea.select();
+		// select() alone is ignored by iOS Safari for readonly fields.
+		textarea.setSelectionRange(0, text.length);
 		ok = document.execCommand("copy");
 	} catch {
 		ok = false;
+	} finally {
+		textarea.remove();
+		previouslyFocused?.focus?.({ preventScroll: true });
 	}
-	textarea.remove();
-	previouslyFocused?.focus?.();
 	return ok;
 }

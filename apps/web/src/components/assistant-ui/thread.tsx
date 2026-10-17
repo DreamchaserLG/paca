@@ -13,6 +13,7 @@ import {
 	SuggestionPrimitive,
 	ThreadPrimitive,
 	type ToolCallMessagePartComponent,
+	useAui,
 	useAuiState,
 } from "@assistant-ui/react";
 import {
@@ -63,6 +64,7 @@ import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button
 import { Button } from "@/components/ui/button";
 import { getAnnotation } from "@/lib/annotation-api";
 import { matchAnnotationLinkOnly } from "@/lib/annotation-link";
+import { copyToClipboard } from "@/lib/clipboard";
 import { useContextInjectionStore } from "@/lib/context-injection-store";
 import { parseContextItems } from "@/lib/context-items";
 import { excerptOf } from "@/lib/mention-api";
@@ -603,6 +605,20 @@ const AssistantMessage: FC = () => {
 
 const AssistantActionBar: FC = () => {
 	const { t } = useTranslation("projects");
+	const aui = useAui();
+	// The primitive's built-in copy uses navigator.clipboard, which is
+	// undefined on non-secure (plain http) origins. Handle the copy ourselves
+	// (with an execCommand fallback) and cancel the primitive's own handler.
+	const handleCopy = (event: { preventDefault: () => void }) => {
+		event.preventDefault();
+		const text = aui.message().getCopyText();
+		if (!text) return;
+		void copyToClipboard(text).then((ok) => {
+			if (!ok) return;
+			aui.message().setIsCopied(true);
+			setTimeout(() => aui.message().setIsCopied(false), 3000);
+		});
+	};
 	return (
 		<ActionBarPrimitive.Root
 			hideWhenRunning
@@ -610,6 +626,7 @@ const AssistantActionBar: FC = () => {
 			className="aui-assistant-action-bar-root text-muted-foreground animate-in fade-in col-start-3 row-start-2 -ms-1 flex gap-1 duration-200"
 		>
 			<ActionBarPrimitive.Copy
+				onClick={handleCopy}
 				render={<TooltipIconButton tooltip={t("agents.thread.copy")} />}
 			>
 				<AuiIf condition={(s) => s.message.isCopied}>

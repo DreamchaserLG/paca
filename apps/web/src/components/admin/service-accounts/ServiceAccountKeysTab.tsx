@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiErrorCode, getApiErrorCode } from "@/lib/api-error";
 import type { APIKey, CreateAPIKeyResponse } from "@/lib/apikey-api";
+import { copyToClipboard } from "@/lib/clipboard";
 import { formatDate as formatDateLocale } from "@/lib/format-date";
 import {
 	createServiceAccountKey,
@@ -216,17 +217,14 @@ export function ServiceAccountKeysTab({
 
 	function handleCopy() {
 		if (!revealed) return;
-		if (!navigator.clipboard?.writeText) {
-			setError(t("serviceAccounts.keys.errors.copyFailed"));
-			return;
-		}
-		navigator.clipboard
-			.writeText(revealed.key)
-			.then(() => {
-				setCopied(true);
-				setTimeout(() => setCopied(false), 2000);
-			})
-			.catch(() => setError(t("serviceAccounts.keys.errors.copyFailed")));
+		void copyToClipboard(revealed.key).then((ok) => {
+			if (!ok) {
+				setError(t("serviceAccounts.keys.errors.copyFailed"));
+				return;
+			}
+			setCopied(true);
+			setTimeout(() => setCopied(false), 2000);
+		});
 	}
 
 	return (

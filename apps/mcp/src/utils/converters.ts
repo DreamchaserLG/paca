@@ -215,14 +215,31 @@ function normalizeMalformedLinks(value: any): any {
 	);
 	if (
 		node.type !== "link" ||
-		(typeof node.href === "string" && Array.isArray(node.content))
+		(typeof node.href === "string" &&
+			Array.isArray(node.content) &&
+			node.content.every(
+				(part: any) =>
+					part !== null &&
+					typeof part === "object" &&
+					part.type === "text" &&
+					typeof part.text === "string" &&
+					part.styles !== null &&
+					typeof part.styles === "object" &&
+					!Array.isArray(part.styles),
+			))
 	) {
 		return node;
 	}
 
 	const contentText = Array.isArray(node.content)
 		? node.content
-				.map((part: any) => (typeof part?.text === "string" ? part.text : ""))
+				.map((part: any) =>
+					typeof part === "string"
+						? part
+						: typeof part?.text === "string"
+							? part.text
+							: "",
+				)
 				.join("")
 		: typeof node.content === "string"
 			? node.content

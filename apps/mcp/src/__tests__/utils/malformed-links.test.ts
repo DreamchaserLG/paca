@@ -47,6 +47,44 @@ describe("blocknoteToMarkdown with malformed links (#589)", () => {
 			{ type: "link", href: 42, content: [text("label")] },
 			"label",
 		],
+		[
+			"string array item",
+			{ type: "link", href: "https://example.com", content: ["retained"] },
+			"retained",
+		],
+		[
+			"null array item",
+			{ type: "link", href: "https://example.com", content: [null] },
+			"",
+		],
+		[
+			"number array item",
+			{ type: "link", href: "https://example.com", content: [42] },
+			"",
+		],
+		[
+			"empty object item",
+			{ type: "link", href: "https://example.com", content: [{}] },
+			"",
+		],
+		[
+			"text without styles",
+			{
+				type: "link",
+				href: "https://example.com",
+				content: [{ type: "text", text: "retained" }],
+			},
+			"retained",
+		],
+		[
+			"mixed array items",
+			{
+				type: "link",
+				href: "https://example.com",
+				content: [text("first"), null, " second"],
+			},
+			"first second",
+		],
 		["no recoverable text", { type: "link", text: "", styles: {} }, ""],
 	])("preserves surrounding text for %s", (_name, link, label) => {
 		const input = [paragraph([text("Before "), link, text(" after")])];

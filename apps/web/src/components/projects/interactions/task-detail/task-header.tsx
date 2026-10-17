@@ -26,6 +26,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { copyToClipboard } from "@/lib/clipboard";
 import { formatDate } from "@/lib/format-date";
 import type { Task } from "@/lib/interaction-api";
 import { deleteTask } from "@/lib/interaction-api";
@@ -85,9 +86,11 @@ export function TaskHeader({
 		const taskUrl = projectId
 			? `${window.location.origin}/projects/${projectId}/tasks/${task.id}`
 			: window.location.href;
-		navigator.clipboard?.writeText(taskUrl)?.catch(() => {});
-		setLinkCopied(true);
-		setTimeout(() => setLinkCopied(false), 2000);
+		void copyToClipboard(taskUrl).then((ok) => {
+			if (!ok) return;
+			setLinkCopied(true);
+			setTimeout(() => setLinkCopied(false), 2000);
+		});
 	};
 
 	return (

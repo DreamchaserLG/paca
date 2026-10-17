@@ -14,6 +14,7 @@ import {
 	generateGlobalAgentMCPKey,
 	globalAcpBridgeStatusQueryOptions,
 } from "@/lib/agent-api";
+import { copyToClipboard } from "@/lib/clipboard";
 
 // Fixed commands for the setup steps that don't depend on any
 // server-generated value — only the bridge run command comes back from the
@@ -312,17 +313,13 @@ export function AcpBridgeSetup({
 	});
 
 	const copy = (field: CopyField, text: string) => {
-		navigator.clipboard
-			.writeText(text)
-			.then(() => {
-				setCopiedField(field);
-				setTimeout(() => setCopiedField((f) => (f === field ? null : f)), 2000);
-			})
-			.catch(() => {
-				// Clipboard write can fail (permission denied, insecure context) —
-				// leave copiedField untouched so the button doesn't falsely claim
-				// success for a value the user may need to copy manually.
-			});
+		// On failure leave copiedField untouched so the button doesn't falsely
+		// claim success for a value the user may need to copy manually.
+		void copyToClipboard(text).then((ok) => {
+			if (!ok) return;
+			setCopiedField(field);
+			setTimeout(() => setCopiedField((f) => (f === field ? null : f)), 2000);
+		});
 	};
 
 	return (

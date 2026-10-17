@@ -42,6 +42,7 @@ import {
 	getApiErrorCode,
 	isForbiddenError,
 } from "@/lib/api-error";
+import { copyToClipboard } from "@/lib/clipboard";
 import {
 	environmentConfigQueryOptions,
 	portForwardQueryOptions,
@@ -119,9 +120,11 @@ export function CommentDetailView({
 
 	const handleCopyLink = () => {
 		const url = `${window.location.origin}/projects/${projectId}/environments/${environmentId}/port-forwards/${portForwardId}/comments/${annotationId}`;
-		navigator.clipboard?.writeText(url)?.catch(() => {});
-		setLinkCopied(true);
-		setTimeout(() => setLinkCopied(false), 2000);
+		void copyToClipboard(url).then((ok) => {
+			if (!ok) return;
+			setLinkCopied(true);
+			setTimeout(() => setLinkCopied(false), 2000);
+		});
 	};
 
 	const resolveMutation = useMutation({

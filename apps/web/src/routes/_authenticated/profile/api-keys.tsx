@@ -41,6 +41,7 @@ import {
 	createAPIKey,
 	revokeAPIKey,
 } from "@/lib/apikey-api";
+import { copyToClipboard } from "@/lib/clipboard";
 import { formatDate as formatDateLocale } from "@/lib/format-date";
 
 export const Route = createFileRoute("/_authenticated/profile/api-keys")({
@@ -117,20 +118,15 @@ function APIKeysPage() {
 
 	function handleCopy() {
 		if (!revealedKey) return;
-		if (!navigator.clipboard?.writeText) {
-			window.alert(t("apiKeys.errors.copyFailed"));
-			return;
-		}
-		navigator.clipboard
-			.writeText(revealedKey.key)
-			.then(() => {
-				setCopied(true);
-				setTimeout(() => setCopied(false), 2000);
-			})
-			.catch(() => {
+		void copyToClipboard(revealedKey.key).then((ok) => {
+			if (!ok) {
 				setCopied(false);
 				window.alert(t("apiKeys.errors.copyFailed"));
-			});
+				return;
+			}
+			setCopied(true);
+			setTimeout(() => setCopied(false), 2000);
+		});
 	}
 
 	function handleCreateClose(open: boolean) {

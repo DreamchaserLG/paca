@@ -27,6 +27,7 @@ import {
 import { KbdChord } from "@/components/ui/kbd";
 import { useJevEnabled } from "@/hooks/use-jev-enabled";
 import { useMemberSearch } from "@/hooks/use-member-search";
+import { copyToClipboard } from "@/lib/clipboard";
 import type { Task } from "@/lib/interaction-api";
 import {
 	findEpicType,
@@ -35,7 +36,6 @@ import {
 } from "@/lib/project-api";
 import { createLoadMoreScrollHandler } from "@/lib/scroll-pagination";
 import { isMacPlatform, SHORTCUT_DISPLAY } from "@/lib/shortcuts/keymap";
-
 import {
 	getPriority,
 	IMPORTANCE_BUCKET_VALUES,
@@ -131,11 +131,11 @@ export function TaskContextMenu({
 		: epicsPagination;
 
 	const copyId = () => {
-		navigator.clipboard?.writeText(taskLabel)?.catch(() => {});
+		void copyToClipboard(taskLabel);
 	};
 	const copyLink = () => {
 		const url = `${window.location.origin}/projects/${projectId}/tasks/${task.id}`;
-		navigator.clipboard?.writeText(url)?.catch(() => {});
+		void copyToClipboard(url);
 	};
 
 	return (

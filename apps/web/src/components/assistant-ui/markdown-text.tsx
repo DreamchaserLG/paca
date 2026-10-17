@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import remarkGfm from "remark-gfm";
 
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
+import { copyToClipboard as copyText } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
 
 const MarkdownTextImpl = () => {
@@ -62,17 +63,13 @@ const useCopyToClipboard = ({
 	const [isCopied, setIsCopied] = useState<boolean>(false);
 
 	const copyToClipboard = (value: string) => {
-		if (!value || typeof navigator === "undefined" || !navigator.clipboard) {
-			return;
-		}
+		if (!value) return;
 
-		navigator.clipboard.writeText(value).then(
-			() => {
-				setIsCopied(true);
-				setTimeout(() => setIsCopied(false), copiedDuration);
-			},
-			() => {},
-		);
+		void copyText(value).then((ok) => {
+			if (!ok) return;
+			setIsCopied(true);
+			setTimeout(() => setIsCopied(false), copiedDuration);
+		});
 	};
 
 	return { isCopied, copyToClipboard };

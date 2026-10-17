@@ -70,6 +70,7 @@ import {
 	TRIGGER_TYPES,
 	type TriggerConfig,
 } from "@/lib/automation-api";
+import { copyToClipboard } from "@/lib/clipboard";
 import {
 	listAllTasks,
 	sprintsQueryOptions,
@@ -1540,13 +1541,8 @@ function WebhookTokenSection({
 	}
 
 	async function handleCopy(value: string, which: "token" | "url") {
-		try {
-			await navigator.clipboard.writeText(value);
-			setCopied(which);
-		} catch {
-			// Clipboard access can fail (permissions, insecure context); the
-			// user can still select-and-copy the visible text manually.
-		}
+		// On failure the user can still select-and-copy the visible text.
+		if (await copyToClipboard(value)) setCopied(which);
 	}
 
 	return (

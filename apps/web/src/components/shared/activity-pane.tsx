@@ -300,7 +300,7 @@ export function ActivityPane<T extends ActivityEntry>({
 
 	return (
 		<div
-			className="relative flex w-full lg:w-(--activity-pane-width) lg:shrink-0 flex-col h-full lg:overflow-hidden border-t lg:border-t-0 lg:border-l border-border/25 bg-muted/10"
+			className="relative flex w-full lg:w-(--activity-pane-width) lg:max-w-[50vw] lg:shrink-0 flex-col h-full lg:overflow-hidden border-t lg:border-t-0 lg:border-l border-border/25 bg-muted/10"
 			style={{ "--activity-pane-width": `${width}px` } as CSSProperties}
 		>
 			{/* biome-ignore lint/a11y/useSemanticElements: draggable splitter */}

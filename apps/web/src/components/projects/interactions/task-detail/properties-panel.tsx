@@ -538,6 +538,7 @@ export function PropertiesPanel({
 							});
 						}}
 						customOptions={cf.options}
+						customRows={cf.rows}
 						canEdit={canEdit}
 					/>
 				))}

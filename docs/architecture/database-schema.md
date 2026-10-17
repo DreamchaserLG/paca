@@ -239,10 +239,11 @@ Table custom_field_definitions {
   project_id uuid [not null, ref: > projects.id]
   field_key varchar [not null, note: 'Unique per project; immutable after creation']
   display_name varchar [not null]
-  field_type varchar [not null, note: 'text | number | date | select | multi_select | boolean | url']
+  field_type varchar [not null, note: 'text | number | date | select | multi_select | boolean | url | long_text']
   options jsonb [null, note: 'Ordered list of option labels for select / multi_select types']
   is_required boolean [not null, default: false]
   use_in_search boolean [not null, default: false]
+  rows int [not null, default: 3, note: 'Visible lines of a long_text field (2-20); ignored by other types']
   created_at timestamp
   updated_at timestamp
 

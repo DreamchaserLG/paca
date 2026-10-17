@@ -1064,7 +1064,8 @@
 				"checkbox": "チェックボックス",
 				"select": "選択",
 				"multiSelect": "複数選択",
-				"url": "URL"
+				"url": "URL",
+				"longText": "長文テキスト"
 			},
 			"createDialog": {
 				"title": "カスタムフィールドを作成",
@@ -1095,7 +1096,9 @@
 			"noPermission": {
 				"title": "You don't have permission to view custom fields",
 				"description": "Ask a project admin to grant you the project.settings.custom_fields.read permission."
-			}
+			},
+			"rowsLabel": "表示行数",
+			"rowsHint": "編集時に表示する行数（{{min}}〜{{max}}）。"
 		},
 		"jev": {
 			"title": "Jev AI",
@@ -1506,7 +1509,8 @@
 				"checkbox": "チェックボックス",
 				"select": "選択",
 				"multiSelect": "複数選択",
-				"url": "URL"
+				"url": "URL",
+				"longText": "長文テキスト"
 			}
 		},
 		"addTaskLinkModal": {

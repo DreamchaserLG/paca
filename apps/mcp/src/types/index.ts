@@ -579,7 +579,8 @@ export type FieldType =
 	| "select"
 	| "multi_select"
 	| "boolean"
-	| "url";
+	| "url"
+	| "long_text";
 
 export interface CustomFieldOption {
 	value: string;
@@ -595,6 +596,7 @@ export interface CustomFieldDefinition {
 	options: CustomFieldOption[];
 	is_required: boolean;
 	use_in_search: boolean;
+	rows: number;
 	created_at: string;
 	updated_at: string;
 }
@@ -606,6 +608,7 @@ export interface CreateCustomFieldInput {
 	options?: CustomFieldOption[];
 	is_required?: boolean;
 	use_in_search?: boolean;
+	rows?: number;
 }
 
 export interface UpdateCustomFieldInput {
@@ -614,6 +617,7 @@ export interface UpdateCustomFieldInput {
 	options?: CustomFieldOption[];
 	is_required?: boolean;
 	use_in_search?: boolean;
+	rows?: number;
 }
 
 // ==================== Attachments ====================

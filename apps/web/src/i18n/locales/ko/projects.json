@@ -1064,7 +1064,8 @@
 				"checkbox": "체크박스",
 				"select": "선택",
 				"multiSelect": "다중 선택",
-				"url": "URL"
+				"url": "URL",
+				"longText": "긴 텍스트"
 			},
 			"createDialog": {
 				"title": "커스텀 필드 생성",
@@ -1095,7 +1096,9 @@
 			"noPermission": {
 				"title": "You don't have permission to view custom fields",
 				"description": "Ask a project admin to grant you the project.settings.custom_fields.read permission."
-			}
+			},
+			"rowsLabel": "표시 줄 수",
+			"rowsHint": "편집 시 표시되는 줄 수({{min}}–{{max}})."
 		},
 		"jev": {
 			"title": "Jev AI",
@@ -1506,7 +1509,8 @@
 				"checkbox": "체크박스",
 				"select": "선택",
 				"multiSelect": "다중 선택",
-				"url": "URL"
+				"url": "URL",
+				"longText": "긴 텍스트"
 			}
 		},
 		"addTaskLinkModal": {

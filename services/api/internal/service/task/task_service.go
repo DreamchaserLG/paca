@@ -734,6 +734,7 @@ func (s *Service) CreateCustomFieldDefinition(ctx context.Context, in taskdom.Cr
 		Options:     opts,
 		IsRequired:  in.IsRequired,
 		UseInSearch: in.UseInSearch,
+		Rows:        taskdom.ClampLongTextRows(in.Rows),
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
@@ -773,6 +774,9 @@ func (s *Service) UpdateCustomFieldDefinition(ctx context.Context, projectID, id
 	}
 	if in.UseInSearch != nil {
 		f.UseInSearch = *in.UseInSearch
+	}
+	if in.Rows != nil {
+		f.Rows = taskdom.ClampLongTextRows(*in.Rows)
 	}
 	f.UpdatedAt = time.Now()
 

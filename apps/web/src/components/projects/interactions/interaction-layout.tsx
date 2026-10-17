@@ -682,7 +682,7 @@ export function InteractionLayout({
 					if (!f.after && !f.before) continue;
 					resolved[cf.field_key] = { after: f.after, before: f.before };
 				} else {
-					// text / url
+					// text / url / long_text
 					if (!f.contains) continue;
 					resolved[cf.field_key] = { contains: f.contains };
 				}

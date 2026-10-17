@@ -112,7 +112,7 @@ export interface FilterConfig {
  *   resolved option values, same recursive semantics as `FilterConfig`)
  * - `number` → `min` / `max` (inclusive range; either may be unset)
  * - `date` → `after` / `before` (inclusive range, "YYYY-MM-DD"; either may be unset)
- * - `text` / `url` → `contains` (case-insensitive substring match)
+ * - `text` / `url` / `long_text` → `contains` (case-insensitive substring match)
  */
 export interface CustomFieldFilterConfig {
 	selector?: FilterConfig;

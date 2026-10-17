@@ -83,10 +83,12 @@ export interface PropertyFieldProps {
 		| "Checkbox"
 		| "Select"
 		| "MultiSelect"
-		| "Url";
+		| "Url"
+		| "LongText";
 	customRawValue?: unknown;
 	onCustomChange?: (value: unknown) => void;
 	customOptions?: CustomFieldOption[];
+	customRows?: number;
 
 	hidden?: boolean;
 	linkIcon?: ReactNode;

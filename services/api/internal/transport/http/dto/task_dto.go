@@ -483,6 +483,7 @@ type CreateCustomFieldDefinitionRequest struct {
 	Options     []CustomFieldOptionDTO `json:"options"`
 	IsRequired  bool                   `json:"is_required"`
 	UseInSearch bool                   `json:"use_in_search"`
+	Rows        int                    `json:"rows"`
 }
 
 // UpdateCustomFieldDefinitionRequest is the body for
@@ -493,6 +494,7 @@ type UpdateCustomFieldDefinitionRequest struct {
 	Options     []CustomFieldOptionDTO `json:"options"`
 	IsRequired  *bool                  `json:"is_required"`
 	UseInSearch *bool                  `json:"use_in_search"`
+	Rows        *int                   `json:"rows"`
 }
 
 // CustomFieldDefinitionResponse is the public representation of a custom
@@ -506,6 +508,7 @@ type CustomFieldDefinitionResponse struct {
 	Options     []CustomFieldOptionDTO `json:"options"`
 	IsRequired  bool                   `json:"is_required"`
 	UseInSearch bool                   `json:"use_in_search"`
+	Rows        int                    `json:"rows"`
 	CreatedAt   time.Time              `json:"created_at"`
 	UpdatedAt   time.Time              `json:"updated_at"`
 }
@@ -549,6 +552,7 @@ func CustomFieldDefinitionFromEntity(f *taskdom.CustomFieldDefinition) CustomFie
 		Options:     opts,
 		IsRequired:  f.IsRequired,
 		UseInSearch: f.UseInSearch,
+		Rows:        f.Rows,
 		CreatedAt:   f.CreatedAt,
 		UpdatedAt:   f.UpdatedAt,
 	}

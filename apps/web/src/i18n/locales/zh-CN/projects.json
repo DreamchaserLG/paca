@@ -1064,7 +1064,8 @@
 				"checkbox": "复选框",
 				"select": "单选",
 				"multiSelect": "多选",
-				"url": "URL"
+				"url": "URL",
+				"longText": "长文本"
 			},
 			"createDialog": {
 				"title": "创建自定义字段",
@@ -1095,7 +1096,9 @@
 			"noPermission": {
 				"title": "You don't have permission to view custom fields",
 				"description": "Ask a project admin to grant you the project.settings.custom_fields.read permission."
-			}
+			},
+			"rowsLabel": "可见行数",
+			"rowsHint": "编辑时显示的行数（{{min}}–{{max}}）。"
 		},
 		"jev": {
 			"title": "Jev AI",
@@ -1506,7 +1509,8 @@
 				"checkbox": "复选框",
 				"select": "单选",
 				"multiSelect": "多选",
-				"url": "URL"
+				"url": "URL",
+				"longText": "长文本"
 			}
 		},
 		"addTaskLinkModal": {

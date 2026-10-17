@@ -56,6 +56,7 @@ export function PropertyField({
 	customRawValue,
 	onCustomChange,
 	customOptions = [],
+	customRows,
 }: PropertyFieldProps) {
 	const { t } = useTranslation("projects");
 	if (hidden) return null;
@@ -193,6 +194,7 @@ export function PropertyField({
 						rawValue={customRawValue}
 						canEdit={canEdit}
 						options={customOptions}
+						rows={customRows}
 						onChange={onCustomChange}
 					/>
 				);

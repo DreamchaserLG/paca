@@ -1323,7 +1323,7 @@ Notes:
 
 Custom field definitions describe extra metadata fields that can be attached to tasks within a project. Each definition is scoped to a project and has an immutable `field_key` that uniquely identifies it within the project.
 
-**Supported `field_type` values:** `text`, `number`, `date`, `select`, `multi_select`, `boolean`, `url`
+**Supported `field_type` values:** `text`, `number`, `date`, `select`, `multi_select`, `boolean`, `url`, `long_text`
 
 ### `GET /api/v1/projects/:projectId/custom-fields`
 
@@ -1358,6 +1358,7 @@ Function:
 - create a new custom field definition;
 - `field_key` must be unique within the project and is immutable after creation;
 - `options` is required (and used) only for `select` and `multi_select` types.
+- `rows` (2–20, default 3) sets the visible line count of a `long_text` field and is ignored by other types.
 
 Request body:
 

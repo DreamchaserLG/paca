@@ -1083,7 +1083,7 @@ function CustomFieldFilterSection({
 		);
 	}
 
-	// text / url
+	// text / url / long_text
 	return (
 		<CustomFieldContainsFilter
 			value={value?.contains}

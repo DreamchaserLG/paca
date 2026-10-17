@@ -17,9 +17,11 @@ type UiFieldType =
 	| "Checkbox"
 	| "Select"
 	| "MultiSelect"
-	| "Url";
+	| "Url"
+	| "LongText";
 const FIELD_TYPES: UiFieldType[] = [
 	"Text",
+	"LongText",
 	"Number",
 	"Date",
 	"Checkbox",
@@ -36,6 +38,7 @@ const FIELD_TYPE_LABEL_KEYS = {
 	Select: "taskDetail.addFieldDialog.fieldTypes.select",
 	MultiSelect: "taskDetail.addFieldDialog.fieldTypes.multiSelect",
 	Url: "taskDetail.addFieldDialog.fieldTypes.url",
+	LongText: "taskDetail.addFieldDialog.fieldTypes.longText",
 } as const satisfies Record<UiFieldType, string>;
 
 interface AddFieldDialogProps {

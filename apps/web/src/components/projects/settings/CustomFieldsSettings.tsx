@@ -48,6 +48,7 @@ import { cn } from "@/lib/utils";
 
 const UI_FIELD_TYPES = [
 	"Text",
+	"LongText",
 	"Number",
 	"Date",
 	"Checkbox",
@@ -65,6 +66,7 @@ const UI_TO_API_FIELD_TYPE: Record<UIFieldType, FieldType> = {
 	Select: "select",
 	MultiSelect: "multi_select",
 	Url: "url",
+	LongText: "long_text",
 };
 
 const UI_FIELD_TYPE_LABEL_KEYS = {
@@ -75,6 +77,7 @@ const UI_FIELD_TYPE_LABEL_KEYS = {
 	Select: "settings.customFields.fieldTypes.select",
 	MultiSelect: "settings.customFields.fieldTypes.multiSelect",
 	Url: "settings.customFields.fieldTypes.url",
+	LongText: "settings.customFields.fieldTypes.longText",
 } as const satisfies Record<UIFieldType, string>;
 
 const API_TO_UI_FIELD_TYPE_LABEL_KEY = {
@@ -85,6 +88,7 @@ const API_TO_UI_FIELD_TYPE_LABEL_KEY = {
 	select: "settings.customFields.fieldTypes.select",
 	multi_select: "settings.customFields.fieldTypes.multiSelect",
 	url: "settings.customFields.fieldTypes.url",
+	long_text: "settings.customFields.fieldTypes.longText",
 } as const satisfies Record<string, string>;
 
 function toUIFieldType(apiType: string, t: TFunction<"projects">): string {
@@ -93,6 +97,15 @@ function toUIFieldType(apiType: string, t: TFunction<"projects">): string {
 			apiType as keyof typeof API_TO_UI_FIELD_TYPE_LABEL_KEY
 		];
 	return key ? t(key) : apiType;
+}
+
+const DEFAULT_ROWS = 3;
+const MIN_ROWS = 2;
+const MAX_ROWS = 20;
+
+function clampRows(n: number): number {
+	if (!Number.isFinite(n)) return DEFAULT_ROWS;
+	return Math.min(MAX_ROWS, Math.max(MIN_ROWS, Math.round(n)));
 }
 
 function slugify(s: string): string {
@@ -123,6 +136,7 @@ function CreateCustomFieldDialog({
 	const [fieldType, setFieldType] = useState<UIFieldType>("Text");
 	const [required, setRequired] = useState(false);
 	const [useInSearch, setUseInSearch] = useState(false);
+	const [rows, setRows] = useState(DEFAULT_ROWS);
 	const [options, setOptions] = useState<CustomFieldOption[]>([]);
 	const [newOption, setNewOption] = useState("");
 	const [error, setError] = useState<string | null>(null);
@@ -132,6 +146,7 @@ function CreateCustomFieldDialog({
 		setFieldKey("");
 		setKeyManuallyEdited(false);
 		setFieldType("Text");
+		setRows(DEFAULT_ROWS);
 		setRequired(false);
 		setUseInSearch(false);
 		setOptions([]);
@@ -154,6 +169,7 @@ function CreateCustomFieldDialog({
 					fieldType === "Select" || fieldType === "MultiSelect" ? options : [],
 				is_required: required,
 				use_in_search: useInSearch,
+				rows: fieldType === "LongText" ? clampRows(rows) : undefined,
 			}),
 		onSuccess: () => {
 			void queryClient.invalidateQueries({
@@ -331,6 +347,27 @@ function CreateCustomFieldDialog({
 						</div>
 					)}
 
+					{fieldType === "LongText" && (
+						<div className="space-y-1.5">
+							<Label>{t("settings.customFields.rowsLabel")}</Label>
+							<Input
+								type="number"
+								min={MIN_ROWS}
+								max={MAX_ROWS}
+								value={rows}
+								onChange={(e) => setRows(Number(e.target.value))}
+								onBlur={() => setRows(clampRows(rows))}
+								className="h-8 w-24 text-xs"
+							/>
+							<p className="text-xs text-muted-foreground/70">
+								{t("settings.customFields.rowsHint", {
+									min: MIN_ROWS,
+									max: MAX_ROWS,
+								})}
+							</p>
+						</div>
+					)}
+
 					{/* Required toggle */}
 					<div className="flex items-center justify-between rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
 						<div>
@@ -421,6 +458,7 @@ function EditCustomFieldDialog({
 	);
 	const [required, setRequired] = useState(field?.is_required ?? false);
 	const [useInSearch, setUseInSearch] = useState(field?.use_in_search ?? false);
+	const [rows, setRows] = useState(field?.rows ?? DEFAULT_ROWS);
 	const [newOption, setNewOption] = useState("");
 	const [error, setError] = useState<string | null>(null);
 
@@ -429,6 +467,7 @@ function EditCustomFieldDialog({
 		setOptions(field?.options ?? []);
 		setRequired(field?.is_required ?? false);
 		setUseInSearch(field?.use_in_search ?? false);
+		setRows(field?.rows ?? DEFAULT_ROWS);
 		setError(null);
 		setNewOption("");
 	}, [field]);
@@ -447,6 +486,7 @@ function EditCustomFieldDialog({
 						: undefined,
 				is_required: required,
 				use_in_search: useInSearch,
+				rows: field.field_type === "long_text" ? clampRows(rows) : undefined,
 			});
 		},
 		onSuccess: () => {
@@ -598,6 +638,27 @@ function EditCustomFieldDialog({
 									</button>
 								</div>
 							</div>
+						</div>
+					)}
+
+					{field.field_type === "long_text" && (
+						<div className="space-y-1.5">
+							<Label>{t("settings.customFields.rowsLabel")}</Label>
+							<Input
+								type="number"
+								min={MIN_ROWS}
+								max={MAX_ROWS}
+								value={rows}
+								onChange={(e) => setRows(Number(e.target.value))}
+								onBlur={() => setRows(clampRows(rows))}
+								className="h-8 w-24 text-xs"
+							/>
+							<p className="text-xs text-muted-foreground/70">
+								{t("settings.customFields.rowsHint", {
+									min: MIN_ROWS,
+									max: MAX_ROWS,
+								})}
+							</p>
 						</div>
 					)}
 

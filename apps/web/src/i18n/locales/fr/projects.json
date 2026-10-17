@@ -1064,7 +1064,8 @@
 				"checkbox": "Case à cocher",
 				"select": "Liste déroulante",
 				"multiSelect": "Sélection multiple",
-				"url": "URL"
+				"url": "URL",
+				"longText": "Texte long"
 			},
 			"createDialog": {
 				"title": "Créer un champ personnalisé",
@@ -1095,7 +1096,9 @@
 			"noPermission": {
 				"title": "You don't have permission to view custom fields",
 				"description": "Ask a project admin to grant you the project.settings.custom_fields.read permission."
-			}
+			},
+			"rowsLabel": "Lignes visibles",
+			"rowsHint": "Nombre de lignes affichées lors de la modification ({{min}}–{{max}})."
 		},
 		"jev": {
 			"title": "Jev IA",
@@ -1506,7 +1509,8 @@
 				"checkbox": "Case à cocher",
 				"select": "Liste déroulante",
 				"multiSelect": "Sélection multiple",
-				"url": "URL"
+				"url": "URL",
+				"longText": "Texte long"
 			}
 		},
 		"addTaskLinkModal": {

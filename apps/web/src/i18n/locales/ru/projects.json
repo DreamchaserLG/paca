@@ -1078,7 +1078,8 @@
 				"checkbox": "Чекбокс",
 				"select": "Выбор",
 				"multiSelect": "Множественный выбор",
-				"url": "URL"
+				"url": "URL",
+				"longText": "Длинный текст"
 			},
 			"createDialog": {
 				"title": "Создать пользовательское поле",
@@ -1109,7 +1110,9 @@
 			"noPermission": {
 				"title": "You don't have permission to view custom fields",
 				"description": "Ask a project admin to grant you the project.settings.custom_fields.read permission."
-			}
+			},
+			"rowsLabel": "Видимые строки",
+			"rowsHint": "Количество строк при редактировании ({{min}}–{{max}})."
 		},
 		"jev": {
 			"title": "Jev ИИ",
@@ -1524,7 +1527,8 @@
 				"checkbox": "Чекбокс",
 				"select": "Выбор",
 				"multiSelect": "Множественный выбор",
-				"url": "URL"
+				"url": "URL",
+				"longText": "Длинный текст"
 			}
 		},
 		"addTaskLinkModal": {

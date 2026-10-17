@@ -190,7 +190,7 @@ type IntRange struct {
 //   - "multi_select" → Values (array-containment, ANY-of)
 //   - "number" → Min / Max (inclusive range)
 //   - "date" → After / Before (inclusive range, "YYYY-MM-DD")
-//   - "text" / "url" → Contains (case-insensitive substring match)
+//   - "text" / "url" / "long_text" → Contains (case-insensitive substring match)
 type CustomFieldFilterQuery struct {
 	FieldType string
 	Values    []string

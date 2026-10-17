@@ -2529,6 +2529,55 @@ func TestUpdateCustomFieldDefinition_UseInSearch(t *testing.T) {
 	}
 }
 
+func TestCustomFieldDefinition_LongTextRows(t *testing.T) {
+	ctx := context.Background()
+	svc := tasksvc.New(newFakeTaskRepo())
+	projectID := uuid.New()
+
+	create := func(key string, ft taskdom.FieldType, rows int) *taskdom.CustomFieldDefinition {
+		t.Helper()
+		f, err := svc.CreateCustomFieldDefinition(ctx, taskdom.CreateCustomFieldDefinitionInput{
+			ProjectID: projectID, FieldKey: key, DisplayName: key, FieldType: ft, Rows: rows,
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		return f
+	}
+
+	for _, tc := range []struct{ in, want int }{{0, 3}, {1, 2}, {8, 8}, {99, 20}} {
+		if got := create(fmt.Sprintf("lt%d", tc.in), taskdom.FieldTypeLongText, tc.in).Rows; got != tc.want {
+			t.Errorf("long_text rows %d: got %d, want %d", tc.in, got, tc.want)
+		}
+	}
+
+	// rows is ignored by other types.
+	text := create("txt", taskdom.FieldTypeText, 10)
+	if text.Rows != taskdom.DefaultLongTextRows {
+		t.Errorf("text rows: got %d, want default", text.Rows)
+	}
+	ten := 10
+	updated, err := svc.UpdateCustomFieldDefinition(ctx, projectID, text.ID, taskdom.UpdateCustomFieldDefinitionInput{Rows: &ten})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if updated.Rows != taskdom.DefaultLongTextRows {
+		t.Errorf("text rows after update: got %d, want default", updated.Rows)
+	}
+
+	// Omitted rows keeps the value; explicit rows is clamped.
+	lt := create("lt2", taskdom.FieldTypeLongText, 8)
+	updated, _ = svc.UpdateCustomFieldDefinition(ctx, projectID, lt.ID, taskdom.UpdateCustomFieldDefinitionInput{DisplayName: "x"})
+	if updated.Rows != 8 {
+		t.Errorf("omitted rows: got %d, want 8", updated.Rows)
+	}
+	big := 50
+	updated, _ = svc.UpdateCustomFieldDefinition(ctx, projectID, lt.ID, taskdom.UpdateCustomFieldDefinitionInput{Rows: &big})
+	if updated.Rows != 20 {
+		t.Errorf("clamped rows: got %d, want 20", updated.Rows)
+	}
+}
+
 func TestUpdateCustomFieldDefinition_InvalidType(t *testing.T) {
 	ctx := context.Background()
 	repo := newFakeTaskRepo()

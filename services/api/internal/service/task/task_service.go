@@ -724,6 +724,12 @@ func (s *Service) CreateCustomFieldDefinition(ctx context.Context, in taskdom.Cr
 		opts = []taskdom.CustomFieldOption{}
 	}
 
+	// rows only applies to long_text; every other type keeps the default.
+	rows := taskdom.DefaultLongTextRows
+	if in.FieldType == taskdom.FieldTypeLongText {
+		rows = taskdom.ClampLongTextRows(in.Rows)
+	}
+
 	now := time.Now()
 	f := &taskdom.CustomFieldDefinition{
 		ID:          uuid.New(),
@@ -734,6 +740,7 @@ func (s *Service) CreateCustomFieldDefinition(ctx context.Context, in taskdom.Cr
 		Options:     opts,
 		IsRequired:  in.IsRequired,
 		UseInSearch: in.UseInSearch,
+		Rows:        rows,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
@@ -773,6 +780,11 @@ func (s *Service) UpdateCustomFieldDefinition(ctx context.Context, projectID, id
 	}
 	if in.UseInSearch != nil {
 		f.UseInSearch = *in.UseInSearch
+	}
+	if f.FieldType != taskdom.FieldTypeLongText {
+		f.Rows = taskdom.DefaultLongTextRows
+	} else if in.Rows != nil {
+		f.Rows = taskdom.ClampLongTextRows(*in.Rows)
 	}
 	f.UpdatedAt = time.Now()
 

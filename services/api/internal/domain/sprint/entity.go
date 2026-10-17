@@ -158,7 +158,7 @@ type FilterConfig struct {
 //     resolved option values, same recursive semantics as FilterConfig)
 //   - number → Min / Max (inclusive range; either may be nil)
 //   - date → After / Before (inclusive range, "YYYY-MM-DD"; either may be nil)
-//   - text / url → Contains (case-insensitive substring match)
+//   - text / url / long_text → Contains (case-insensitive substring match)
 type CustomFieldFilter struct {
 	Selector *FilterConfig `json:"selector,omitempty"`
 	Min      *float64      `json:"min,omitempty"`

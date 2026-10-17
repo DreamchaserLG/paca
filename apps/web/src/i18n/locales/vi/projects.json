@@ -1064,7 +1064,8 @@
 				"checkbox": "Checkbox",
 				"select": "Chọn",
 				"multiSelect": "Chọn nhiều",
-				"url": "URL"
+				"url": "URL",
+				"longText": "Văn bản dài"
 			},
 			"createDialog": {
 				"title": "Tạo trường tùy chỉnh",
@@ -1095,7 +1096,9 @@
 			"noPermission": {
 				"title": "You don't have permission to view custom fields",
 				"description": "Ask a project admin to grant you the project.settings.custom_fields.read permission."
-			}
+			},
+			"rowsLabel": "Số dòng hiển thị",
+			"rowsHint": "Số dòng hiển thị khi chỉnh sửa ({{min}}–{{max}})."
 		},
 		"jev": {
 			"title": "Jev AI",
@@ -1506,7 +1509,8 @@
 				"checkbox": "Checkbox",
 				"select": "Chọn",
 				"multiSelect": "Chọn nhiều",
-				"url": "URL"
+				"url": "URL",
+				"longText": "Văn bản dài"
 			}
 		},
 		"addTaskLinkModal": {

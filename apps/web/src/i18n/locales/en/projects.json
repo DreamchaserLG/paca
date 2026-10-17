@@ -1068,7 +1068,8 @@
 				"checkbox": "Checkbox",
 				"select": "Select",
 				"multiSelect": "Multi-Select",
-				"url": "URL"
+				"url": "URL",
+				"longText": "Long text"
 			},
 			"createDialog": {
 				"title": "Create custom field",
@@ -1095,7 +1096,9 @@
 				"confirmTextSuffix": "? Task data stored in this field will be lost. This action cannot be undone.",
 				"deleteFailed": "Failed to delete field. Please try again.",
 				"deleteField": "Delete field"
-			}
+			},
+			"rowsLabel": "Visible lines",
+			"rowsHint": "Number of lines shown when editing ({{min}}–{{max}})."
 		},
 		"jev": {
 			"title": "Jev AI",
@@ -1506,7 +1509,8 @@
 				"checkbox": "Checkbox",
 				"select": "Select",
 				"multiSelect": "Multi-Select",
-				"url": "URL"
+				"url": "URL",
+				"longText": "Long text"
 			}
 		},
 		"addTaskLinkModal": {

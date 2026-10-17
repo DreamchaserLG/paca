@@ -132,7 +132,7 @@ const CreateCustomFieldSchema = z.object({
 	options: z.array(CustomFieldOptionInputSchema).optional(),
 	isRequired: z.boolean().optional(),
 	useInSearch: z.boolean().optional(),
-	rows: z.number().int().optional(),
+	rows: z.number().int().min(2).max(20).optional(),
 });
 
 const GetCustomFieldSchema = z.object({
@@ -148,7 +148,7 @@ const UpdateCustomFieldSchema = z.object({
 	options: z.array(CustomFieldOptionInputSchema).optional(),
 	isRequired: z.boolean().optional(),
 	useInSearch: z.boolean().optional(),
-	rows: z.number().int().optional(),
+	rows: z.number().int().min(2).max(20).optional(),
 });
 
 // Normalizes a parsed options array (each element either a plain string or

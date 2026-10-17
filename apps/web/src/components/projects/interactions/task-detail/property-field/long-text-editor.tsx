@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FieldValue } from "../primitives";
 
@@ -17,7 +17,10 @@ export function LongTextEditor({
 }) {
 	const { t } = useTranslation("projects");
 	const [editing, setEditing] = useState(false);
+	// draft is re-seeded from value on every click, so remote changes made while
+	// the editor is closed are never lost.
 	const [draft, setDraft] = useState(value ?? "");
+	const cancelledRef = useRef(false);
 
 	if (!canEdit) {
 		return (
@@ -37,13 +40,20 @@ export function LongTextEditor({
 				onChange={(e) => setDraft(e.target.value)}
 				onBlur={() => {
 					setEditing(false);
+					if (cancelledRef.current) {
+						cancelledRef.current = false;
+						return;
+					}
 					if (draft !== (value ?? "")) onChange?.(draft);
 				}}
 				onKeyDown={(e) => {
-					// Enter inserts a newline; Escape cancels, blur (click away) saves.
+					// Enter inserts a newline; Ctrl/Cmd+Enter or blur saves; Escape cancels.
 					if (e.key === "Escape") {
+						cancelledRef.current = true;
 						setEditing(false);
 						setDraft(value ?? "");
+					} else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+						e.currentTarget.blur();
 					}
 				}}
 				className="w-full min-w-30 resize-y rounded-lg border border-border/30 bg-muted/25 px-2.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all duration-150"
@@ -55,6 +65,7 @@ export function LongTextEditor({
 		<button
 			type="button"
 			onClick={() => {
+				cancelledRef.current = false;
 				setDraft(value ?? "");
 				setEditing(true);
 			}}

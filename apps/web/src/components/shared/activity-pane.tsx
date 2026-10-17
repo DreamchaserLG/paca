@@ -27,6 +27,15 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
+	ACTIVITY_WIDTH_DEFAULT,
+	ACTIVITY_WIDTH_KEY_STEP,
+	ACTIVITY_WIDTH_MIN,
+	clampActivityWidth,
+	maxActivityWidth,
+	readStoredActivityWidth,
+	storeActivityWidth,
+} from "@/components/shared/activity-pane-width";
+import {
 	blocksToText,
 	CommentDisplay,
 	CommentEditor,
@@ -101,36 +110,6 @@ function readStoredActivityFilter(): ActivityFilter {
 	}
 }
 
-const ACTIVITY_WIDTH_STORAGE_KEY = "paca:activity-pane-width";
-const ACTIVITY_WIDTH_DEFAULT = 320;
-const ACTIVITY_WIDTH_MIN = 280;
-const ACTIVITY_WIDTH_MAX = 760;
-const ACTIVITY_WIDTH_KEY_STEP = 16;
-
-function clampActivityWidth(width: number): number {
-	const max = Math.min(ACTIVITY_WIDTH_MAX, window.innerWidth * 0.5);
-	return Math.round(Math.max(ACTIVITY_WIDTH_MIN, Math.min(width, max)));
-}
-
-function readStoredActivityWidth(): number {
-	try {
-		const stored = Number(localStorage.getItem(ACTIVITY_WIDTH_STORAGE_KEY));
-		return Number.isFinite(stored) && stored > 0
-			? clampActivityWidth(stored)
-			: ACTIVITY_WIDTH_DEFAULT;
-	} catch {
-		return ACTIVITY_WIDTH_DEFAULT;
-	}
-}
-
-function storeActivityWidth(width: number) {
-	try {
-		localStorage.setItem(ACTIVITY_WIDTH_STORAGE_KEY, String(width));
-	} catch {
-		// Persisting the width is best-effort.
-	}
-}
-
 export function ActivityPane<T extends ActivityEntry>({
 	projectId,
 	queryKey,
@@ -153,16 +132,41 @@ export function ActivityPane<T extends ActivityEntry>({
 	const [filter, setFilter] = useState<ActivityFilter>(
 		readStoredActivityFilter,
 	);
-	const [width, setWidth] = useState(readStoredActivityWidth);
+	const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
+	const [width, setWidth] = useState(() =>
+		readStoredActivityWidth(window.innerWidth),
+	);
 	const widthRef = useRef(width);
 	const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+	const maxWidth = maxActivityWidth(viewportWidth);
 	const qc = useQueryClient();
 
 	function applyWidth(next: number) {
-		const clamped = clampActivityWidth(next);
+		const clamped = clampActivityWidth(next, window.innerWidth);
 		widthRef.current = clamped;
 		setWidth(clamped);
 	}
+
+	function endDrag() {
+		if (!dragRef.current) return;
+		dragRef.current = null;
+		storeActivityWidth(widthRef.current);
+	}
+
+	// Keep the in-memory width (and aria values) in step with the window so a
+	// stale, larger value never lingers after the window shrinks.
+	useEffect(() => {
+		function onResize() {
+			setViewportWidth(window.innerWidth);
+			const clamped = clampActivityWidth(widthRef.current, window.innerWidth);
+			if (clamped !== widthRef.current) {
+				widthRef.current = clamped;
+				setWidth(clamped);
+			}
+		}
+		window.addEventListener("resize", onResize);
+		return () => window.removeEventListener("resize", onResize);
+	}, []);
 
 	const {
 		data,
@@ -309,12 +313,13 @@ export function ActivityPane<T extends ActivityEntry>({
 				aria-orientation="vertical"
 				aria-label={t("activityPane.resize")}
 				aria-valuemin={ACTIVITY_WIDTH_MIN}
-				aria-valuemax={ACTIVITY_WIDTH_MAX}
+				aria-valuemax={maxWidth}
 				aria-valuenow={width}
 				tabIndex={0}
 				data-testid="activity-pane-resize-handle"
 				className="absolute inset-y-0 left-0 z-10 hidden w-1.5 cursor-col-resize touch-none select-none transition-colors hover:bg-primary/30 focus-visible:bg-primary/40 focus-visible:outline-none active:bg-primary/40 lg:block"
 				onPointerDown={(e) => {
+					if (e.button !== 0) return;
 					e.currentTarget.setPointerCapture(e.pointerId);
 					dragRef.current = { startX: e.clientX, startWidth: widthRef.current };
 				}}
@@ -322,27 +327,28 @@ export function ActivityPane<T extends ActivityEntry>({
 					const drag = dragRef.current;
 					if (drag) applyWidth(drag.startWidth + (drag.startX - e.clientX));
 				}}
-				onPointerUp={() => {
-					if (!dragRef.current) return;
-					dragRef.current = null;
-					storeActivityWidth(widthRef.current);
-				}}
-				onPointerCancel={() => {
-					dragRef.current = null;
-				}}
+				onPointerUp={endDrag}
+				onPointerCancel={endDrag}
+				onLostPointerCapture={endDrag}
 				onDoubleClick={() => {
 					applyWidth(ACTIVITY_WIDTH_DEFAULT);
 					storeActivityWidth(widthRef.current);
 				}}
 				onKeyDown={(e) => {
-					if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+					let next: number;
+					if (e.key === "ArrowLeft")
+						next = widthRef.current + ACTIVITY_WIDTH_KEY_STEP;
+					else if (e.key === "ArrowRight")
+						next = widthRef.current - ACTIVITY_WIDTH_KEY_STEP;
+					else if (e.key === "Home") next = ACTIVITY_WIDTH_MIN;
+					else if (e.key === "End") next = Number.POSITIVE_INFINITY;
+					else return;
 					e.preventDefault();
-					const delta =
-						e.key === "ArrowLeft"
-							? ACTIVITY_WIDTH_KEY_STEP
-							: -ACTIVITY_WIDTH_KEY_STEP;
-					applyWidth(widthRef.current + delta);
-					storeActivityWidth(widthRef.current);
+					applyWidth(next);
+				}}
+				onKeyUp={(e) => {
+					if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key))
+						storeActivityWidth(widthRef.current);
 				}}
 			/>
 			<div className="flex shrink-0 flex-col gap-2 border-b border-border/25 px-5 py-3 bg-muted/20">

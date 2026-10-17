@@ -935,7 +935,7 @@ export async function handleViewTool(
 					options: normalizeCustomFieldOptions(options),
 					is_required: isRequired,
 					use_in_search: useInSearch,
-				rows,
+					rows,
 				},
 			);
 			return {

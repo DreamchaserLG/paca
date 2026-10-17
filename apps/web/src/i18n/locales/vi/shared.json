@@ -1,5 +1,6 @@
 {
 	"activityPane": {
+		"resize": "Thay đổi kích thước bảng hoạt động",
 		"title": "Hoạt động",
 		"empty": "Chưa có hoạt động nào",
 		"emptyComments": "Chưa có bình luận nào",

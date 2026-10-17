@@ -1,5 +1,6 @@
 {
 	"activityPane": {
+		"resize": "调整活动面板大小",
 		"title": "动态",
 		"empty": "暂无动态",
 		"emptyComments": "暂无评论",

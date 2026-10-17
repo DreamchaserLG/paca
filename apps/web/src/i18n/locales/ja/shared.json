@@ -1,5 +1,6 @@
 {
 	"activityPane": {
+		"resize": "アクティビティパネルのサイズを変更",
 		"title": "アクティビティ",
 		"empty": "アクティビティはまだありません",
 		"emptyComments": "コメントはまだありません",

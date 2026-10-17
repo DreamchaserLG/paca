@@ -17,6 +17,7 @@ import {
 	Trash2,
 } from "lucide-react";
 import {
+	type CSSProperties,
 	type ReactNode,
 	useEffect,
 	useLayoutEffect,
@@ -100,6 +101,36 @@ function readStoredActivityFilter(): ActivityFilter {
 	}
 }
 
+const ACTIVITY_WIDTH_STORAGE_KEY = "paca:activity-pane-width";
+const ACTIVITY_WIDTH_DEFAULT = 320;
+const ACTIVITY_WIDTH_MIN = 280;
+const ACTIVITY_WIDTH_MAX = 760;
+const ACTIVITY_WIDTH_KEY_STEP = 16;
+
+function clampActivityWidth(width: number): number {
+	const max = Math.min(ACTIVITY_WIDTH_MAX, window.innerWidth * 0.5);
+	return Math.round(Math.max(ACTIVITY_WIDTH_MIN, Math.min(width, max)));
+}
+
+function readStoredActivityWidth(): number {
+	try {
+		const stored = Number(localStorage.getItem(ACTIVITY_WIDTH_STORAGE_KEY));
+		return Number.isFinite(stored) && stored > 0
+			? clampActivityWidth(stored)
+			: ACTIVITY_WIDTH_DEFAULT;
+	} catch {
+		return ACTIVITY_WIDTH_DEFAULT;
+	}
+}
+
+function storeActivityWidth(width: number) {
+	try {
+		localStorage.setItem(ACTIVITY_WIDTH_STORAGE_KEY, String(width));
+	} catch {
+		// Persisting the width is best-effort.
+	}
+}
+
 export function ActivityPane<T extends ActivityEntry>({
 	projectId,
 	queryKey,
@@ -122,7 +153,16 @@ export function ActivityPane<T extends ActivityEntry>({
 	const [filter, setFilter] = useState<ActivityFilter>(
 		readStoredActivityFilter,
 	);
+	const [width, setWidth] = useState(readStoredActivityWidth);
+	const widthRef = useRef(width);
+	const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
 	const qc = useQueryClient();
+
+	function applyWidth(next: number) {
+		const clamped = clampActivityWidth(next);
+		widthRef.current = clamped;
+		setWidth(clamped);
+	}
 
 	const {
 		data,
@@ -259,7 +299,52 @@ export function ActivityPane<T extends ActivityEntry>({
 			: [];
 
 	return (
-		<div className="flex w-full lg:w-80 lg:shrink-0 flex-col h-full lg:overflow-hidden border-t lg:border-t-0 lg:border-l border-border/25 bg-muted/10">
+		<div
+			className="relative flex w-full lg:w-(--activity-pane-width) lg:shrink-0 flex-col h-full lg:overflow-hidden border-t lg:border-t-0 lg:border-l border-border/25 bg-muted/10"
+			style={{ "--activity-pane-width": `${width}px` } as CSSProperties}
+		>
+			{/* biome-ignore lint/a11y/useSemanticElements: draggable splitter */}
+			<div
+				role="separator"
+				aria-orientation="vertical"
+				aria-label={t("activityPane.resize")}
+				aria-valuemin={ACTIVITY_WIDTH_MIN}
+				aria-valuemax={ACTIVITY_WIDTH_MAX}
+				aria-valuenow={width}
+				tabIndex={0}
+				data-testid="activity-pane-resize-handle"
+				className="absolute inset-y-0 left-0 z-10 hidden w-1.5 cursor-col-resize touch-none select-none transition-colors hover:bg-primary/30 focus-visible:bg-primary/40 focus-visible:outline-none active:bg-primary/40 lg:block"
+				onPointerDown={(e) => {
+					e.currentTarget.setPointerCapture(e.pointerId);
+					dragRef.current = { startX: e.clientX, startWidth: widthRef.current };
+				}}
+				onPointerMove={(e) => {
+					const drag = dragRef.current;
+					if (drag) applyWidth(drag.startWidth + (drag.startX - e.clientX));
+				}}
+				onPointerUp={() => {
+					if (!dragRef.current) return;
+					dragRef.current = null;
+					storeActivityWidth(widthRef.current);
+				}}
+				onPointerCancel={() => {
+					dragRef.current = null;
+				}}
+				onDoubleClick={() => {
+					applyWidth(ACTIVITY_WIDTH_DEFAULT);
+					storeActivityWidth(widthRef.current);
+				}}
+				onKeyDown={(e) => {
+					if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+					e.preventDefault();
+					const delta =
+						e.key === "ArrowLeft"
+							? ACTIVITY_WIDTH_KEY_STEP
+							: -ACTIVITY_WIDTH_KEY_STEP;
+					applyWidth(widthRef.current + delta);
+					storeActivityWidth(widthRef.current);
+				}}
+			/>
 			<div className="flex shrink-0 flex-col gap-2 border-b border-border/25 px-5 py-3 bg-muted/20">
 				<div className="flex items-center gap-2.5">
 					<MessageSquare className="size-3.5 text-muted-foreground/70" />

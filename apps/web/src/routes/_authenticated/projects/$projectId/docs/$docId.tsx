@@ -200,7 +200,8 @@ function DocEditorPage() {
 			    activity pane stacked under it) instead of two independently
 			    scrolling panes side by side — same pattern as task-detail's own
 			    layout (index.tsx). DocActivityPane is self-responsive
-			    (`w-full lg:w-80`), so it needs no extra width wrapper here. */}
+			    (`w-full lg:w-(--activity-pane-width)`, user-resizable), so it needs no
+			    extra width wrapper here. */}
 			<div className="flex flex-1 min-w-0 min-h-0 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
 				{/* Editor area */}
 				<div className="lg:flex-1 lg:overflow-y-auto [scrollbar-gutter:stable]">

@@ -17,6 +17,7 @@ import {
 	Trash2,
 } from "lucide-react";
 import {
+	type CSSProperties,
 	type ReactNode,
 	useEffect,
 	useLayoutEffect,
@@ -25,6 +26,15 @@ import {
 	useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import {
+	ACTIVITY_WIDTH_DEFAULT,
+	ACTIVITY_WIDTH_KEY_STEP,
+	ACTIVITY_WIDTH_MIN,
+	clampActivityWidth,
+	maxActivityWidth,
+	readStoredActivityWidth,
+	storeActivityWidth,
+} from "@/components/shared/activity-pane-width";
 import {
 	blocksToText,
 	CommentDisplay,
@@ -122,7 +132,41 @@ export function ActivityPane<T extends ActivityEntry>({
 	const [filter, setFilter] = useState<ActivityFilter>(
 		readStoredActivityFilter,
 	);
+	const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
+	const [width, setWidth] = useState(() =>
+		readStoredActivityWidth(window.innerWidth),
+	);
+	const widthRef = useRef(width);
+	const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+	const maxWidth = maxActivityWidth(viewportWidth);
 	const qc = useQueryClient();
+
+	function applyWidth(next: number) {
+		const clamped = clampActivityWidth(next, window.innerWidth);
+		widthRef.current = clamped;
+		setWidth(clamped);
+	}
+
+	function endDrag() {
+		if (!dragRef.current) return;
+		dragRef.current = null;
+		storeActivityWidth(widthRef.current);
+	}
+
+	// Keep the in-memory width (and aria values) in step with the window so a
+	// stale, larger value never lingers after the window shrinks.
+	useEffect(() => {
+		function onResize() {
+			setViewportWidth(window.innerWidth);
+			const clamped = clampActivityWidth(widthRef.current, window.innerWidth);
+			if (clamped !== widthRef.current) {
+				widthRef.current = clamped;
+				setWidth(clamped);
+			}
+		}
+		window.addEventListener("resize", onResize);
+		return () => window.removeEventListener("resize", onResize);
+	}, []);
 
 	const {
 		data,
@@ -259,7 +303,54 @@ export function ActivityPane<T extends ActivityEntry>({
 			: [];
 
 	return (
-		<div className="flex w-full lg:w-80 lg:shrink-0 flex-col h-full lg:overflow-hidden border-t lg:border-t-0 lg:border-l border-border/25 bg-muted/10">
+		<div
+			className="relative flex w-full lg:w-(--activity-pane-width) lg:max-w-[50vw] lg:shrink-0 flex-col h-full lg:overflow-hidden border-t lg:border-t-0 lg:border-l border-border/25 bg-muted/10"
+			style={{ "--activity-pane-width": `${width}px` } as CSSProperties}
+		>
+			{/* biome-ignore lint/a11y/useSemanticElements: draggable splitter */}
+			<div
+				role="separator"
+				aria-orientation="vertical"
+				aria-label={t("activityPane.resize")}
+				aria-valuemin={ACTIVITY_WIDTH_MIN}
+				aria-valuemax={maxWidth}
+				aria-valuenow={width}
+				tabIndex={0}
+				data-testid="activity-pane-resize-handle"
+				className="absolute inset-y-0 left-0 z-10 hidden w-1.5 cursor-col-resize touch-none select-none transition-colors hover:bg-primary/30 focus-visible:bg-primary/40 focus-visible:outline-none active:bg-primary/40 lg:block"
+				onPointerDown={(e) => {
+					if (e.button !== 0) return;
+					e.currentTarget.setPointerCapture(e.pointerId);
+					dragRef.current = { startX: e.clientX, startWidth: widthRef.current };
+				}}
+				onPointerMove={(e) => {
+					const drag = dragRef.current;
+					if (drag) applyWidth(drag.startWidth + (drag.startX - e.clientX));
+				}}
+				onPointerUp={endDrag}
+				onPointerCancel={endDrag}
+				onLostPointerCapture={endDrag}
+				onDoubleClick={() => {
+					applyWidth(ACTIVITY_WIDTH_DEFAULT);
+					storeActivityWidth(widthRef.current);
+				}}
+				onKeyDown={(e) => {
+					let next: number;
+					if (e.key === "ArrowLeft")
+						next = widthRef.current + ACTIVITY_WIDTH_KEY_STEP;
+					else if (e.key === "ArrowRight")
+						next = widthRef.current - ACTIVITY_WIDTH_KEY_STEP;
+					else if (e.key === "Home") next = ACTIVITY_WIDTH_MIN;
+					else if (e.key === "End") next = Number.POSITIVE_INFINITY;
+					else return;
+					e.preventDefault();
+					applyWidth(next);
+				}}
+				onKeyUp={(e) => {
+					if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key))
+						storeActivityWidth(widthRef.current);
+				}}
+			/>
 			<div className="flex shrink-0 flex-col gap-2 border-b border-border/25 px-5 py-3 bg-muted/20">
 				<div className="flex items-center gap-2.5">
 					<MessageSquare className="size-3.5 text-muted-foreground/70" />

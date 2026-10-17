@@ -581,7 +581,7 @@ export function TaskDetailModal({
 					"fixed z-50",
 					"inset-0 lg:left-1/2 lg:top-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2",
 					"flex flex-col overflow-hidden",
-					"lg:h-[90vh] lg:w-[92vw] lg:max-w-6xl",
+					"lg:h-[90vh] lg:w-[94vw] lg:max-w-6xl xl:max-w-7xl 2xl:max-w-[1600px]",
 					"lg:rounded-xl lg:border lg:border-border/50 bg-background",
 					"lg:shadow-[0_25px_60px_-12px_rgba(0,0,0,0.25),0_0_0_1px_rgba(255,255,255,0.05)_inset]",
 					"transition-all duration-200 origin-center",

@@ -1,5 +1,6 @@
 {
 	"activityPane": {
+		"resize": "Cambiar el tamaño del panel de actividad",
 		"title": "Actividad",
 		"empty": "Aún no hay actividad",
 		"emptyComments": "Aún no hay comentarios",

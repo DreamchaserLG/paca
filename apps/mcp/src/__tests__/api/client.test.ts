@@ -500,6 +500,13 @@ describe("PacaAPIClient – updateSprint", () => {
 			name: "Sprint 1 Updated",
 		});
 	});
+
+	it("sends goal null to clear the goal", async () => {
+		vi.stubGlobal("fetch", mockFetchOk({ id: "sprint-1" }));
+		await makeClient().updateSprint("proj-1", "sprint-1", { goal: null });
+		const [, options] = (fetch as any).mock.calls[0] as [string, RequestInit];
+		expect(JSON.parse(options.body as string)).toEqual({ goal: null });
+	});
 });
 
 describe("PacaAPIClient – deleteSprint", () => {

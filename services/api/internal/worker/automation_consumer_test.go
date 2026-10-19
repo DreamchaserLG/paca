@@ -674,6 +674,28 @@ func TestTriggerAIAgentPauseResume_Finished_ContinuesToNextNode(t *testing.T) {
 	}
 }
 
+// The failed step a failed/stopped agent conversation produces is written by
+// resumeWalk, not the walker, so it needs the same WARN to be visible.
+func TestTriggerAIAgentPauseResume_Failed_IsLogged(t *testing.T) {
+	c, client, repo, _, runID, agentNodeID, _ := newPauseResumeFixture(t)
+	defer func() { _ = client.Close() }()
+	var buf strings.Builder
+	c.log = slog.New(slog.NewTextHandler(&buf, nil))
+	convID := conversationIDFromPendingWaits(repo.pendingWaits)
+
+	c.handleAgentConversationStatus(redis.XMessage{ID: "1-1", Values: map[string]any{
+		"conversation_id": convID.String(),
+		"status":          "failed",
+	}})
+
+	out := buf.String()
+	for _, want := range []string{"level=WARN", runID.String(), agentNodeID.String(), "agent conversation failed"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected the failed-conversation log line to contain %q, got %q", want, out)
+		}
+	}
+}
+
 func TestTriggerAIAgentPauseResume_Failed_DoesNotContinueAndFailsRun(t *testing.T) {
 	c, client, repo, updater, runID, agentNodeID, _ := newPauseResumeFixture(t)
 	defer func() { _ = client.Close() }()

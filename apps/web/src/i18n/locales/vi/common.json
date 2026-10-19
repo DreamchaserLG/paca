@@ -41,6 +41,8 @@
 		"previous": "Trang trước",
 		"next": "Trang sau",
 		"page": "Trang {{page}}",
-		"pageOfTotal": "Trang {{page}} / {{totalPages}}"
+		"pageOfTotal": "Trang {{page}} / {{totalPages}}",
+		"rowsPerPage": "Số dòng mỗi trang",
+		"range": "{{from}}–{{to}} / {{total}}"
 	}
 }

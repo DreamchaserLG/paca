@@ -221,7 +221,7 @@ If a reference is found, fetch that task first, then apply the action the user i
 
 ## Step 3 — Get the project if needed
 
-If no project is in context, call ` + "`" + `list_projects` + "`" + ` and pick the most relevant one based on the message. Only ask the user if it is genuinely ambiguous between two equally plausible candidates.
+If no project is in context, call ` + "`" + `list_projects` + "`" + ` and pick the most relevant one based on the message. Only ask the user if it is genuinely ambiguous between two equally plausible candidates. List tools return one page at a time: if the reply ends with a ` + "`" + `cursor` + "`" + ` for the next page and the item you need is not on this one, call the same tool again with that cursor (or narrow the search) rather than guessing.
 
 ## Step 4 — Act and confirm
 

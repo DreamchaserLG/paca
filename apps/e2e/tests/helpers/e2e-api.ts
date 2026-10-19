@@ -133,9 +133,11 @@ export async function projectRoleIdByName(
 	projectId: string,
 	roleName: string,
 ): Promise<string> {
-	const response = await request.get(`${API_URL}/projects/${projectId}/roles`);
+	const response = await request.get(
+		`${API_URL}/projects/${projectId}/roles?page_size=100&search=${encodeURIComponent(roleName)}`,
+	);
 	expect(response.ok()).toBeTruthy();
-	const roles: ApiRole[] = (await response.json()).data ?? [];
+	const roles: ApiRole[] = (await response.json()).data.items ?? [];
 	const role = roles.find(
 		(r) => r.project_id === projectId && r.name === roleName,
 	);
@@ -248,9 +250,11 @@ export async function globalRoleIdByName(
 	request: APIRequestContext,
 	roleName: string,
 ): Promise<string> {
-	const list = await request.get(`${API_URL}/admin/roles`);
+	const list = await request.get(
+		`${API_URL}/admin/roles?page_size=100&search=${encodeURIComponent(roleName)}`,
+	);
 	expect(list.ok()).toBeTruthy();
-	const roles: ApiRole[] = (await list.json()).data ?? [];
+	const roles: ApiRole[] = (await list.json()).data.items ?? [];
 	const role = roles.find((r) => r.name === roleName);
 	expect(role, `global role ${roleName} exists`).toBeTruthy();
 	return role?.id ?? "";
@@ -394,10 +398,12 @@ export async function cleanupGlobalRolesByPrefix(
 	prefix: string,
 ): Promise<void> {
 	await authRequest(request);
-	const response = await request.get(`${API_URL}/admin/roles`);
+	const response = await request.get(
+		`${API_URL}/admin/roles?page_size=100&search=${encodeURIComponent(prefix)}`,
+	);
 	if (!response.ok()) return;
 	const roles: Array<{ id: string; name: string }> =
-		(await response.json()).data ?? [];
+		(await response.json()).data.items ?? [];
 	await Promise.all(
 		roles
 			.filter((r) => r.name.startsWith(prefix))

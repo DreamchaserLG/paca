@@ -84,9 +84,14 @@ func (s *Service) publishSprintActivity(ctx context.Context, eventType string, s
 	_ = s.publisher.AppendFlat(ctx, events.StreamSprintActivities, fields)
 }
 
-// ListSprints returns all sprints for a project.
-func (s *Service) ListSprints(ctx context.Context, projectID uuid.UUID) ([]*sprintdom.Sprint, error) {
-	return s.repo.ListSprints(ctx, projectID)
+// ListSprints returns one page of a project's sprints.
+func (s *Service) ListSprints(ctx context.Context, projectID uuid.UUID, filter sprintdom.SprintFilter, cursorAfter *string, limit int) ([]*sprintdom.Sprint, bool, int, error) {
+	return s.repo.ListSprints(ctx, projectID, filter, cursorAfter, limit)
+}
+
+// ListAllSprints returns every sprint of a project.
+func (s *Service) ListAllSprints(ctx context.Context, projectID uuid.UUID) ([]*sprintdom.Sprint, error) {
+	return s.repo.ListAllSprints(ctx, projectID)
 }
 
 // GetSprint returns the sprint with the given ID, verifying it belongs to projectID.

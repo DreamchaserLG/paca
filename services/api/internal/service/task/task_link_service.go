@@ -9,16 +9,16 @@ import (
 	taskdom "github.com/Paca-AI/api/internal/domain/task"
 )
 
-// ListTaskLinks returns all links for a task, computing display labels.
-func (s *Service) ListTaskLinks(ctx context.Context, projectID, taskID uuid.UUID) ([]*taskdom.TaskLink, error) {
+// ListTaskLinks returns one page of a task's links, computing display labels.
+func (s *Service) ListTaskLinks(ctx context.Context, projectID, taskID uuid.UUID, cursorAfter *string, limit int) ([]*taskdom.TaskLink, bool, int, error) {
 	task, err := s.repo.FindTaskByID(ctx, taskID)
 	if err != nil {
-		return nil, err
+		return nil, false, 0, err
 	}
 	if task.ProjectID != projectID {
-		return nil, taskdom.ErrTaskNotFound
+		return nil, false, 0, taskdom.ErrTaskNotFound
 	}
-	return s.repo.ListTaskLinks(ctx, taskID)
+	return s.repo.ListTaskLinks(ctx, taskID, cursorAfter, limit)
 }
 
 // CreateTaskLink validates and persists a new directed link.

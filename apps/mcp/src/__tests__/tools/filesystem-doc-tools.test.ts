@@ -33,15 +33,41 @@ const DOC_IN_NESTED = {
 	position: 0,
 };
 
-/** Create mock API client. Builds tree from folders + docs arrays. */
+/** Slices `all` the way the API pages: an offset-style cursor stands in for the opaque one. */
+function pageOf<T>(all: T[], opts: { cursor?: string; pageSize?: number }) {
+	const start = opts.cursor ? Number(opts.cursor) : 0;
+	const size = opts.pageSize ?? 50;
+	const items = all.slice(start, start + size);
+	const more = start + size < all.length;
+	return { items, nextCursor: more ? String(start + size) : null };
+}
+
+/** Mock API client serving the documents the way the list endpoint filters them. */
 function makeApiClient(
 	opts: { folders?: any[]; documents?: any[]; getDocumentContent?: any } = {},
 ) {
-	const _folders = opts.folders ?? [FOLDER_ROOT, FOLDER_NESTED];
 	const documents = opts.documents ?? [DOC_ROOT, DOC_IN_FOLDER, DOC_IN_NESTED];
 
 	return {
-		listDocuments: vi.fn().mockResolvedValue(documents),
+		listDocuments: vi.fn().mockImplementation(
+			async (
+				_pid: string,
+				o: {
+					folderId?: string;
+					title?: string;
+					cursor?: string;
+					pageSize?: number;
+				} = {},
+			) => {
+				const wanted = o.folderId === "null" ? null : (o.folderId ?? null);
+				const matches = documents.filter(
+					(d) =>
+						(d.folder_id ?? null) === wanted &&
+						(!o.title || d.title.toLowerCase() === o.title.toLowerCase()),
+				);
+				return pageOf(matches, o);
+			},
+		),
 		getDocument: vi.fn().mockResolvedValue({
 			id: "d1",
 			title: "README",
@@ -58,7 +84,24 @@ function makeDocClient(opts: { folders?: any[] } = {}) {
 	const folders = opts.folders ?? [FOLDER_ROOT, FOLDER_NESTED];
 
 	return {
-		listFolders: vi.fn().mockResolvedValue(folders),
+		listFolders: vi.fn().mockImplementation(
+			async (
+				_pid: string,
+				o: {
+					parentId?: string | null;
+					name?: string;
+					cursor?: string;
+					pageSize?: number;
+				} = {},
+			) => {
+				const matches = folders.filter(
+					(f) =>
+						(f.parent_id ?? null) === (o.parentId ?? null) &&
+						(!o.name || f.name.toLowerCase() === o.name.toLowerCase()),
+				);
+				return pageOf(matches, o);
+			},
+		),
 		createFolder: vi.fn().mockImplementation((_pid: string, input: any) =>
 			Promise.resolve({
 				id: "fnew",
@@ -468,5 +511,100 @@ describe("handleFilesystemDocTool – unknown tool", () => {
 				makeDocClient(),
 			),
 		).rejects.toThrow("Unknown filesystem doc tool");
+	});
+});
+
+// ── Paging: one page per call, and a cursor to continue ───────────────────────
+
+describe("handleFilesystemDocTool – paging", () => {
+	const folders = Array.from({ length: 5 }, (_, i) => ({
+		id: `pf${i}`,
+		parent_id: null,
+		name: `Folder ${i}`,
+		position: i,
+	}));
+	const docs = Array.from({ length: 3 }, (_, i) => ({
+		id: `pd${i}`,
+		folder_id: null,
+		title: `Doc ${i}`,
+		position: i,
+	}));
+
+	it("lists one page of folders and hands back a cursor instead of reading on", async () => {
+		const apiClient = makeApiClient({ documents: docs });
+		const docClient = makeDocClient({ folders });
+		const result = await handleFilesystemDocTool(
+			"list_docs",
+			{ projectId: "p1", pageSize: 2 },
+			apiClient,
+			docClient,
+		);
+		const text = result.content[0].text;
+		expect(text).toContain("Folder 0/");
+		expect(text).toContain("Folder 1/");
+		expect(text).not.toContain("Folder 2/");
+		expect(text).toMatch(/call list_docs again with cursor="[^"]+"/);
+		expect(docClient.listFolders).toHaveBeenCalledTimes(1);
+		// Documents wait until the folders are done.
+		expect(apiClient.listDocuments).not.toHaveBeenCalled();
+	});
+
+	it("follows the cursor through the folders, then into the documents", async () => {
+		const apiClient = makeApiClient({ documents: docs });
+		const docClient = makeDocClient({ folders });
+		const seen: string[] = [];
+		let cursor: string | undefined;
+		for (let i = 0; i < 10; i++) {
+			const result = await handleFilesystemDocTool(
+				"list_docs",
+				{ projectId: "p1", pageSize: 2, cursor },
+				apiClient,
+				docClient,
+			);
+			const text: string = result.content[0].text;
+			seen.push(...(text.match(/(?:📁|📄) [^\n]+/g) ?? []));
+			cursor = text.match(/cursor="([^"]+)"/)?.[1];
+			if (!cursor) break;
+		}
+		expect(seen).toEqual([
+			"📁 Folder 0/",
+			"📁 Folder 1/",
+			"📁 Folder 2/",
+			"📁 Folder 3/",
+			"📁 Folder 4/",
+			"📄 Doc 0",
+			"📄 Doc 1",
+			"📄 Doc 2",
+		]);
+	});
+
+	it("rejects a cursor that did not come from list_docs", async () => {
+		await expect(
+			handleFilesystemDocTool(
+				"list_docs",
+				{ projectId: "p1", cursor: "not-a-cursor" },
+				makeApiClient(),
+				makeDocClient(),
+			),
+		).rejects.toThrow(/cursor/i);
+	});
+
+	it("resolves a path with exact-name lookups, never listing a whole level", async () => {
+		const apiClient = makeApiClient();
+		const docClient = makeDocClient();
+		await handleFilesystemDocTool(
+			"read_doc",
+			{ projectId: "p1", path: "Architecture/API/Endpoints" },
+			apiClient,
+			docClient,
+		);
+		for (const [, o] of docClient.listFolders.mock.calls) {
+			expect(o.name).toBeDefined();
+			expect(o.pageSize).toBe(1);
+		}
+		for (const [, o] of apiClient.listDocuments.mock.calls) {
+			expect(o.title).toBeDefined();
+			expect(o.pageSize).toBe(1);
+		}
 	});
 });

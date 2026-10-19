@@ -503,8 +503,7 @@ export function getCustomFieldTools(): Tool[] {
 					},
 					useInSearch: {
 						type: "boolean",
-						description:
-							"Whether task search also matches this field's value",
+						description: "Whether task search also matches this field's value",
 					},
 					rows: {
 						type: "number",
@@ -579,8 +578,7 @@ export function getCustomFieldTools(): Tool[] {
 					},
 					useInSearch: {
 						type: "boolean",
-						description:
-							"Whether task search also matches this field's value",
+						description: "Whether task search also matches this field's value",
 					},
 					rows: {
 						type: "number",

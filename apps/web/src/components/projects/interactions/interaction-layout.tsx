@@ -66,10 +66,11 @@ import {
 	type ListTasksOptions,
 	layoutToViewType,
 	listAllTasks,
+	listSprints,
 	reorderViewsByContext,
 	resolveFilterConfig,
 	resolveTaskTypeFilter,
-	sprintsQueryOptions,
+	sprintsInfiniteQueryOptions,
 	type Task,
 	type TaskListResult,
 	taskQueryOptions,
@@ -596,7 +597,30 @@ export function InteractionLayout({
 		}
 	});
 
-	const { data: sprints = [] } = useQuery(sprintsQueryOptions(projectId));
+	// The open (active + planned) sprints: the groups when columns are by
+	// sprint, and what Start Sprint checks for another active sprint. Further
+	// pages load on demand via sprintsPagination.
+	const openSprintsQuery = useInfiniteQuery(
+		sprintsInfiniteQueryOptions(projectId, { status: ["active", "planned"] }),
+	);
+	const sprints = useMemo(
+		() => openSprintsQuery.data?.pages.flatMap((p) => p.items) ?? [],
+		[openSprintsQuery.data],
+	);
+	const sprintsPagination = useMemo(
+		() => ({
+			hasMore: !!openSprintsQuery.hasNextPage,
+			isLoadingMore: openSprintsQuery.isFetchingNextPage,
+			isError: openSprintsQuery.isFetchNextPageError,
+			onLoadMore: () => void openSprintsQuery.fetchNextPage(),
+		}),
+		[
+			openSprintsQuery.hasNextPage,
+			openSprintsQuery.isFetchingNextPage,
+			openSprintsQuery.isFetchNextPageError,
+			openSprintsQuery.fetchNextPage,
+		],
+	);
 
 	// Fetch Epic tasks for display in the epic field on task cards/rows.
 	// Paginated 20-per-page (see epicTasksInfiniteQueryOptions) — every epic
@@ -1744,15 +1768,21 @@ export function InteractionLayout({
 
 	// ── Sprint management (backlog only) ────────────────────────────────────
 	const createSprintMutation = useMutation({
-		mutationFn: (name: string) =>
-			createSprint(projectId, { name, status: "planned" }),
+		mutationFn: async () => {
+			// Number the new sprint after every existing one, not just the
+			// loaded ones — the total comes from the server.
+			const { total_count } = await listSprints(projectId, { pageSize: 1 });
+			return createSprint(projectId, {
+				name: `Sprint ${total_count + 1}`,
+				status: "planned",
+			});
+		},
 		onSuccess: () =>
 			qc.invalidateQueries({ queryKey: ["projects", projectId, "sprints"] }),
 	});
 
 	const handleNewSprint = () => {
-		const nextNum = sprints.length + 1;
-		createSprintMutation.mutate(`Sprint ${nextNum}`);
+		createSprintMutation.mutate();
 	};
 
 	const updateSprintMutation = useMutation({
@@ -2078,6 +2108,7 @@ export function InteractionLayout({
 						reporters={reporters}
 						customFields={customFields}
 						sprints={sprints}
+						sprintsPagination={sprintsPagination}
 						epics={displayEpics}
 						epicsPagination={epicsPagination}
 						viewConfig={activeViewConfig}
@@ -2151,6 +2182,9 @@ export function InteractionLayout({
 						onUpdateTaskField={canEdit ? handleMoveToColumn : undefined}
 						onDeleteTask={canEdit ? handleRequestDeleteTask : undefined}
 						sprints={context === "backlog" ? sprints : undefined}
+						sprintsPagination={
+							context === "backlog" ? sprintsPagination : undefined
+						}
 						onStartSprint={
 							context === "backlog" && canManageSprints
 								? handleStartSprint

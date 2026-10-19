@@ -1,11 +1,18 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	keepPreviousData,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { Download, FileArchive, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { NoPermissionState } from "@/components/shared/no-permission-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTablePaging } from "@/hooks/use-table-paging";
 import { ApiErrorCode, getApiErrorCode } from "@/lib/api-error";
 import {
 	getExportDownloadUrl,
@@ -47,10 +54,20 @@ export function ExportSettings({
 }) {
 	const { t } = useTranslation("projects");
 	const queryClient = useQueryClient();
-	const { data: exports, isLoading } = useQuery({
-		...projectExportsQueryOptions(projectId),
+	const { page, pageSize, setPage, setPageSize } =
+		useTablePaging("project-exports");
+	const { data: exportPage, isLoading } = useQuery({
+		...projectExportsQueryOptions(projectId, page, pageSize),
 		enabled: canExport,
+		placeholderData: keepPreviousData,
 	});
+	const exports = exportPage?.items;
+	const exportTotal = exportPage?.total_count ?? 0;
+	const totalPages = Math.max(1, Math.ceil(exportTotal / pageSize));
+	// Exports expire and are removed: leaving the last page empty steps back.
+	useEffect(() => {
+		if (exportPage && page > totalPages) setPage(totalPages);
+	}, [exportPage, page, totalPages, setPage]);
 	const [error, setError] = useState<string | null>(null);
 
 	const hasActive = exports?.some(isExportActive) ?? false;
@@ -59,6 +76,8 @@ export function ExportSettings({
 		mutationFn: () => requestProjectExport(projectId),
 		onSuccess: async () => {
 			setError(null);
+			// The new export is the newest: show it on the first page.
+			setPage(1);
 			await queryClient.invalidateQueries({
 				queryKey: projectExportsQueryKey(projectId),
 			});
@@ -186,6 +205,17 @@ export function ExportSettings({
 						))}
 					</ul>
 				)}
+				{exportTotal > 0 ? (
+					<Pagination
+						className="mt-3"
+						page={page}
+						totalPages={totalPages}
+						onPageChange={setPage}
+						total={exportTotal}
+						pageSize={pageSize}
+						onPageSizeChange={setPageSize}
+					/>
+				) : null}
 			</div>
 		</div>
 	);

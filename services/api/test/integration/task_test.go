@@ -570,7 +570,11 @@ func newFakeSprintRepoIT() *fakeSprintRepoIT {
 	return &fakeSprintRepoIT{sprints: make(map[uuid.UUID]*sprintdom.Sprint)}
 }
 
-func (r *fakeSprintRepoIT) ListSprints(_ context.Context, projectID uuid.UUID) ([]*sprintdom.Sprint, error) {
+func (r *fakeSprintRepoIT) ListSprints(ctx context.Context, projectID uuid.UUID, _ sprintdom.SprintFilter, _ *string, _ int) ([]*sprintdom.Sprint, bool, int, error) {
+	out, err := r.ListAllSprints(ctx, projectID)
+	return out, false, len(out), err
+}
+func (r *fakeSprintRepoIT) ListAllSprints(_ context.Context, projectID uuid.UUID) ([]*sprintdom.Sprint, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var out []*sprintdom.Sprint
@@ -694,7 +698,11 @@ func (r *fakeTaskRepo) DeleteCustomFieldDefinition(_ context.Context, id uuid.UU
 
 // -- fakeTaskRepo: TaskLink methods --
 
-func (r *fakeTaskRepo) ListTaskLinks(_ context.Context, _ uuid.UUID) ([]*taskdom.TaskLink, error) {
+func (r *fakeTaskRepo) ListTaskLinks(_ context.Context, _ uuid.UUID, _ *string, _ int) ([]*taskdom.TaskLink, bool, int, error) {
+	return []*taskdom.TaskLink{}, false, 0, nil
+}
+
+func (r *fakeTaskRepo) ListAllTaskLinks(_ context.Context, _ uuid.UUID) ([]*taskdom.TaskLink, error) {
 	return []*taskdom.TaskLink{}, nil
 }
 

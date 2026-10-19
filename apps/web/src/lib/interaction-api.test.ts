@@ -25,6 +25,7 @@ import {
 	getTask,
 	layoutToViewType,
 	listAllTasks,
+	listSprints,
 	listSprintTasks,
 	listSubtasks,
 	SUBTASKS_PAGE_SIZE,
@@ -525,6 +526,48 @@ describe("interaction-api", () => {
 		});
 		it("maps Roadmap → roadmap", () => {
 			expect(layoutToViewType("Roadmap")).toBe("roadmap");
+		});
+	});
+});
+
+describe("listSprints", () => {
+	beforeEach(() => mockGet.mockReset());
+
+	it("sends the filters as query params and returns the page", async () => {
+		const page = {
+			items: [{ id: "s1", name: "Sprint 1" }],
+			page_size: 30,
+			next_cursor: "c2",
+			total_count: 41,
+		};
+		mockGet.mockResolvedValue({ data: { data: page } });
+
+		await expect(
+			listSprints(PROJECT_ID, {
+				status: ["active", "planned"],
+				search: "  beta ",
+				ids: ["a", "b"],
+				sort: "recent",
+				cursor: "c1",
+			}),
+		).resolves.toEqual(page);
+		expect(mockGet).toHaveBeenCalledWith(`/projects/${PROJECT_ID}/sprints`, {
+			params: {
+				page_size: 30,
+				status: "active,planned",
+				search: "beta",
+				ids: "a,b",
+				sort: "recent",
+				cursor: "c1",
+			},
+		});
+	});
+
+	it("omits empty filters", async () => {
+		mockGet.mockResolvedValue({ data: { data: { items: [] } } });
+		await listSprints(PROJECT_ID, { pageSize: 1 });
+		expect(mockGet).toHaveBeenCalledWith(`/projects/${PROJECT_ID}/sprints`, {
+			params: { page_size: 1 },
 		});
 	});
 });

@@ -13,11 +13,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import {
-	deleteRole,
-	projectRolesQueryOptions,
-	type Role,
-} from "@/lib/role-api";
+import { deleteRole, projectRolesKey, type Role } from "@/lib/role-api";
 
 interface DeleteProjectRoleDialogProps {
 	projectId: string;
@@ -41,7 +37,7 @@ export function DeleteProjectRoleDialog({
 		mutationFn: () => deleteRole(role.id, projectId),
 		onSuccess: () => {
 			void queryClient.invalidateQueries({
-				queryKey: projectRolesQueryOptions(projectId).queryKey,
+				queryKey: projectRolesKey(projectId),
 			});
 			onOpenChange(false);
 		},

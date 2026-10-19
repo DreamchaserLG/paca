@@ -18,7 +18,9 @@ const sprint = {
 
 function makeClient(overrides: Record<string, any> = {}) {
 	return {
-		listSprints: vi.fn().mockResolvedValue([sprint]),
+		listSprints: vi
+			.fn()
+			.mockResolvedValue({ items: [sprint], nextCursor: null }),
 		getSprint: vi.fn().mockResolvedValue(sprint),
 		createSprint: vi.fn().mockResolvedValue(sprint),
 		updateSprint: vi.fn().mockResolvedValue({ ...sprint, name: "Sprint 2" }),
@@ -48,7 +50,32 @@ describe("handleSprintTool – list_sprints", () => {
 	it("calls client.listSprints with projectId", async () => {
 		const client = makeClient();
 		await handleSprintTool("list_sprints", { projectId: "p1" }, client);
-		expect(client.listSprints).toHaveBeenCalledWith("p1");
+		expect(client.listSprints).toHaveBeenCalledWith("p1", {
+			cursor: undefined,
+			pageSize: undefined,
+		});
+	});
+
+	it("tells the agent how to fetch the next page, and passes the cursor on", async () => {
+		const client = makeClient({
+			listSprints: vi.fn().mockResolvedValue({
+				items: [sprint],
+				nextCursor: "c2",
+				total: 7,
+			}),
+		});
+		const result = await handleSprintTool(
+			"list_sprints",
+			{ projectId: "p1", cursor: "c1", pageSize: 1 },
+			client,
+		);
+		expect(client.listSprints).toHaveBeenCalledWith("p1", {
+			cursor: "c1",
+			pageSize: 1,
+		});
+		const text = result.content[0].text;
+		expect(text).toContain("Showing 1 of 7");
+		expect(text).toContain('call list_sprints again with cursor="c2"');
 	});
 
 	it("returns formatted sprint list", async () => {

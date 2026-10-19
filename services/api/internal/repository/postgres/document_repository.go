@@ -213,7 +213,7 @@ func (r *DocumentRepository) ListAllFolders(_ context.Context, projectID uuid.UU
 
 // ListFolders returns one cursor-paginated level of the folder tree,
 // ordered position, name, id.
-func (r *DocumentRepository) ListFolders(ctx context.Context, projectID uuid.UUID, parentID *uuid.UUID, cursorAfter *string, limit int) ([]*docdom.DocFolder, bool, error) {
+func (r *DocumentRepository) ListFolders(ctx context.Context, projectID uuid.UUID, parentID *uuid.UUID, filter docdom.FolderFilter, cursorAfter *string, limit int) ([]*docdom.DocFolder, bool, error) {
 	if limit <= 0 {
 		limit = 50
 	}
@@ -224,6 +224,10 @@ func (r *DocumentRepository) ListFolders(ctx context.Context, projectID uuid.UUI
 	} else {
 		args = append(args, parentID.String())
 		where += fmt.Sprintf(` AND parent_id = $%d`, len(args))
+	}
+	if name := strings.TrimSpace(filter.Name); name != "" {
+		args = append(args, name)
+		where += fmt.Sprintf(` AND LOWER(name) = LOWER($%d)`, len(args))
 	}
 	if cursorAfter != nil {
 		cur, err := docdom.DecodeTreeCursor(*cursorAfter)
@@ -408,6 +412,10 @@ func (r *DocumentRepository) ListDocuments(ctx context.Context, projectID uuid.U
 	if q := strings.TrimSpace(filter.Search); q != "" {
 		args = append(args, "%"+escapeLikePattern(q)+"%")
 		query += fmt.Sprintf(" AND title ILIKE $%d", len(args))
+	}
+	if t := strings.TrimSpace(filter.Title); t != "" {
+		args = append(args, t)
+		query += fmt.Sprintf(" AND LOWER(title) = LOWER($%d)", len(args))
 	}
 	if cursorAfter != nil {
 		cur, err := docdom.DecodeTreeCursor(*cursorAfter)

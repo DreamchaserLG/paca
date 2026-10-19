@@ -1,7 +1,12 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { Paperclip, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { LoadMoreSentinel } from "@/components/shared/load-more-sentinel";
 import { ApiErrorCode, getApiErrorCode } from "@/lib/api-error";
 import {
 	deleteTaskAttachment,
@@ -29,9 +34,11 @@ export function AttachmentsSection({
 	const [attachmentError, setAttachmentError] = useState<string | null>(null);
 
 	// ── Query ──────────────────────────────────────────────────────────────
-	const { data: attachments = [] } = useQuery(
+	const attachmentsQuery = useInfiniteQuery(
 		taskAttachmentsQueryOptions(projectId, taskId),
 	);
+	const attachments =
+		attachmentsQuery.data?.pages.flatMap((p) => p.items) ?? [];
 
 	// ── Upload mutation ────────────────────────────────────────────────────
 	const uploadMutation = useMutation({
@@ -137,6 +144,12 @@ export function AttachmentsSection({
 							onDelete={(id) => deleteMutation.mutate(id)}
 						/>
 					))}
+					<LoadMoreSentinel
+						hasMore={!!attachmentsQuery.hasNextPage}
+						isLoadingMore={attachmentsQuery.isFetchingNextPage}
+						isError={attachmentsQuery.isFetchNextPageError}
+						onLoadMore={() => void attachmentsQuery.fetchNextPage()}
+					/>
 				</div>
 			)}
 

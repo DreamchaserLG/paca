@@ -81,20 +81,20 @@ func New(repo roledom.Repository, inv Invalidator, sim Simulator, reg *iam.Regis
 // Roles
 
 // ListPlatform implements roledom.Service.
-func (s *Service) ListPlatform(ctx context.Context) ([]*roledom.Role, error) {
-	return s.repo.ListPlatform(ctx)
+func (s *Service) ListPlatform(ctx context.Context, filter roledom.RoleFilter, cursorAfter *string, limit int) ([]*roledom.Role, bool, int, error) {
+	return s.repo.ListPlatform(ctx, filter, cursorAfter, limit)
 }
 
 // ListForProject implements roledom.Service.
-func (s *Service) ListForProject(ctx context.Context, projectID uuid.UUID) ([]*roledom.Role, error) {
+func (s *Service) ListForProject(ctx context.Context, projectID uuid.UUID, filter roledom.RoleFilter, cursorAfter *string, limit int) ([]*roledom.Role, bool, int, error) {
 	ok, err := s.repo.ProjectExists(ctx, projectID)
 	if err != nil {
-		return nil, err
+		return nil, false, 0, err
 	}
 	if !ok {
-		return nil, roledom.ErrProjectNotFound
+		return nil, false, 0, roledom.ErrProjectNotFound
 	}
-	return s.repo.ListForProject(ctx, projectID)
+	return s.repo.ListForProject(ctx, projectID, filter, cursorAfter, limit)
 }
 
 // Get implements roledom.Service. A platform scope sees platform roles only; a

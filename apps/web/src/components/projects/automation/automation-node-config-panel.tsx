@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueries, useQuery } from "@tanstack/react-query";
 import {
 	ChevronDown,
 	Copy,
@@ -16,6 +16,7 @@ import {
 	PRIORITY_LEVELS,
 } from "@/components/projects/interactions/priority";
 import { MemberSelect } from "@/components/shared/member-select";
+import { SprintSelect } from "@/components/shared/sprint-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -72,8 +73,6 @@ import {
 } from "@/lib/automation-api";
 import { copyToClipboard } from "@/lib/clipboard";
 import {
-	listAllTasks,
-	sprintsQueryOptions,
 	type Task,
 	taskQueryOptions,
 	tasksPickerInfiniteQueryOptions,
@@ -107,23 +106,6 @@ interface AutomationNodeConfigPanelProps {
 	 * present with properties, drives SchemaConfigForm's UI-field
 	 * rendering instead of GenericConfigForm's raw JSON textarea. */
 	pluginConfigSchema?: PluginNodeConfigSchema;
-}
-
-// The task list API caps page_size at 200, so a full project task picker has
-// to page through — otherwise tasks past the first 200 are invisible to it.
-const MAX_TASK_PAGES = 25;
-
-async function fetchAllProjectTasks(projectId: string): Promise<Task[]> {
-	const all: Task[] = [];
-	let cursor: string | undefined;
-	for (let page = 0; page < MAX_TASK_PAGES; page++) {
-		const result = await listAllTasks(projectId, { pageSize: 200, cursor });
-		all.push(...result.items);
-		const next = result.next_cursor;
-		if (!next) break;
-		cursor = next;
-	}
-	return all;
 }
 
 function taskLabel(task: Task): string {
@@ -968,13 +950,14 @@ function TriggerConfigForm({
 	const [cronExpression, setCronExpression] = useState(
 		config.cron_expression ?? "",
 	);
-	// Only predecessor_done still needs the full task list — for its watched-
-	// tasks multi-select. TargetTaskPicker (shared by predecessor_done, cron,
-	// and api_trigger) fetches its own paginated/searched list instead.
-	const { data: tasks = [] } = useQuery({
-		queryKey: ["projects", projectId, "tasks", "all-for-automation-picker"],
-		queryFn: () => fetchAllProjectTasks(projectId),
-		enabled: type === "predecessor_done",
+	// predecessor_done's watched tasks are added through TargetTaskPicker (a
+	// searched, paged list); only the already-watched ones are loaded, by id,
+	// to label their badges.
+	const watchedQueries = useQueries({
+		queries: watchedTaskIds.map((id) => ({
+			...taskQueryOptions(projectId, id),
+			enabled: type === "predecessor_done",
+		})),
 	});
 
 	if (type === "status_changed") {
@@ -1066,12 +1049,9 @@ function TriggerConfigForm({
 	}
 
 	if (type === "predecessor_done") {
-		const watchedTasks = watchedTaskIds
-			.map((id) => tasks.find((t) => t.id === id))
+		const watchedTasks = watchedQueries
+			.map((q) => q.data)
 			.filter((t): t is Task => t != null);
-		const availableToWatch = tasks.filter(
-			(t) => !watchedTaskIds.includes(t.id),
-		);
 		return (
 			<div className="space-y-3">
 				<div className="space-y-1.5">
@@ -1089,27 +1069,19 @@ function TriggerConfigForm({
 				<div className="space-y-1.5">
 					<Label>{t("automation.nodeConfig.trigger.watchedTasksLabel")}</Label>
 					{canEdit && (
-						<Select
+						<TargetTaskPicker
+							projectId={projectId}
 							value=""
-							onValueChange={(v) => {
-								if (v) setWatchedTaskIds((prev) => [...prev, v]);
+							placeholder={t(
+								"automation.nodeConfig.trigger.addWatchedTaskPlaceholder",
+							)}
+							onChange={(id) => {
+								if (id && !watchedTaskIds.includes(id)) {
+									setWatchedTaskIds((prev) => [...prev, id]);
+								}
 							}}
-						>
-							<SelectTrigger className="w-full">
-								<SelectValue
-									placeholder={t(
-										"automation.nodeConfig.trigger.addWatchedTaskPlaceholder",
-									)}
-								/>
-							</SelectTrigger>
-							<SelectContent>
-								{availableToWatch.map((t) => (
-									<SelectItem key={t.id} value={t.id}>
-										{taskLabel(t)}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+							canEdit={canEdit}
+						/>
 					)}
 					{watchedTasks.length > 0 && (
 						<div className="flex flex-wrap gap-1.5 pt-1">
@@ -1255,11 +1227,14 @@ function TargetTaskPicker({
 	value,
 	onChange,
 	canEdit,
+	placeholder,
 }: {
 	projectId: string;
 	value: string;
 	onChange: (value: string) => void;
 	canEdit: boolean;
+	/** Trigger text while nothing is selected; defaults to "Select a task". */
+	placeholder?: string;
 }) {
 	const { t } = useTranslation("projects");
 	const [open, setOpen] = useState(false);
@@ -1313,7 +1288,8 @@ function TargetTaskPicker({
 						taskLabel(selectedTask)
 					) : (
 						<span className="text-muted-foreground">
-							{t("automation.nodeConfig.trigger.selectTaskPlaceholder")}
+							{placeholder ??
+								t("automation.nodeConfig.trigger.selectTaskPlaceholder")}
 						</span>
 					)}
 				</span>
@@ -1648,10 +1624,6 @@ function ConditionConfigForm({
 	const [branches, setBranches] = useState<ConditionBranch[]>(
 		config.branches ?? [],
 	);
-	const { data: sprints } = useQuery({
-		...sprintsQueryOptions(projectId),
-		enabled: !!projectId,
-	});
 
 	useEffect(() => {
 		setBranches(config.branches ?? []);
@@ -1851,26 +1823,14 @@ function ConditionConfigForm({
 									placeholder={t("automation.nodeConfig.condition.value")}
 								/>
 							) : field === "sprint_id" ? (
-								<Select
+								<SprintSelect
+									projectId={projectId}
 									value={(leaf?.value as string) ?? ""}
-									onValueChange={(v) => updateLeaf(i, { value: v ?? "" })}
+									onChange={(v) => updateLeaf(i, { value: v })}
 									disabled={!canEdit}
-								>
-									<SelectTrigger className="h-7 w-full text-xs">
-										<SelectValue
-											placeholder={t("automation.nodeConfig.condition.value")}
-										>
-											{(sprints ?? []).find((s) => s.id === leaf?.value)?.name}
-										</SelectValue>
-									</SelectTrigger>
-									<SelectContent>
-										{(sprints ?? []).map((s) => (
-											<SelectItem key={s.id} value={s.id}>
-												{s.name}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
+									placeholder={t("automation.nodeConfig.condition.value")}
+									className="h-7 text-xs"
+								/>
 							) : field === "parent_task_id" ? (
 								<TargetTaskPicker
 									projectId={projectId}
@@ -2379,10 +2339,6 @@ function ActionConfigForm({
 		() => new Set(Object.keys(initialFields) as (keyof TaskFieldUpdate)[]),
 	);
 	const [fields, setFields] = useState<TaskFieldUpdate>(initialFields);
-	const { data: sprints } = useQuery({
-		...sprintsQueryOptions(projectId),
-		enabled: !!projectId,
-	});
 
 	function toggleField(key: keyof TaskFieldUpdate, on: boolean) {
 		setEnabled((prev) => {
@@ -2607,31 +2563,13 @@ function ActionConfigForm({
 				</p>
 				<div className="space-y-1.5">
 					<Label>{t("automation.nodeConfig.action.moveToSprintLabel")}</Label>
-					<Select
-						value={moveToSprintId || "__backlog__"}
-						onValueChange={(v) =>
-							setMoveToSprintId(!v || v === "__backlog__" ? "" : v)
-						}
+					<SprintSelect
+						projectId={projectId}
+						value={moveToSprintId}
+						onChange={setMoveToSprintId}
 						disabled={!canEdit}
-					>
-						<SelectTrigger className="w-full">
-							<SelectValue>
-								{moveToSprintId
-									? (sprints ?? []).find((s) => s.id === moveToSprintId)?.name
-									: t("automation.nodeConfig.action.moveToSprintBacklog")}
-							</SelectValue>
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="__backlog__">
-								{t("automation.nodeConfig.action.moveToSprintBacklog")}
-							</SelectItem>
-							{(sprints ?? []).map((s) => (
-								<SelectItem key={s.id} value={s.id}>
-									{s.name}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+						emptyLabel={t("automation.nodeConfig.action.moveToSprintBacklog")}
+					/>
 					<p className="text-xs text-muted-foreground">
 						{t("automation.nodeConfig.action.moveToSprintHint")}
 					</p>
@@ -2940,24 +2878,13 @@ function ActionConfigForm({
 				);
 			case "sprint_id":
 				return (
-					<Select
+					<SprintSelect
+						projectId={projectId}
 						value={fields.sprint_id ?? ""}
-						onValueChange={(v) => setFieldValue("sprint_id", v ?? undefined)}
+						onChange={(v) => setFieldValue("sprint_id", v || undefined)}
 						disabled={!canEdit}
-					>
-						<SelectTrigger className="h-7 w-full text-xs">
-							<SelectValue>
-								{(sprints ?? []).find((s) => s.id === fields.sprint_id)?.name}
-							</SelectValue>
-						</SelectTrigger>
-						<SelectContent>
-							{(sprints ?? []).map((s) => (
-								<SelectItem key={s.id} value={s.id}>
-									{s.name}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+						className="h-7 text-xs"
+					/>
 				);
 			case "parent_task_id":
 				return (

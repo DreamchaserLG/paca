@@ -5,6 +5,7 @@ import type {
 	PacaAPITaskExtendedClient,
 	PacaAPIViewsClient,
 } from "../api/index.js";
+import { moreNotice } from "../api/paginate.js";
 import type { Task } from "../types/index.js";
 import { formatList, formatTask, formatTaskDetail } from "../utils/index.js";
 
@@ -505,6 +506,9 @@ export async function handleTaskTool(
 	}
 }
 
+/** Items per section the task detail loads; the rest is one tool call away. */
+const DETAIL_PAGE_SIZE = 20;
+
 async function getTaskDetail(
 	projectId: string,
 	taskId: string,
@@ -514,41 +518,63 @@ async function getTaskDetail(
 ): Promise<any> {
 	const task = await client.getTask(projectId, taskId);
 
+	// Only the people this task names are looked up (by id); the long lists
+	// below load their first page and point at the tool for the rest.
+	const memberIds = [
+		...new Set([
+			...(task.assignee_ids ?? []),
+			...(task.reporter_id ? [task.reporter_id] : []),
+		]),
+	];
+	const emptyPage = { items: [], nextCursor: null };
 	const [
 		project,
 		statuses,
 		taskTypes,
-		sprints,
-		members,
-		subtasks,
-		attachments,
-		activities,
+		sprint,
+		membersPage,
+		subtasksPage,
+		attachmentsPage,
+		activitiesPage,
 		customFields,
-		links,
+		linksPage,
 	] = await Promise.all([
 		client.getProject(projectId).catch(() => undefined),
 		extendedClient?.listTaskStatuses(projectId)?.catch(() => []) ||
 			Promise.resolve([]),
 		extendedClient?.listTaskTypes(projectId)?.catch(() => []) ||
 			Promise.resolve([]),
-		client.listSprints(projectId).catch(() => []),
-		extendedClient?.listProjectMembers(projectId)?.catch(() => []) ||
-			Promise.resolve([]),
-		extendedClient?.listSubtasks(projectId, taskId)?.catch(() => []) ||
-			Promise.resolve([]),
-		viewsClient?.listTaskAttachments(projectId, taskId)?.catch(() => []) ||
-			Promise.resolve([]),
-		extendedClient?.listTaskActivities(projectId, taskId)?.catch(() => []) ||
-			Promise.resolve([]),
+		task.sprint_id
+			? client.getSprint(projectId, task.sprint_id).catch(() => undefined)
+			: Promise.resolve(undefined),
+		memberIds.length > 0
+			? extendedClient
+					?.listProjectMembers(projectId, { ids: memberIds })
+					?.catch(() => emptyPage) || Promise.resolve(emptyPage)
+			: Promise.resolve(emptyPage),
+		extendedClient
+			?.listSubtasks(projectId, taskId, { pageSize: DETAIL_PAGE_SIZE })
+			?.catch(() => emptyPage) || Promise.resolve(emptyPage),
+		viewsClient
+			?.listTaskAttachments(projectId, taskId, { pageSize: DETAIL_PAGE_SIZE })
+			?.catch(() => emptyPage) || Promise.resolve(emptyPage),
+		extendedClient
+			?.listTaskActivities(projectId, taskId, { pageSize: DETAIL_PAGE_SIZE })
+			?.catch(() => emptyPage) || Promise.resolve(emptyPage),
 		viewsClient?.listCustomFieldDefinitions(projectId)?.catch(() => []) ||
 			Promise.resolve([]),
-		extendedClient?.listTaskLinks(projectId, taskId)?.catch(() => []) ||
-			Promise.resolve([]),
+		extendedClient
+			?.listTaskLinks(projectId, taskId, { pageSize: DETAIL_PAGE_SIZE })
+			?.catch(() => emptyPage) || Promise.resolve(emptyPage),
 	]);
+	const members: any[] = membersPage.items;
+	const subtasks: any[] = subtasksPage.items;
+	const attachments: any[] = attachmentsPage.items;
+	const activities: any[] = activitiesPage.items;
+	const links: any[] = linksPage.items;
 
 	const status = statuses.find((s: any) => s.id === task.status_id);
 	const taskType = taskTypes.find((t: any) => t.id === task.task_type_id);
-	const sprint = sprints.find((s: any) => s.id === task.sprint_id);
 	const assignees = members.filter((m: any) =>
 		task.assignee_ids?.includes(m.id),
 	);
@@ -578,11 +604,26 @@ async function getTaskDetail(
 		links,
 	);
 
+	// A section that got only its first page says how to read the rest.
+	const more = [
+		["Subtasks", subtasksPage, `list_tasks (with parentTaskId=${taskId})`],
+		["Attachments", attachmentsPage, "list_task_attachments"],
+		["Activities", activitiesPage, "list_task_activities"],
+		["Links", linksPage, "list_task_links"],
+	]
+		.map(([label, page, tool]) => {
+			const notice = moreNotice(page as any, tool as string);
+			return notice
+				? `\n_${label}: ${notice.trim().replace(/^_|_$/g, "")}_`
+				: "";
+		})
+		.join("");
+
 	return {
 		content: [
 			{
 				type: "text",
-				text: formatted,
+				text: `${formatted}${more}`,
 			},
 		],
 	};

@@ -1,11 +1,13 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { PacaAPITaskExtendedClient } from "../api/index.js";
+import { moreNotice, pagingFields, pagingProperties } from "../api/paginate.js";
 import { blocknoteToMarkdown } from "../utils/index.js";
 
 const ListTaskActivitiesSchema = z.object({
 	projectId: z.string(),
 	taskId: z.string(),
+	...pagingFields,
 });
 
 const AddTaskCommentSchema = z.object({
@@ -48,6 +50,7 @@ export function getTaskActivityTools(): Tool[] {
 						description:
 							"The technical UUID of the task (e.g., '550e8400-e29b-41d4-a716-446655440000'). Use list_tasks to get the task ID.",
 					},
+					...pagingProperties,
 				},
 				required: ["projectId", "taskId"],
 			},
@@ -167,14 +170,18 @@ export async function handleTaskActivityTool(
 ): Promise<any> {
 	switch (toolName) {
 		case "list_task_activities": {
-			const { projectId, taskId } = ListTaskActivitiesSchema.parse(args);
-			const activities = await client.listTaskActivities(projectId, taskId);
-			const formatted = activities.map(formatTaskActivity).join("\n\n---\n\n");
+			const { projectId, taskId, cursor, pageSize } =
+				ListTaskActivitiesSchema.parse(args);
+			const page = await client.listTaskActivities(projectId, taskId, {
+				cursor,
+				pageSize,
+			});
+			const formatted = page.items.map(formatTaskActivity).join("\n\n---\n\n");
 			return {
 				content: [
 					{
 						type: "text",
-						text: `Task Activities:\n\n${formatted}`,
+						text: `Task Activities (newest first):\n\n${formatted}${moreNotice(page, "list_task_activities")}`,
 					},
 				],
 			};

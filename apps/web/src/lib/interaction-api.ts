@@ -21,9 +21,29 @@ export interface Sprint {
 	updated_at: string;
 }
 
+/** One page of a project's sprints. `total_count` covers every sprint that
+ *  matches the filters, not just this page. */
 export interface SprintListResult {
 	items: Sprint[];
+	page_size: number;
+	next_cursor: string | null;
+	total_count: number;
 }
+
+export interface ListSprintsOptions {
+	/** Only sprints in one of these statuses. */
+	status?: SprintStatus[];
+	/** Words that must all appear in the sprint name. */
+	search?: string;
+	/** Only these sprints (at most 100) — a batch lookup. */
+	ids?: string[];
+	/** "name" (default) or "recent" (last updated first). */
+	sort?: "name" | "recent";
+	cursor?: string;
+	pageSize?: number;
+}
+
+export const SPRINTS_PAGE_SIZE = 30;
 
 export interface Task {
 	id: string;
@@ -436,11 +456,23 @@ export const viewsByContextQueryOptions = (
 
 // ── Sprint API ────────────────────────────────────────────────────────────────
 
-export async function listSprints(projectId: string): Promise<Sprint[]> {
+/** One page of a project's sprints. */
+export async function listSprints(
+	projectId: string,
+	opts: ListSprintsOptions = {},
+): Promise<SprintListResult> {
+	const params: Record<string, string | number> = {
+		page_size: opts.pageSize ?? SPRINTS_PAGE_SIZE,
+	};
+	if (opts.status?.length) params.status = opts.status.join(",");
+	if (opts.search?.trim()) params.search = opts.search.trim();
+	if (opts.ids?.length) params.ids = opts.ids.join(",");
+	if (opts.sort) params.sort = opts.sort;
+	if (opts.cursor) params.cursor = opts.cursor;
 	const { data } = await apiClient.instance.get<
 		SuccessEnvelope<SprintListResult>
-	>(`/projects/${projectId}/sprints`);
-	return data.data.items;
+	>(`/projects/${projectId}/sprints`, { params });
+	return data.data;
 }
 
 export async function getSprint(
@@ -838,10 +870,29 @@ export const subtasksInfiniteQueryOptions = (
 		staleTime: 15_000,
 	});
 
-export const sprintsQueryOptions = (projectId: string) =>
-	queryOptions({
-		queryKey: ["projects", projectId, "sprints"],
-		queryFn: () => listSprints(projectId),
+/** Cursor-paged sprint list, optionally filtered by status / name search.
+ *  Keyed under ["projects", id, "sprints"] so sprint mutations and realtime
+ *  events refetch it. */
+export const sprintsInfiniteQueryOptions = (
+	projectId: string,
+	filters: Pick<ListSprintsOptions, "status" | "search" | "sort"> = {},
+) =>
+	infiniteQueryOptions({
+		queryKey: [
+			"projects",
+			projectId,
+			"sprints",
+			"list",
+			{
+				status: filters.status ?? null,
+				search: filters.search ?? "",
+				sort: filters.sort ?? "name",
+			},
+		] as const,
+		queryFn: ({ pageParam }: { pageParam: string | undefined }) =>
+			listSprints(projectId, { ...filters, cursor: pageParam }),
+		initialPageParam: undefined as string | undefined,
+		getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
 		staleTime: 30_000,
 	});
 
@@ -1103,14 +1154,26 @@ export const LINK_TYPE_LABELS: Record<DisplayLinkType, string> = {
 	is_duplicated_by: "is duplicated by",
 };
 
+export const TASK_LINKS_PAGE_SIZE = 30;
+
+/** One page of a task's links; `total_count` covers all of them. */
+export interface TaskLinkPage {
+	items: TaskLink[];
+	page_size: number;
+	next_cursor: string | null;
+	total_count: number;
+}
+
 export async function listTaskLinks(
 	projectId: string,
 	taskId: string,
-): Promise<TaskLink[]> {
-	const { data } = await apiClient.instance.get<
-		SuccessEnvelope<{ items: TaskLink[] }>
-	>(`/projects/${projectId}/tasks/${taskId}/links`);
-	return data.data.items;
+	cursor?: string,
+): Promise<TaskLinkPage> {
+	const { data } = await apiClient.instance.get<SuccessEnvelope<TaskLinkPage>>(
+		`/projects/${projectId}/tasks/${taskId}/links`,
+		{ params: { page_size: TASK_LINKS_PAGE_SIZE, cursor } },
+	);
+	return data.data;
 }
 
 export async function createTaskLink(
@@ -1136,9 +1199,12 @@ export async function deleteTaskLink(
 }
 
 export const taskLinksQueryOptions = (projectId: string, taskId: string) =>
-	queryOptions({
+	infiniteQueryOptions({
 		queryKey: ["projects", projectId, "tasks", taskId, "links"],
-		queryFn: () => listTaskLinks(projectId, taskId),
+		queryFn: ({ pageParam }: { pageParam: string | undefined }) =>
+			listTaskLinks(projectId, taskId, pageParam),
+		initialPageParam: undefined as string | undefined,
+		getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
 		staleTime: 15_000,
 		enabled: !!projectId && !!taskId,
 	});

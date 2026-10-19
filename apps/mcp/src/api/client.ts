@@ -18,7 +18,13 @@ import type {
 	UpdateTaskInput,
 } from "../types/index.js";
 import { formatApiRequestError, markdownToBlocknote } from "../utils/index.js";
-import { fetchAllPages, withPaging } from "./paginate.js";
+import {
+	LIST_PAGE_SIZE,
+	type Page,
+	type PageOptions,
+	toPage,
+	withPaging,
+} from "./paginate.js";
 
 /**
  * Paca API client for interacting with the Paca backend.
@@ -108,17 +114,28 @@ export class PacaAPIClient {
 
 	// ==================== Project Methods ====================
 
-	async listProjects(
-		page: number = 1,
-		pageSize: number = 50,
-	): Promise<Project[]> {
-		const response = await this.get(
-			`/api/v1/projects?page=${page}&page_size=${pageSize}`,
+	/** One page of the projects the caller can access. Projects page by
+	 *  number, so the cursor here is the next page number. */
+	async listProjects(opts: PageOptions = {}): Promise<Page<Project>> {
+		const pageSize = opts.pageSize ?? LIST_PAGE_SIZE;
+		const pageNumber = Math.max(
+			1,
+			Number.parseInt(opts.cursor ?? "1", 10) || 1,
 		);
-		if (Array.isArray(response)) {
-			return response;
-		}
-		return response.items || response.projects || response.data || [];
+		const response = await this.get(
+			`/api/v1/projects?page=${pageNumber}&page_size=${pageSize}`,
+		);
+		if (Array.isArray(response)) return { items: response, nextCursor: null };
+		const items: Project[] =
+			response.items || response.projects || response.data || [];
+		const total =
+			typeof response.total === "number" ? response.total : undefined;
+		const more = total !== undefined && pageNumber * pageSize < total;
+		return {
+			items,
+			nextCursor: more ? String(pageNumber + 1) : null,
+			...(total !== undefined ? { total } : {}),
+		};
 	}
 
 	async getProject(projectId: string): Promise<Project> {
@@ -267,12 +284,22 @@ export class PacaAPIClient {
 
 	// ==================== Sprint Methods ====================
 
-	async listSprints(projectId: string): Promise<Sprint[]> {
-		const response = await this.get(`/api/v1/projects/${projectId}/sprints`);
-		if (Array.isArray(response)) {
-			return response;
-		}
-		return response.items || response.sprints || response.data || [];
+	async listSprints(
+		projectId: string,
+		opts: PageOptions & { status?: string; search?: string } = {},
+	): Promise<Page<Sprint>> {
+		const filters = new URLSearchParams();
+		if (opts.status) filters.set("status", opts.status);
+		if (opts.search) filters.set("search", opts.search);
+		const qs = filters.toString();
+		return toPage<Sprint>(
+			await this.get(
+				withPaging(
+					`/api/v1/projects/${projectId}/sprints${qs ? `?${qs}` : ""}`,
+					opts,
+				),
+			),
+		);
 	}
 
 	async getSprint(projectId: string, sprintId: string): Promise<Sprint> {
@@ -328,14 +355,22 @@ export class PacaAPIClient {
 
 	// ==================== Document Methods ====================
 
+	/** One page of documents; `folderId` narrows to one folder ("null" for
+	 *  the top level), `title` to an exact, case-insensitive title. */
 	async listDocuments(
 		projectId: string,
-		folderId?: string,
-	): Promise<Document[]> {
-		const queryString = folderId ? `?folder_id=${folderId}` : "";
-		return fetchAllPages((cursor) =>
-			this.get(
-				withPaging(`/api/v1/projects/${projectId}/docs${queryString}`, cursor),
+		opts: PageOptions & { folderId?: string; title?: string } = {},
+	): Promise<Page<Document>> {
+		const filters = new URLSearchParams();
+		if (opts.folderId) filters.set("folder_id", opts.folderId);
+		if (opts.title) filters.set("title", opts.title);
+		const qs = filters.toString();
+		return toPage<Document>(
+			await this.get(
+				withPaging(
+					`/api/v1/projects/${projectId}/docs${qs ? `?${qs}` : ""}`,
+					opts,
+				),
 			),
 		);
 	}

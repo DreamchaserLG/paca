@@ -47,6 +47,8 @@
 		"previous": "Предыдущая страница",
 		"next": "Следующая страница",
 		"page": "Страница {{page}}",
-		"pageOfTotal": "Страница {{page}} из {{totalPages}}"
+		"pageOfTotal": "Страница {{page}} из {{totalPages}}",
+		"rowsPerPage": "Строк на странице",
+		"range": "{{from}}–{{to}} из {{total}}"
 	}
 }

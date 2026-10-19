@@ -19,14 +19,14 @@ import {
 } from "@/components/ui/popover";
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
 import { useMemberSearch } from "@/hooks/use-member-search";
-import {
-	type CustomFieldFilterConfig,
-	type FilterConfig,
-	type FilterEntry,
-	type InteractionView,
-	sprintsQueryOptions,
-	type ViewConfig,
-	type ViewFilters,
+import { useSprintSearch } from "@/hooks/use-sprint-search";
+import type {
+	CustomFieldFilterConfig,
+	FilterConfig,
+	FilterEntry,
+	InteractionView,
+	ViewConfig,
+	ViewFilters,
 } from "@/lib/interaction-api";
 import { useMemberDirectory } from "@/lib/member-directory";
 import {
@@ -41,6 +41,7 @@ import {
 	taskTypesQueryOptions,
 } from "@/lib/project-api";
 import { memberAvatar } from "@/lib/provider-logos";
+import { useSprintDirectory } from "@/lib/sprint-directory";
 import { cn } from "@/lib/utils";
 import { PRIORITY_LEVELS } from "./priority";
 import { ChipField } from "./task-detail/property-field/chip-field";
@@ -329,24 +330,18 @@ function FieldPicker({
 // ── Sprint filter ─────────────────────────────────────────────────────────────
 
 function SprintFilterSection({
-	sprints,
+	projectId,
 	selectedIds,
 	onChange,
 }: {
-	sprints: { id: string; name: string }[];
+	projectId: string;
 	selectedIds: string[];
 	onChange: (ids: string[]) => void;
 }) {
 	const { t } = useTranslation("projects");
 	const isAll = selectedIds.length === 0;
-
-	if (sprints.length === 0) {
-		return (
-			<p className="px-3 pb-2 text-xs text-muted-foreground/50">
-				{t("layout.viewSettings.sprintFilter.noSprints")}
-			</p>
-		);
-	}
+	const search = useSprintSearch(projectId, true);
+	const getSprint = useSprintDirectory(projectId);
 
 	const toggle = (id: string) => {
 		if (selectedIds.includes(id)) {
@@ -356,25 +351,59 @@ function SprintFilterSection({
 		}
 	};
 
+	if (
+		!search.isLoading &&
+		search.sprints.length === 0 &&
+		search.query.trim() === "" &&
+		isAll
+	) {
+		return (
+			<p className="px-3 pb-2 text-xs text-muted-foreground/50">
+				{t("layout.viewSettings.sprintFilter.noSprints")}
+			</p>
+		);
+	}
+
+	// Picked sprints always show (resolved by id, so they appear even when
+	// they're not on a loaded page); the rest of the loaded page follows.
+	const unselected = search.sprints.filter((s) => !selectedIds.includes(s.id));
+
 	return (
-		<div className="px-3 pb-3 space-y-1.5">
+		<div className="px-3 pb-3 space-y-2">
+			<input
+				type="text"
+				value={search.query}
+				onChange={(e) => search.onQueryChange(e.target.value)}
+				placeholder={t("taskDetail.searchableList.searchPlaceholder")}
+				aria-label={t("taskDetail.searchableList.searchPlaceholder")}
+				className="w-full rounded-lg border border-border/30 bg-muted/25 px-2.5 py-1.5 text-xs placeholder:text-muted-foreground/50 focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20"
+			/>
 			<div className="flex flex-wrap gap-1.5">
 				<FilterPill selected={isAll} onClick={() => onChange([])}>
 					{t("layout.viewSettings.sprintFilter.allSprints")}
 				</FilterPill>
-				{sprints.map((sprint) => {
-					const selected = selectedIds.includes(sprint.id);
-					return (
-						<FilterPill
-							key={sprint.id}
-							selected={selected}
-							onClick={() => toggle(sprint.id)}
-						>
-							{sprint.name}
-						</FilterPill>
-					);
-				})}
+				{selectedIds.map((id) => (
+					<FilterPill key={id} selected onClick={() => toggle(id)}>
+						{getSprint(id)?.name ?? id.slice(0, 8)}
+					</FilterPill>
+				))}
+				{unselected.map((sprint) => (
+					<FilterPill
+						key={sprint.id}
+						selected={false}
+						onClick={() => toggle(sprint.id)}
+					>
+						{sprint.name}
+					</FilterPill>
+				))}
 			</div>
+			<LoadMoreSentinel
+				compact
+				hasMore={search.hasMore}
+				isLoadingMore={search.isLoadingMore}
+				isError={search.isError}
+				onLoadMore={search.onLoadMore}
+			/>
 		</div>
 	);
 }
@@ -1168,7 +1197,6 @@ export function ViewSettingsPanel({
 	);
 	const { data: statuses = [] } = useQuery(taskStatusesQueryOptions(projectId));
 	const { data: taskTypes = [] } = useQuery(taskTypesQueryOptions(projectId));
-	const { data: sprints = [] } = useQuery(sprintsQueryOptions(projectId));
 
 	const [draft, setDraft] = useState<ViewConfig>(() => view?.config ?? {});
 	const [fieldsOpen, setFieldsOpen] = useState(false);
@@ -1495,7 +1523,7 @@ export function ViewSettingsPanel({
 									defaultOpen={filterSprintIds.length > 0}
 								>
 									<SprintFilterSection
-										sprints={sprints}
+										projectId={projectId}
 										selectedIds={filterSprintIds}
 										onChange={(ids) =>
 											updateFilters({ sprints: idsToFilterConfig(ids) })

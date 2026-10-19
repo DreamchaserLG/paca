@@ -354,8 +354,8 @@ func (c *CachedService) DeleteCustomFieldDefinition(ctx context.Context, project
 // --- Task Links (pass-through) -----------------------------------------------
 
 // ListTaskLinks delegates directly to the underlying service (not cached).
-func (c *CachedService) ListTaskLinks(ctx context.Context, projectID, taskID uuid.UUID) ([]*taskdom.TaskLink, error) {
-	return c.svc.ListTaskLinks(ctx, projectID, taskID)
+func (c *CachedService) ListTaskLinks(ctx context.Context, projectID, taskID uuid.UUID, cursorAfter *string, limit int) ([]*taskdom.TaskLink, bool, int, error) {
+	return c.svc.ListTaskLinks(ctx, projectID, taskID, cursorAfter, limit)
 }
 
 // CreateTaskLink delegates directly to the underlying service (not cached).

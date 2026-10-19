@@ -11,7 +11,6 @@ import { useTranslation } from "react-i18next";
 import {
 	createTask,
 	epicTasksInfiniteQueryOptions,
-	sprintsQueryOptions,
 	subtasksInfiniteQueryOptions,
 	taskQueryOptions,
 	updateTask,
@@ -98,12 +97,6 @@ export function TaskDetailModal({
 		() => subtasksData?.pages.flatMap((p) => p.items) ?? [],
 		[subtasksData],
 	);
-
-	// Fetch sprints for sprint name display + assignment
-	const { data: sprints = [] } = useQuery({
-		...sprintsQueryOptions(projectId ?? ""),
-		enabled: !!projectId && (open || mode === "page"),
-	});
 
 	// Fetch custom field definitions from API
 	const { data: apiCustomFields = [] } = useQuery({
@@ -433,7 +426,6 @@ export function TaskDetailModal({
 								reporter={reporter}
 								statuses={statuses}
 								taskTypes={taskTypes}
-								sprints={sprints}
 								projectId={projectId}
 								initialCustomFields={customFieldDefs}
 								canEdit={canEdit}

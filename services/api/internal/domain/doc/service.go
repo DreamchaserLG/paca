@@ -20,7 +20,7 @@ type Service interface {
 type DocFolderService interface {
 	// ListFolders is the cursor-paginated listing of one level of the
 	// folder tree — see DocFolderRepository.ListFolders.
-	ListFolders(ctx context.Context, projectID uuid.UUID, parentID *uuid.UUID, cursorAfter *string, limit int) ([]*DocFolder, bool, error)
+	ListFolders(ctx context.Context, projectID uuid.UUID, parentID *uuid.UUID, filter FolderFilter, cursorAfter *string, limit int) ([]*DocFolder, bool, error)
 	// FolderPath returns the folders from the root down to folderID.
 	FolderPath(ctx context.Context, projectID, folderID uuid.UUID) ([]*DocFolder, error)
 	// CreateFolder creates a new folder in the project.

@@ -59,6 +59,7 @@ import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
 import { useExistingMemberIds } from "@/hooks/use-existing-member-ids";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
+import { useRolesByIds } from "@/hooks/use-role-search";
 import { type User, usersInfiniteQueryOptions } from "@/lib/admin-api";
 import {
 	type Agent,
@@ -87,7 +88,7 @@ import {
 	userAvatar,
 } from "@/lib/provider-logos";
 import {
-	projectRolesQueryOptions,
+	projectRolesInfiniteQueryOptions,
 	type Role,
 	replaceMemberRoles,
 } from "@/lib/role-api";
@@ -1136,8 +1137,15 @@ function TeamPage() {
 	// cursor, so a large team is never loaded whole.
 	const [debouncedSearch, setDebouncedSearch] = useState("");
 	const applySearch = useDebouncedCallback(setDebouncedSearch, 300);
-	const { data: roles = [] } = useQuery(projectRolesQueryOptions(projectId));
-	const roleFilterId = roles.find((r) => r.name === roleFilter)?.id;
+	// The role filter chips page in as the viewer asks for more.
+	const rolesQuery = useInfiniteQuery(
+		projectRolesInfiniteQueryOptions(projectId),
+	);
+	const filterRoles = useMemo(
+		() => rolesQuery.data?.pages.flatMap((p) => p.items) ?? [],
+		[rolesQuery.data],
+	);
+	const roleFilterId = filterRoles.find((r) => r.name === roleFilter)?.id;
 	const {
 		data: membersPages,
 		isLoading: isDataLoading,
@@ -1187,8 +1195,16 @@ function TeamPage() {
 	const canAddMembers = canManageMembers && canAssignRoles;
 
 	const roleChips = useMemo(
-		() => roles.map((r) => ({ name: r.name })),
-		[roles],
+		() => filterRoles.map((r) => ({ name: r.name })),
+		[filterRoles],
+	);
+	// What the visible members' roles grant (badge descriptions), looked up by
+	// id rather than loading every role.
+	const roles = useRolesByIds(
+		projectId,
+		[
+			...new Set((members ?? []).flatMap((m) => m.roles.map((r) => r.id))),
+		].slice(0, 100),
 	);
 	const clearFilters = () => {
 		setSearch("");
@@ -1303,6 +1319,12 @@ function TeamPage() {
 						<MembersFilters
 							search={search}
 							roles={roleChips}
+							rolesPagination={{
+								hasMore: !!rolesQuery.hasNextPage,
+								isLoadingMore: rolesQuery.isFetchingNextPage,
+								isError: rolesQuery.isFetchNextPageError,
+								onLoadMore: () => void rolesQuery.fetchNextPage(),
+							}}
 							totalCount={teamTotal}
 							selectedRole={roleFilter}
 							shownCount={matchingCount}

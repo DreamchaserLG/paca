@@ -35,7 +35,9 @@ const comment = {
 
 function makeClient(overrides: Record<string, any> = {}) {
 	return {
-		listDocumentActivities: vi.fn().mockResolvedValue([activity]),
+		listDocumentActivities: vi
+			.fn()
+			.mockResolvedValue({ items: [activity], nextCursor: null }),
 		addDocumentComment: vi.fn().mockResolvedValue(comment),
 		updateDocumentComment: vi
 			.fn()
@@ -82,7 +84,10 @@ describe("handleDocActivityTool – list_doc_activities", () => {
 			{ projectId: "p1", docId: "d1" },
 			client,
 		);
-		expect(client.listDocumentActivities).toHaveBeenCalledWith("p1", "d1");
+		expect(client.listDocumentActivities).toHaveBeenCalledWith("p1", "d1", {
+			cursor: undefined,
+			pageSize: undefined,
+		});
 	});
 
 	it("includes 'Document Activities:' header, activity type, and username", async () => {
@@ -91,7 +96,7 @@ describe("handleDocActivityTool – list_doc_activities", () => {
 			{ projectId: "p1", docId: "d1" },
 			makeClient(),
 		);
-		expect(result.content[0].text).toContain("Document Activities:");
+		expect(result.content[0].text).toContain("Document Activities");
 		expect(result.content[0].text).toContain("system_event");
 		expect(result.content[0].text).toContain("@alice");
 	});

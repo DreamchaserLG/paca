@@ -1,7 +1,12 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { ExternalLink, Link2, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { LoadMoreSentinel } from "@/components/shared/load-more-sentinel";
 import { ApiErrorCode, getApiErrorCode } from "@/lib/api-error";
 import {
 	createTaskLink,
@@ -57,9 +62,8 @@ export function TaskLinksSection({
 	const [modalOpen, setModalOpen] = useState(false);
 	const [linkActionError, setLinkActionError] = useState<string | null>(null);
 
-	const { data: links = [] } = useQuery(
-		taskLinksQueryOptions(projectId, taskId),
-	);
+	const linksQuery = useInfiniteQuery(taskLinksQueryOptions(projectId, taskId));
+	const links = linksQuery.data?.pages.flatMap((p) => p.items) ?? [];
 
 	const createMutation = useMutation({
 		mutationFn: ({
@@ -219,6 +223,13 @@ export function TaskLinksSection({
 					))}
 				</div>
 			)}
+
+			<LoadMoreSentinel
+				hasMore={!!linksQuery.hasNextPage}
+				isLoadingMore={linksQuery.isFetchingNextPage}
+				isError={linksQuery.isFetchNextPageError}
+				onLoadMore={() => void linksQuery.fetchNextPage()}
+			/>
 
 			{orderedKeys.length === 0 && (
 				<div className="flex items-center gap-3 px-1 py-3 text-muted-foreground/45">

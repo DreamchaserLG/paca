@@ -1594,7 +1594,7 @@ func (f *fakePluginTriggerTaskReader) FindTaskStatusByID(context.Context, uuid.U
 func (f *fakePluginTriggerTaskReader) ListChildTasks(context.Context, uuid.UUID, uuid.UUID) ([]*taskdom.Task, error) {
 	return nil, nil
 }
-func (f *fakePluginTriggerTaskReader) ListTaskLinks(context.Context, uuid.UUID) ([]*taskdom.TaskLink, error) {
+func (f *fakePluginTriggerTaskReader) ListAllTaskLinks(context.Context, uuid.UUID) ([]*taskdom.TaskLink, error) {
 	return nil, nil
 }
 
@@ -1930,7 +1930,7 @@ func (f *fakeAutomationTaskReader) ListChildTasks(_ context.Context, _ uuid.UUID
 	return f.children[parentID], nil
 }
 
-func (f *fakeAutomationTaskReader) ListTaskLinks(_ context.Context, taskID uuid.UUID) ([]*taskdom.TaskLink, error) {
+func (f *fakeAutomationTaskReader) ListAllTaskLinks(_ context.Context, taskID uuid.UUID) ([]*taskdom.TaskLink, error) {
 	return f.links[taskID], nil
 }
 

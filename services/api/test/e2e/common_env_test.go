@@ -45,8 +45,10 @@ import (
 	authsvc "github.com/Paca-AI/api/internal/service/auth"
 	automationsvc "github.com/Paca-AI/api/internal/service/automation"
 	docsvc "github.com/Paca-AI/api/internal/service/doc"
+	exportsvc "github.com/Paca-AI/api/internal/service/export"
 	projectsvc "github.com/Paca-AI/api/internal/service/project"
 	rolesvc "github.com/Paca-AI/api/internal/service/role"
+	serviceaccountsvc "github.com/Paca-AI/api/internal/service/serviceaccount"
 	sprintsvc "github.com/Paca-AI/api/internal/service/sprint"
 	ssosvc "github.com/Paca-AI/api/internal/service/sso"
 	tasksvc "github.com/Paca-AI/api/internal/service/task"
@@ -312,7 +314,15 @@ func newE2EEnv(t *testing.T) *e2eEnv {
 		Automation:   handler.NewAutomationHandler(automationService),
 		Agent:        handler.NewAgentHandler(agentService, "", "", "").WithMemberRepo(projectRepo).WithActivityLister(activityLog),
 		Conversation: handler.NewConversationHandler(agentService).WithMemberRepo(projectRepo),
-		Log:          log,
+		// Only the list/read paths of exports are exercised: nothing here
+		// builds or downloads one, so no object store is attached.
+		ProjectExport: handler.NewProjectExportHandler(exportsvc.New(
+			pgRepo.NewProjectExportRepository(db), projectRepo, projectRepo, taskRepo, sprintRepo,
+			docRepo, pgRepo.NewActivityRepository(db), nil, "", publisher, log)),
+		ProjectActivity: handler.NewProjectActivityHandler(activityLog, attachmentService),
+		ServiceAccount: handler.NewServiceAccountHandler(
+			serviceaccountsvc.New(pgRepo.NewServiceAccountRepository(db)), apiKeyService),
+		Log: log,
 	})
 
 	srv := httptest.NewServer(engine)

@@ -21,7 +21,7 @@ type DocFolderRepository interface {
 	// ListFolders returns up to limit direct child folders of parentID
 	// (nil = root level) in manual order (position, name, id), after the
 	// folder cursorAfter names (nil = first page), plus whether more follow.
-	ListFolders(ctx context.Context, projectID uuid.UUID, parentID *uuid.UUID, cursorAfter *string, limit int) ([]*DocFolder, bool, error)
+	ListFolders(ctx context.Context, projectID uuid.UUID, parentID *uuid.UUID, filter FolderFilter, cursorAfter *string, limit int) ([]*DocFolder, bool, error)
 	// FolderPath returns the chain of folders from the root down to folderID
 	// (inclusive), restricted to the project.
 	FolderPath(ctx context.Context, projectID, folderID uuid.UUID) ([]*DocFolder, error)
@@ -49,6 +49,15 @@ type DocumentFilter struct {
 	RootOnly bool
 	// Search keeps documents whose title contains it (case-insensitive).
 	Search string
+	// Title keeps documents whose title equals it (case-insensitive) — a
+	// by-name lookup that, unlike Search, never matches a longer title.
+	Title string
+}
+
+// FolderFilter narrows a folder-level listing.
+type FolderFilter struct {
+	// Name keeps folders whose name equals it (case-insensitive).
+	Name string
 }
 
 // DocumentRepository defines persistence for documents.

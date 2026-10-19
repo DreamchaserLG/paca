@@ -41,6 +41,8 @@
 		"previous": "Previous page",
 		"next": "Next page",
 		"page": "Page {{page}}",
-		"pageOfTotal": "Page {{page}} of {{totalPages}}"
+		"pageOfTotal": "Page {{page}} of {{totalPages}}",
+		"rowsPerPage": "Rows per page",
+		"range": "{{from}}–{{to}} of {{total}}"
 	}
 }

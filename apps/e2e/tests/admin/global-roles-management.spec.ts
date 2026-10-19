@@ -23,12 +23,14 @@ function modeTab(page: Page, name: 'Simple' | 'Advanced (JSON)') {
 
 /** The actions the workspace role called `roleName` allows, as stored. */
 async function storedActions(page: Page, roleName: string): Promise<string[]> {
-  const response = await page.request.get(`${BASE_URL}/api/v1/admin/roles`);
+  const response = await page.request.get(
+    `${BASE_URL}/api/v1/admin/roles?page_size=100&search=${encodeURIComponent(roleName)}`,
+  );
   expect(response.ok()).toBeTruthy();
   const roles: Array<{
     name: string;
     policy: { statements: Array<{ effect: string; actions: string[] }> };
-  }> = (await response.json()).data ?? [];
+  }> = (await response.json()).data.items ?? [];
   const role = roles.find((r) => r.name === roleName);
   expect(role, `role ${roleName} should exist`).toBeTruthy();
   return (role?.policy.statements ?? [])

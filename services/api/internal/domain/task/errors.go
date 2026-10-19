@@ -31,7 +31,9 @@ var (
 	ErrCustomFieldNameInvalid = errors.New("custom field: display name is empty or invalid")
 
 	// Task link errors.
-	ErrTaskLinkNotFound     = errors.New("task link: not found")
+	ErrTaskLinkNotFound = errors.New("task link: not found")
+	// ErrInvalidCursor reports a malformed pagination cursor.
+	ErrInvalidCursor        = errors.New("task: invalid cursor")
 	ErrTaskLinkSelf         = errors.New("task link: a task cannot be linked to itself")
 	ErrTaskLinkDuplicate    = errors.New("task link: this relationship already exists")
 	ErrTaskLinkTypeInvalid  = errors.New("task link: invalid link type")

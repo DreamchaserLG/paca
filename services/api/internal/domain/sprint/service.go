@@ -9,7 +9,11 @@ import (
 
 // SprintService defines sprint use cases.
 type SprintService interface {
-	ListSprints(ctx context.Context, projectID uuid.UUID) ([]*Sprint, error)
+	// ListSprints returns one page of the project's sprints; see
+	// SprintRepository.ListSprints for the paging contract.
+	ListSprints(ctx context.Context, projectID uuid.UUID, filter SprintFilter, cursorAfter *string, limit int) ([]*Sprint, bool, int, error)
+	// ListAllSprints returns every sprint of the project (internal use).
+	ListAllSprints(ctx context.Context, projectID uuid.UUID) ([]*Sprint, error)
 	// GetSprint returns the sprint identified by id, verifying it belongs to projectID.
 	GetSprint(ctx context.Context, projectID, id uuid.UUID) (*Sprint, error)
 	CreateSprint(ctx context.Context, in CreateSprintInput) (*Sprint, error)

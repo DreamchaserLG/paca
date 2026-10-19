@@ -41,8 +41,13 @@ func listAPIKeys(w http.ResponseWriter, r *http.Request, svc apikeydom.Service, 
 		presenter.Error(w, r, err)
 		return
 	}
+	page, err := parseOptionalPage(r)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
 	cursor := parseCursorParam(r)
-	keys, hasMore, total, err := svc.List(r.Context(), accountID, cursor, pageSize)
+	keys, hasMore, total, err := svc.List(r.Context(), accountID, apikeydom.KeyFilter{Offset: pageOffset(page, pageSize)}, cursor, pageSize)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
@@ -57,7 +62,13 @@ func listAPIKeys(w http.ResponseWriter, r *http.Request, svc apikeydom.Service, 
 		c := apikeydom.EncodeCursor(last.CreatedAt, last.ID)
 		nextCursor = &c
 	}
-	presenter.OK(w, r, pageBody(items, pageSize, nextCursor, cursor == nil, total))
+	body := pageBody(items, pageSize, nextCursor, cursor == nil, total)
+	if page > 0 {
+		// Paged by number: the caller navigates by page, not by cursor.
+		body["page"] = page
+		body["next_cursor"] = nil
+	}
+	presenter.OK(w, r, body)
 }
 
 // Create handles POST /users/me/api-keys.

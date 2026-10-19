@@ -6,7 +6,6 @@
 // under a prefix no other spec shares and removes it afterwards.
 
 import { expect, type Page, test } from "@playwright/test";
-import { AUTH_FILE } from "../../playwright.config";
 import {
 	cleanupServiceAccountsByPrefix,
 	createServiceAccount,
@@ -133,9 +132,12 @@ async function hideDevtools(page: Page): Promise<void> {
 }
 
 test.describe("Table pagination", () => {
-	test.use({ storageState: AUTH_FILE });
-
-	test.beforeEach(async ({ page }) => hideDevtools(page));
+	// Sign in directly: the session saved in AUTH_FILE can be invalidated by
+	// earlier specs, and this file runs late in the suite.
+	test.beforeEach(async ({ page }) => {
+		await hideDevtools(page);
+		await signIn(page);
+	});
 
 	test.afterEach(async ({ request }) => {
 		await authRequest(request);
@@ -314,9 +316,12 @@ test.describe("Table pagination", () => {
 });
 
 test.describe("Load-more lists", () => {
-	test.use({ storageState: AUTH_FILE });
-
-	test.beforeEach(async ({ page }) => hideDevtools(page));
+	// Sign in directly: the session saved in AUTH_FILE can be invalidated by
+	// earlier specs, and this file runs late in the suite.
+	test.beforeEach(async ({ page }) => {
+		await hideDevtools(page);
+		await signIn(page);
+	});
 
 	test.afterEach(async ({ request }) => {
 		await cleanupProjectsByPrefix(request, PREFIX);
@@ -343,8 +348,14 @@ test.describe("Load-more lists", () => {
 		// 30 sprints load first; the last ones arrive on scroll or click.
 		const sidebar = page.locator('[data-sidebar="sidebar"]');
 		const loadMore = sidebar.getByRole("button", { name: "Load more" });
-		if (await loadMore.isVisible()) await loadMore.click();
-		await expect(sidebar.getByRole("link", { name: "Draft 35" })).toBeVisible();
+		// The list may also load on scroll, which removes the button mid-click.
+		await expect(async () => {
+			if (await loadMore.isVisible())
+				await loadMore.click({ timeout: 2_000 }).catch(() => {});
+			await expect(sidebar.getByRole("link", { name: "Draft 35" })).toBeVisible(
+				{ timeout: 2_000 },
+			);
+		}).toPass({ timeout: 10_000 });
 		await expect(sidebar.getByRole("link", { name: "Draft 01" })).toBeVisible();
 	});
 
@@ -373,7 +384,12 @@ test.describe("Load-more lists", () => {
 		await expect(page.getByText("33 members")).toBeVisible();
 
 		const loadMore = page.getByRole("button", { name: "Load more" });
-		if (await loadMore.isVisible()) await loadMore.click();
-		await expect(page.getByText("Paged Member 32")).toBeVisible();
+		await expect(async () => {
+			if (await loadMore.isVisible())
+				await loadMore.click({ timeout: 2_000 }).catch(() => {});
+			await expect(page.getByText("Paged Member 32")).toBeVisible({
+				timeout: 2_000,
+			});
+		}).toPass({ timeout: 10_000 });
 	});
 });

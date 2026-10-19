@@ -413,6 +413,26 @@ describe("PacaAPIClient – updateTask", () => {
 		const [, options] = (fetch as any).mock.calls[0] as [string, RequestInit];
 		expect(JSON.parse(options.body as string)).toEqual({ sprint_id: null });
 	});
+
+	it("sends assignee_ids [] when assignee_id is null, to unassign", async () => {
+		vi.stubGlobal("fetch", mockFetchOk({ id: "t1" }));
+		await makeClient().updateTask("proj-1", "t1", { assignee_id: null });
+		const [, options] = (fetch as any).mock.calls[0] as [string, RequestInit];
+		expect(JSON.parse(options.body as string)).toEqual({ assignee_ids: [] });
+	});
+
+	it("sends start_date and due_date null so the dates are cleared", async () => {
+		vi.stubGlobal("fetch", mockFetchOk({ id: "t1" }));
+		await makeClient().updateTask("proj-1", "t1", {
+			start_date: null,
+			due_date: null,
+		});
+		const [, options] = (fetch as any).mock.calls[0] as [string, RequestInit];
+		expect(JSON.parse(options.body as string)).toEqual({
+			start_date: null,
+			due_date: null,
+		});
+	});
 });
 
 describe("PacaAPIClient – deleteTask", () => {

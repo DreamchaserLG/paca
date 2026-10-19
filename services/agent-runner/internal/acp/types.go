@@ -176,21 +176,29 @@ type GooseExtension struct {
 }
 
 // UntaggedMcpServer is the MCP server shape used inside a GooseExtension's
-// "mcp" variant — deliberately a separate type from MCPServerConfig:
-// confirmed empirically (a probe container, not guessed) that this
-// specific field deserializes as an UNTAGGED enum, discriminated
-// structurally by which fields are present (Command for stdio, URL for
-// http) — unlike MCPServerConfig's internally-tagged Type field, which
-// this endpoint rejects outright ("data did not match any variant of
-// untagged enum McpServer") if present here at all. Args and Env must be
+// "mcp" variant — deliberately a separate type from MCPServerConfig.
+//
+// ACP's McpServer is an internally-tagged enum (tag "type", snake_case)
+// for the http and sse transports, with ONLY its stdio variant untagged
+// (agent-client-protocol-schema v1.5.0, the version goose 1.50.1 builds
+// against: `#[serde(tag = "type", rename_all = "snake_case")]` on
+// McpServer, `#[serde(untagged)]` on the Stdio arm). So an http entry must
+// carry "type":"http" or it cannot match that arm and falls through to the
+// untagged stdio arm, which then fails for lack of "command" — reported as
+// "enabledExtensions: data did not match any variant of untagged enum
+// McpServer". Verified against goose 1.50.1 directly: an http entry without
+// the tag is rejected with exactly that error, and the same entry with
+// "type":"http" opens a session.
+//
+// Stdio entries must NOT carry the tag, and their Args and Env must be
 // present (even empty, via the pointer trick — see MCPServerConfig's
-// identical doc comment) for a stdio entry to structurally match; omitting
-// either produced the same "no variant matched" error in the probe.
-// Goose's own SSE variant is unsupported ("SSE is unsupported, migrate to
-// streamable_http" — a hard session/new error, not a soft skip) and has no
-// representation here; callers must not construct one for an "sse"
-// transport MCPServerConfig.
+// identical doc comment) for the untagged stdio arm to match. Env values
+// are always empty here: goose rejects inline env ("extension env values
+// must be passed via envKeys referencing stored secrets, not inline env")
+// and resolves EnvKeys from the container's own environment instead.
 type UntaggedMcpServer struct {
+	// Type is set only for the internally-tagged http transport.
+	Type    string         `json:"type,omitempty"`
 	Name    string         `json:"name"`
 	Command string         `json:"command,omitempty"`
 	Args    *[]string      `json:"args,omitempty"`

@@ -1858,6 +1858,14 @@ func (w *walker) recordStep(ctx context.Context, nodeID uuid.UUID, status automa
 	if err := w.consumer.repo.CreateRunStep(ctx, step); err != nil {
 		w.consumer.log.Warn("automation consumer: record run step", "node_id", nodeID, "err", err)
 	}
+	// A failed step is the only externally visible trace of a run that did
+	// nothing, and it lives solely in the run's step list — log it so an
+	// operator watching the API logs sees the failure without having to open
+	// the automation's UI (or guess why a webhook "did nothing").
+	if status == automationdom.RunStepFailed {
+		w.consumer.log.Warn("automation consumer: run step failed",
+			"run_id", w.runID, "node_id", nodeID, "automation", w.automationName, "err", errMsg)
+	}
 }
 
 // --- Action handlers -----------------------------------------------------------

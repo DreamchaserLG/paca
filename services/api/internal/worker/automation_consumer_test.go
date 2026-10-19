@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -2544,5 +2545,46 @@ func TestApplyUpdateSprint_GoalTemplateIsRendered(t *testing.T) {
 	}
 	if updater.lastUpdate.Goal == nil || **updater.lastUpdate.Goal != "Ship: Fix the bug" {
 		t.Fatalf("expected the rendered goal to be sent, got %v", updater.lastUpdate.Goal)
+	}
+}
+
+// --- recordStep logging ------------------------------------------------------
+
+func TestRecordStep_FailedStepIsLogged(t *testing.T) {
+	var buf strings.Builder
+	c := &AutomationConsumer{
+		repo: &fakePauseResumeRepo{},
+		log:  slog.New(slog.NewTextHandler(&buf, nil)),
+	}
+	runID, nodeID := uuid.New(), uuid.New()
+	w := &walker{consumer: c, runID: runID, automationName: "demo-automation"}
+
+	w.recordStep(context.Background(), nodeID, automationdom.RunStepFailed, nil, nil,
+		"update_task: tx: task: a task cannot be its own parent")
+
+	out := buf.String()
+	for _, want := range []string{"level=WARN", runID.String(), nodeID.String(), "demo-automation", "a task cannot be its own parent"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected the failed-step log line to contain %q, got %q", want, out)
+		}
+	}
+	if len(c.repo.(*fakePauseResumeRepo).runSteps) != 1 {
+		t.Error("expected the step to still be persisted")
+	}
+}
+
+func TestRecordStep_NonFailedStepIsNotLogged(t *testing.T) {
+	var buf strings.Builder
+	c := &AutomationConsumer{
+		repo: &fakePauseResumeRepo{},
+		log:  slog.New(slog.NewTextHandler(&buf, nil)),
+	}
+	w := &walker{consumer: c, runID: uuid.New(), automationName: "demo-automation"}
+
+	w.recordStep(context.Background(), uuid.New(), automationdom.RunStepCompleted, nil, json.RawMessage(`{"applied":true}`), "")
+	w.recordStep(context.Background(), uuid.New(), automationdom.RunStepSkipped, nil, nil, "")
+
+	if buf.String() != "" {
+		t.Errorf("expected no log line for completed/skipped steps, got %q", buf.String())
 	}
 }

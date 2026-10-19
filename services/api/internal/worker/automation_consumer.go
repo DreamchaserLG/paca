@@ -102,7 +102,7 @@ type automationTaskReader interface {
 	FindTaskByID(ctx context.Context, id uuid.UUID) (*taskdom.Task, error)
 	FindTaskStatusByID(ctx context.Context, id uuid.UUID) (*taskdom.TaskStatus, error)
 	ListChildTasks(ctx context.Context, projectID, parentTaskID uuid.UUID) ([]*taskdom.Task, error)
-	ListTaskLinks(ctx context.Context, taskID uuid.UUID) ([]*taskdom.TaskLink, error)
+	ListAllTaskLinks(ctx context.Context, taskID uuid.UUID) ([]*taskdom.TaskLink, error)
 }
 
 // automationTaskUpdater applies a mutation through the normal task service,
@@ -1637,7 +1637,7 @@ func (c *AutomationConsumer) resolveTargetTasks(ctx context.Context, projectID u
 		}
 		return children, nil
 	case automationdom.TaskTargetBlocks, automationdom.TaskTargetIsBlockedBy, automationdom.TaskTargetRelatesTo, automationdom.TaskTargetDuplicates, automationdom.TaskTargetIsDuplicatedBy:
-		links, err := c.taskRepo.ListTaskLinks(ctx, baseTask.ID)
+		links, err := c.taskRepo.ListAllTaskLinks(ctx, baseTask.ID)
 		if err != nil {
 			return nil, fmt.Errorf("target: list task links: %w", err)
 		}

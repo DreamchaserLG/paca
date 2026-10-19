@@ -35,8 +35,8 @@ func New(repo docdom.Repository, memberRepo memberLookup) *Service {
 // --- Folder Service ---------------------------------------------------------
 
 // ListFolders returns one cursor-paginated level of the folder tree.
-func (s *Service) ListFolders(ctx context.Context, projectID uuid.UUID, parentID *uuid.UUID, cursorAfter *string, limit int) ([]*docdom.DocFolder, bool, error) {
-	return s.repo.ListFolders(ctx, projectID, parentID, cursorAfter, limit)
+func (s *Service) ListFolders(ctx context.Context, projectID uuid.UUID, parentID *uuid.UUID, filter docdom.FolderFilter, cursorAfter *string, limit int) ([]*docdom.DocFolder, bool, error) {
+	return s.repo.ListFolders(ctx, projectID, parentID, filter, cursorAfter, limit)
 }
 
 // FolderPath returns the folders from the root down to folderID.

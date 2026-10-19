@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { LoadMoreSentinel } from "@/components/shared/load-more-sentinel";
 
 import type { Sprint, Task, ViewConfig } from "@/lib/interaction-api";
 import type {
@@ -52,6 +53,13 @@ export interface ListViewProps {
 	sortBy?: string;
 	onUpdateTaskField?: (taskId: string, update: TaskFieldUpdate) => void;
 	sprints?: Sprint[];
+	/** Load-more state for the sprint groups when columns are by sprint. */
+	sprintsPagination?: {
+		hasMore: boolean;
+		isLoadingMore: boolean;
+		isError?: boolean;
+		onLoadMore: () => void;
+	};
 	onStartSprint?: (
 		sprintId: string,
 		payload: SprintFormPayload,
@@ -96,6 +104,7 @@ export function ListView({
 	sortBy,
 	onUpdateTaskField,
 	sprints,
+	sprintsPagination,
 	onStartSprint,
 	onCreateSprint,
 	onDeleteTask,
@@ -284,6 +293,9 @@ export function ListView({
 					/>
 				);
 			})}
+			{columnBy === "sprint" && sprintsPagination && (
+				<LoadMoreSentinel {...sprintsPagination} />
+			)}
 		</div>
 	);
 }

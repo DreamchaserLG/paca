@@ -1,13 +1,13 @@
 import {
-	useInfiniteQuery,
+	keepPreviousData,
 	useMutation,
+	useQuery,
 	useQueryClient,
 } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Copy, Key, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { LoadMoreSentinel } from "@/components/shared/load-more-sentinel";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Table,
@@ -35,8 +36,9 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { useTablePaging } from "@/hooks/use-table-paging";
 import {
-	apiKeysInfiniteQueryOptions,
+	apiKeysPageQueryOptions,
 	type CreateAPIKeyResponse,
 	createAPIKey,
 	revokeAPIKey,
@@ -60,9 +62,19 @@ function formatDate(iso: string | null): string {
 function APIKeysPage() {
 	const { t } = useTranslation("profile");
 	const queryClient = useQueryClient();
-	const keysQuery = useInfiniteQuery(apiKeysInfiniteQueryOptions);
+	const { page, pageSize, setPage, setPageSize } = useTablePaging("api-keys");
+	const keysQuery = useQuery({
+		...apiKeysPageQueryOptions(page, pageSize),
+		placeholderData: keepPreviousData,
+	});
 	const { isLoading } = keysQuery;
-	const keys = keysQuery.data?.pages.flatMap((p) => p.items) ?? [];
+	const keys = keysQuery.data?.items ?? [];
+	const keyTotal = keysQuery.data?.total_count ?? 0;
+	const totalPages = Math.max(1, Math.ceil(keyTotal / pageSize));
+	// Revoking the last key of the last page leaves it empty: step back.
+	useEffect(() => {
+		if (keysQuery.data && page > totalPages) setPage(totalPages);
+	}, [keysQuery.data, page, totalPages, setPage]);
 
 	// Create dialog state
 	const [createOpen, setCreateOpen] = useState(false);
@@ -256,11 +268,14 @@ function APIKeysPage() {
 									))}
 								</TableBody>
 							</Table>
-							<LoadMoreSentinel
-								hasMore={keysQuery.hasNextPage}
-								isLoadingMore={keysQuery.isFetchingNextPage}
-								isError={keysQuery.isFetchNextPageError}
-								onLoadMore={() => void keysQuery.fetchNextPage()}
+							<Pagination
+								className="border-t px-4 py-3"
+								page={page}
+								totalPages={totalPages}
+								onPageChange={setPage}
+								total={keyTotal}
+								pageSize={pageSize}
+								onPageSizeChange={setPageSize}
 							/>
 						</>
 					)}

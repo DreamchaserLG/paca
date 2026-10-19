@@ -30,7 +30,10 @@ import (
 
 type permissiveSprintRepo struct{}
 
-func (permissiveSprintRepo) ListSprints(context.Context, uuid.UUID) ([]*sprintdom.Sprint, error) {
+func (permissiveSprintRepo) ListSprints(context.Context, uuid.UUID, sprintdom.SprintFilter, *string, int) ([]*sprintdom.Sprint, bool, int, error) {
+	return nil, false, 0, nil
+}
+func (permissiveSprintRepo) ListAllSprints(context.Context, uuid.UUID) ([]*sprintdom.Sprint, error) {
 	return nil, nil
 }
 func (permissiveSprintRepo) FindSprintByID(_ context.Context, id uuid.UUID) (*sprintdom.Sprint, error) {

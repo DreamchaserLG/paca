@@ -38,7 +38,7 @@
 //                  as task.* above.
 // sprint.* events → invalidate ["projects", projectId, "sprints"] and
 //                  invalidateTaskViews() (sprint completion moves tasks)
-//                  This covers sprintsQueryOptions and sprintQueryOptions —
+//                  This covers sprintsInfiniteQueryOptions and sprintQueryOptions —
 //                  replaces the sidebar's old refetchInterval polling.
 // view.* events  → invalidate ["projects", projectId, "views"]
 //                  viewsByContextQueryOptions keys every context (sprint/
@@ -79,6 +79,7 @@ import {
 	type RealtimeEvent,
 	rejoinProject,
 } from "@/lib/socket-client";
+import { invalidateSprintDirectory } from "@/lib/sprint-directory";
 
 // projectId may be undefined for a component that's reused at both project
 // and global scope (e.g. the Conversations page) — the hook is a no-op in
@@ -205,6 +206,7 @@ export function useProjectRealtime(projectId: string | undefined): void {
 			// sprint.completed bulk-moves unfinished tasks to another sprint or
 			// the backlog, so every sprint event refreshes task views too.
 			if (type.startsWith("sprint.")) {
+				invalidateSprintDirectory(currentProjectId);
 				void queryClient.invalidateQueries({
 					queryKey: ["projects", currentProjectId, "sprints"],
 				});

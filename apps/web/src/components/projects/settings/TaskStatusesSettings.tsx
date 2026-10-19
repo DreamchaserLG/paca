@@ -14,6 +14,7 @@ import { TaskStatusFormDialog } from "@/components/projects/task-statuses/TaskSt
 import { DisabledDeleteButton } from "@/components/shared/disabled-delete-button";
 import { NoPermissionState } from "@/components/shared/no-permission-state";
 import { Button } from "@/components/ui/button";
+import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Table,
@@ -24,6 +25,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
+import { usePagedSlice } from "@/hooks/use-table-paging";
 import {
 	ApiErrorCode,
 	getApiErrorCode,
@@ -137,6 +139,12 @@ export function TaskStatusesSettings({
 
 	const sorted = [...(statuses ?? [])].sort((a, b) => a.position - b.position);
 	const displayed = localOrder ?? sorted;
+	const { pageItems: pagedStatuses, paginationProps } = usePagedSlice(
+		"project-task-statuses",
+		displayed,
+	);
+	// Rows are numbered by their place in the whole list, not on the page.
+	const pageOffset = (paginationProps.page - 1) * paginationProps.pageSize;
 
 	// Once the server confirms a reorder (statuses refetched), drop the local
 	// override so the table reflects the authoritative order again.
@@ -261,7 +269,7 @@ export function TaskStatusesSettings({
 							</TableRow>
 						</TableHeader>
 						<TableBody>
-							{displayed.map((status, index) => (
+							{pagedStatuses.map((status, index) => (
 								<TableRow
 									key={status.id}
 									className={cn(
@@ -297,7 +305,7 @@ export function TaskStatusesSettings({
 										) : null}
 									</TableCell>
 									<TableCell className="px-5 text-sm text-muted-foreground tabular-nums">
-										{index + 1}
+										{pageOffset + index + 1}
 									</TableCell>
 									<TableCell className="px-5">
 										<div className="flex items-center gap-2">
@@ -370,6 +378,7 @@ export function TaskStatusesSettings({
 							))}
 						</TableBody>
 					</Table>
+					<Pagination className="border-t px-4 py-3" {...paginationProps} />
 				</div>
 			)}
 

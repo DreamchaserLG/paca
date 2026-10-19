@@ -102,7 +102,7 @@ import {
 	updateDocument,
 	updateFolder,
 } from "@/lib/doc-api";
-import { sprintsQueryOptions, updateTask } from "@/lib/interaction-api";
+import { sprintsInfiniteQueryOptions, updateTask } from "@/lib/interaction-api";
 import type { PluginNavRegistration } from "@/lib/plugin-api";
 import { ExtensionPoint } from "@/lib/plugins/extension-point";
 import { resolvePluginIcon } from "@/lib/plugins/icon-resolver";
@@ -1436,8 +1436,23 @@ function ProjectInteractionsSection({ projectId }: { projectId: string }) {
 	// No refetchInterval: kept live via useProjectRealtime's socket-driven
 	// sprint.* invalidation (see hooks/use-project-realtime.ts) instead of
 	// polling.
-	const { data: sprints = [] } = useQuery({
-		...sprintsQueryOptions(projectId),
+	// One paged query per status group, so each list loads more on scroll or
+	// click and its count badge comes from the server's total_count.
+	const openQuery = useInfiniteQuery({
+		...sprintsInfiniteQueryOptions(projectId, { status: ["active"] }),
+		enabled: canViewSprints,
+		retry: false,
+	});
+	const plannedQuery = useInfiniteQuery({
+		...sprintsInfiniteQueryOptions(projectId, { status: ["planned"] }),
+		enabled: canViewSprints,
+		retry: false,
+	});
+	const completedQuery = useInfiniteQuery({
+		...sprintsInfiniteQueryOptions(projectId, {
+			status: ["completed"],
+			sort: "recent",
+		}),
 		enabled: canViewSprints,
 		retry: false,
 	});
@@ -1445,17 +1460,14 @@ function ProjectInteractionsSection({ projectId }: { projectId: string }) {
 	// Hide entire section if user lacks the "View Sprints" permission
 	if (!canViewSprints) return null;
 
-	const openSprints = sprints
-		.filter((s) => s.status === "active")
-		.sort((a, b) => a.name.localeCompare(b.name));
-
-	const plannedSprints = sprints
-		.filter((s) => s.status === "planned")
-		.sort((a, b) => a.name.localeCompare(b.name));
-
-	const completedSprints = sprints
-		.filter((s) => s.status === "completed")
-		.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+	const openSprints = openQuery.data?.pages.flatMap((p) => p.items) ?? [];
+	const plannedSprints = plannedQuery.data?.pages.flatMap((p) => p.items) ?? [];
+	const completedSprints =
+		completedQuery.data?.pages.flatMap((p) => p.items) ?? [];
+	const plannedCount =
+		plannedQuery.data?.pages[0]?.total_count ?? plannedSprints.length;
+	const completedCount =
+		completedQuery.data?.pages[0]?.total_count ?? completedSprints.length;
 
 	const backlogHref = `/projects/${projectId}/interactions/backlog`;
 	const isBacklogActive = location.startsWith(backlogHref);
@@ -1566,6 +1578,15 @@ function ProjectInteractionsSection({ projectId }: { projectId: string }) {
 								</SidebarMenuItem>
 							);
 						})}
+						<SidebarMenuItem>
+							<LoadMoreSentinel
+								compact
+								hasMore={!!openQuery.hasNextPage}
+								isLoadingMore={openQuery.isFetchingNextPage}
+								isError={openQuery.isFetchNextPageError}
+								onLoadMore={() => void openQuery.fetchNextPage()}
+							/>
+						</SidebarMenuItem>
 						{/* Planned sprints (collapsible) */}
 						{plannedSprints.length > 0 && (
 							<>
@@ -1585,7 +1606,7 @@ function ProjectInteractionsSection({ projectId }: { projectId: string }) {
 											{t("interactions.plannedSprints")}
 										</span>
 										<span className="rounded-full bg-sidebar-accent/60 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums">
-											{plannedSprints.length}
+											{plannedCount}
 										</span>
 									</SidebarMenuButton>
 								</SidebarMenuItem>
@@ -1621,6 +1642,17 @@ function ProjectInteractionsSection({ projectId }: { projectId: string }) {
 											</SidebarMenuItem>
 										);
 									})}
+								{!plannedSprintsCollapsed && (
+									<SidebarMenuItem>
+										<LoadMoreSentinel
+											compact
+											hasMore={!!plannedQuery.hasNextPage}
+											isLoadingMore={plannedQuery.isFetchingNextPage}
+											isError={plannedQuery.isFetchNextPageError}
+											onLoadMore={() => void plannedQuery.fetchNextPage()}
+										/>
+									</SidebarMenuItem>
+								)}
 							</>
 						)}
 						{/* Closed sprints (collapsible) */}
@@ -1642,7 +1674,7 @@ function ProjectInteractionsSection({ projectId }: { projectId: string }) {
 											{t("interactions.completedSprints")}
 										</span>
 										<span className="rounded-full bg-sidebar-accent/60 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums">
-											{completedSprints.length}
+											{completedCount}
 										</span>
 									</SidebarMenuButton>
 								</SidebarMenuItem>
@@ -1669,6 +1701,17 @@ function ProjectInteractionsSection({ projectId }: { projectId: string }) {
 											</SidebarMenuItem>
 										);
 									})}
+								{!completedSprintsCollapsed && (
+									<SidebarMenuItem>
+										<LoadMoreSentinel
+											compact
+											hasMore={!!completedQuery.hasNextPage}
+											isLoadingMore={completedQuery.isFetchingNextPage}
+											isError={completedQuery.isFetchNextPageError}
+											onLoadMore={() => void completedQuery.fetchNextPage()}
+										/>
+									</SidebarMenuItem>
+								)}
 							</>
 						)}
 					</SidebarMenu>

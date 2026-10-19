@@ -83,17 +83,41 @@ func parsePageSize(r *http.Request, defaultSize, maxSize int) (int, error) {
 	return n, nil
 }
 
+// parseOptionalPage reads the page query parameter for lists that page by
+// cursor but can also be paged by number (for tables). It returns 0 when the
+// parameter is absent — the caller then pages by cursor — and otherwise the
+// 1-indexed page, rejecting a non-numeric or non-positive value.
+func parseOptionalPage(r *http.Request) (int, error) {
+	if !r.URL.Query().Has("page") {
+		return 0, nil
+	}
+	return parsePage(r)
+}
+
+// pageOffset is the number of rows before page (1-indexed) at pageSize rows
+// per page; 0 for the cursor mode (page == 0).
+func pageOffset(page, pageSize int) int {
+	if page <= 1 {
+		return 0
+	}
+	return (page - 1) * pageSize
+}
+
 // parsePage reads the page query parameter (1-indexed). An absent param
 // silently falls back to 1 — only an explicitly supplied, invalid value
 // (non-numeric or less than 1) is rejected. See parsePageSize for why.
+// maxPage bounds the page number so (page-1)*pageSize cannot overflow into a
+// negative OFFSET, and keeps numbered paging from scanning absurd depths.
+const maxPage = 100000
+
 func parsePage(r *http.Request) (int, error) {
 	raw := r.URL.Query().Get("page")
 	if raw == "" {
 		return 1, nil
 	}
 	n, err := strconv.Atoi(raw)
-	if err != nil || n < 1 {
-		return 0, apierr.New(apierr.CodeBadRequest, "page must be a positive integer")
+	if err != nil || n < 1 || n > maxPage {
+		return 0, apierr.New(apierr.CodeBadRequest, fmt.Sprintf("page must be an integer between 1 and %d", maxPage))
 	}
 	return n, nil
 }

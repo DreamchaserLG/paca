@@ -654,6 +654,7 @@ func New(deps Deps) http.Handler {
 						r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksRead)).Get("/", deps.Attachment.ListTaskAttachments)
 						r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksWrite)).Post("/initiate-upload", deps.Attachment.InitiateUpload)
 						r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksWrite)).Post("/complete-upload", deps.Attachment.CompleteUpload)
+						r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksRead)).Get("/{attachmentId}", deps.Attachment.GetTaskAttachment)
 						r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksRead)).Get("/{attachmentId}/download-url", deps.Attachment.GetDownloadURL)
 						r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksRead)).Get("/{attachmentId}/content", deps.Attachment.GetAttachmentContent)
 						r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksWrite)).Delete("/{attachmentId}", deps.Attachment.DeleteTaskAttachment)

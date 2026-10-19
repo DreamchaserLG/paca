@@ -26,7 +26,10 @@ type fakeSprintSvcH struct {
 	created []*sprintdom.Sprint
 }
 
-func (f *fakeSprintSvcH) ListSprints(_ context.Context, _ uuid.UUID) ([]*sprintdom.Sprint, error) {
+func (f *fakeSprintSvcH) ListSprints(_ context.Context, _ uuid.UUID, _ sprintdom.SprintFilter, _ *string, _ int) ([]*sprintdom.Sprint, bool, int, error) {
+	return nil, false, 0, nil
+}
+func (f *fakeSprintSvcH) ListAllSprints(_ context.Context, _ uuid.UUID) ([]*sprintdom.Sprint, error) {
 	return nil, nil
 }
 func (f *fakeSprintSvcH) GetSprint(_ context.Context, _, _ uuid.UUID) (*sprintdom.Sprint, error) {

@@ -141,7 +141,7 @@ In the **Auth** column, actions joined by `+` are all required, and the action a
 | `PATCH` | `/api/v1/projects/:projectId` | Access token (fresh) + `projects:write` | Update project name or description. |
 | `DELETE` | `/api/v1/projects/:projectId` | Access token (fresh) + `projects:delete` | Delete a project. |
 | `POST` | `/api/v1/projects/:projectId/exports` | Access token (fresh) + `project:export` | Queue an export of the project: tasks, task comments and activities as CSV files, and the documentation as Markdown files, zipped together. Answers `202` with the queued export; returns `409 PROJECT_EXPORT_IN_PROGRESS` while another is queued or running. See [Project Export Contracts](#project-export-contracts). |
-| `GET` | `/api/v1/projects/:projectId/exports` | Access token (fresh) + `project:export` | List the project's recent exports, newest first. |
+| `GET` | `/api/v1/projects/:projectId/exports` | Access token (fresh) + `project:export` | List the project's exports, newest first, by page: `{items, page, page_size, total_count}` (`page` default 1, `page_size` default 20, max 100). |
 | `GET` | `/api/v1/projects/:projectId/exports/:exportId` | Access token (fresh) + `project:export` | Get one export's status and file metadata. |
 | `GET` | `/api/v1/projects/:projectId/exports/:exportId/download` | Access token (fresh) + `project:export` | Get a short-lived presigned URL for a completed export's zip. `409 PROJECT_EXPORT_NOT_READY` until it is `completed`; `410 PROJECT_EXPORT_EXPIRED` after the retention window. |
 | `GET` | `/api/v1/projects/:projectId/members` | Access token (fresh) + `project.members:read` | List project members, cursor-paginated: `{items, page_size, next_cursor, total_count}` (`total_count` on the first page only, i.e. when no `cursor` is sent). Query: `page_size` (1-100, default 20), `cursor`, `search` (every word must match username, name or handle), `role_id`, `member_type` (`human`, `agent`, `service_account`), `ids` (up to 100 membership or account ids — a batch lookup). |
@@ -151,7 +151,7 @@ In the **Auth** column, actions joined by `+` are all required, and the action a
 | `GET` | `/api/v1/projects/:projectId/members/:memberId/roles` | Access token (fresh) + `project.members:read` | The roles a member holds in the project. |
 | `PUT` | `/api/v1/projects/:projectId/members/:memberId/roles` | Access token (fresh) + `roles:assign` on `project/:projectId/role/:roleId` for each role added or removed (no `project.members:write`) | Replace the member's roles in the project with `role_ids`. |
 | `GET` | `/api/v1/projects/:projectId/members/me/permissions` | Access token (fresh) | The caller's effective actions in the project, `{"actions": [...]}`. |
-| `GET` | `/api/v1/projects/:projectId/roles` | Access token (fresh) + `roles:read` | List the project's own roles and the platform roles already attached inside the project. |
+| `GET` | `/api/v1/projects/:projectId/roles` | Access token (fresh) + `roles:read` | List the project's own roles (by name) followed by the platform roles already attached inside the project, cursor-paginated like `GET /admin/roles` (`cursor`, `page_size`, `search`, `ids`). |
 | `POST` | `/api/v1/projects/:projectId/roles` | Access token (fresh) + `roles:write` | Create a role owned by the project, from a policy document. |
 | `GET` | `/api/v1/projects/:projectId/roles/:roleId` | Access token (fresh) + `roles:read` | Get a project role. |
 | `PUT` | `/api/v1/projects/:projectId/roles/:roleId` | Access token (fresh) + `roles:write` | Replace a project role's name, description and policy. |
@@ -166,7 +166,7 @@ In the **Auth** column, actions joined by `+` are all required, and the action a
 | `PATCH` | `/api/v1/projects/:projectId/task-statuses/:statusId` | Access token (fresh) + `project.settings.task_statuses:write` | Update a workflow status. |
 | `DELETE` | `/api/v1/projects/:projectId/task-statuses/:statusId` | Access token (fresh) + `project.settings.task_statuses:write` | Delete a workflow status. Returns `409 TASK_STATUS_IS_DEFAULT` if it is the project's default status. |
 | `PUT` | `/api/v1/projects/:projectId/task-statuses/:statusId/set-default` | Access token (fresh) + `project.settings.task_statuses:write` | Make a status the default that new tasks start in, clearing the flag on the previous default. |
-| `GET` | `/api/v1/projects/:projectId/sprints` | Access token (fresh) + `sprints:read` | List sprints for a project ordered by creation date. |
+| `GET` | `/api/v1/projects/:projectId/sprints` | Access token (fresh) + `sprints:read` | List sprints for a project, cursor-paginated: `{items, page_size, next_cursor, total_count}` (`cursor`, `page_size` ≤ 100). Filters: `status` (comma-separated `planned,active,completed`), `search` (name words), `ids` (≤ 100, batch lookup). `sort=name` (default, case-insensitive name) or `sort=recent` (last updated first). |
 | `POST` | `/api/v1/projects/:projectId/sprints` | Access token (fresh) + `sprints:write` | Quick-create a sprint with a system-generated default name ("Sprint N"). No request body required. The sprint is created with `status = planned`. |
 | `GET` | `/api/v1/projects/:projectId/sprints/:sprintId` | Access token (fresh) + `sprints:read` | Get sprint details (goal, dates, status). |
 | `PATCH` | `/api/v1/projects/:projectId/sprints/:sprintId` | Access token (fresh) + `sprints:write` | Update sprint metadata (name, goal, start_date, end_date). Cannot be used to change `status`; use the dedicated lifecycle actions instead. |
@@ -495,7 +495,7 @@ Roles are IAM policy documents. The endpoints below are summarized here and spec
 
 ### `GET /api/v1/admin/roles`
 
-- list platform roles; each carries its `policy` document (`{"version": ..., "statements": [...]}`), `is_system`, `is_default` and `attachment_count`.
+- list platform roles, cursor-paginated (`{items, page_size, next_cursor, total_count}`; `cursor`, or `page` for numbered paging (then `page` is echoed and `next_cursor` is null), `page_size` ≤ 100, `search` over name and description, `ids` ≤ 100 for batch lookup), sorted by name; each carries its `policy` document (`{"version": ..., "statements": [...]}`), `is_system`, `is_default` and `attachment_count`.
 
 ### `POST /api/v1/admin/roles` and `PUT /api/v1/admin/roles/:roleId`
 

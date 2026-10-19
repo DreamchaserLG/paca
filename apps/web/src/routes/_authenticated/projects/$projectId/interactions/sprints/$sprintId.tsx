@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import {
 	AlertCircle,
@@ -10,19 +15,20 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-
 import { InteractionLayout } from "@/components/projects/interactions/interaction-layout";
 import { SprintFormModal } from "@/components/projects/interactions/sprint-form-modal";
 import { SprintStatusBadge } from "@/components/projects/interactions/sprint-status-badge";
 import { StartSprintModal } from "@/components/projects/interactions/start-sprint-modal";
+import { LoadMoreSentinel } from "@/components/shared/load-more-sentinel";
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
 import { ApiErrorCode, getApiErrorCode } from "@/lib/api-error";
 import { formatDate } from "@/lib/format-date";
 import {
 	completeSprint,
 	deleteSprint,
+	listSprints,
 	sprintQueryOptions,
-	sprintsQueryOptions,
+	sprintsInfiniteQueryOptions,
 	sprintTaskCountQueryOptions,
 	type UpdateSprintPayload,
 	updateSprint,
@@ -64,7 +70,6 @@ function SprintPage() {
 	const { data: sprint, isError } = useQuery(
 		sprintQueryOptions(projectId, sprintId),
 	);
-	const { data: allSprints = [] } = useQuery(sprintsQueryOptions(projectId));
 	const { data: taskStatuses = [] } = useQuery(
 		taskStatusesQueryOptions(projectId),
 	);
@@ -123,15 +128,30 @@ function SprintPage() {
 	});
 	const incompleteCount = Math.max(0, sprintTaskCount - doneTaskCount);
 
-	const otherSprints = allSprints.filter(
-		(s) => s.id !== sprintId && s.status !== "completed",
-	);
+	// Open sprints the unfinished tasks can move to; paged as the dialog
+	// scrolls. The sprint being completed is dropped client-side.
+	const openSprintsQuery = useInfiniteQuery({
+		...sprintsInfiniteQueryOptions(projectId, {
+			status: ["active", "planned"],
+		}),
+		enabled: completeOpen,
+	});
+	const otherSprints = (
+		openSprintsQuery.data?.pages.flatMap((p) => p.items) ?? []
+	).filter((s) => s.id !== sprintId);
 
 	// Surfaced as a non-blocking warning in the Start Sprint dialog — Scrum
 	// favors one active sprint at a time, but this doesn't prevent starting
-	// a second one.
+	// a second one. At most two active sprints are fetched: enough to find one
+	// other than this sprint.
+	const { data: activeSprints } = useQuery({
+		queryKey: ["projects", projectId, "sprints", "active-pair"],
+		queryFn: () => listSprints(projectId, { status: ["active"], pageSize: 2 }),
+		enabled: startSprintOpen,
+		staleTime: 30_000,
+	});
 	const otherActiveSprint =
-		allSprints.find((s) => s.status === "active" && s.id !== sprintId) ?? null;
+		activeSprints?.items.find((s) => s.id !== sprintId) ?? null;
 
 	const completeSprintMutation = useMutation({
 		mutationFn: () =>
@@ -410,6 +430,12 @@ function SprintPage() {
 										</div>
 									</label>
 								))}
+								<LoadMoreSentinel
+									hasMore={!!openSprintsQuery.hasNextPage}
+									isLoadingMore={openSprintsQuery.isFetchingNextPage}
+									isError={openSprintsQuery.isFetchNextPageError}
+									onLoadMore={() => void openSprintsQuery.fetchNextPage()}
+								/>
 							</div>
 						)}
 

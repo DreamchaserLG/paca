@@ -5,7 +5,7 @@ This document lists all MCP tools implemented for the Paca API server.
 ## Tool Categories
 
 ### 1. Projects (5 tools)
-- `list_projects` - List all accessible projects
+- `list_projects` - List accessible projects (paged)
 - `get_project` - Get details of a specific project
 - `create_project` - Create a new project
 - `update_project` - Update an existing project
@@ -20,7 +20,7 @@ This document lists all MCP tools implemented for the Paca API server.
 - `delete_task` - Delete a task
 
 ### 3. Sprints (6 tools)
-- `list_sprints` - List all sprints in a project
+- `list_sprints` - List the sprints in a project (paged)
 - `get_sprint` - Get details of a specific sprint
 - `create_sprint` - Create a new sprint
 - `update_sprint` - Update an existing sprint
@@ -39,7 +39,7 @@ This document lists all MCP tools implemented for the Paca API server.
 - `search_tasks` - Keyword search over task title, `#number` and description text; returns excerpts
 
 ### 5. Project Members (5 tools)
-- `list_project_members` - List all members of a project
+- `list_project_members` - List the members of a project (paged)
 - `add_project_member` - Add a member to a project
 - `get_my_project_permissions` - Get the IAM actions the current user may perform in a project
 - `update_project_member_role` - Replace the set of roles a project member holds
@@ -108,7 +108,7 @@ This document lists all MCP tools implemented for the Paca API server.
 - `unlink_github_repository` - Unlink a GitHub repository from a project
 
 ### 15. Task Activities (4 tools)
-- `list_task_activities` - List all activities for a task
+- `list_task_activities` - List activities for a task (newest first, one page per call)
 - `add_task_comment` - Add a comment to a task
 - `update_task_comment` - Update a task comment
 - `delete_task_comment` - Delete a task comment

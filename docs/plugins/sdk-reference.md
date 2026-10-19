@@ -55,7 +55,10 @@ class PluginApiClient {
   constructor(opts: PluginApiClientOptions)
 
   // Core read-only helpers (scoped to the current project)
+  // First page only (up to 200 tasks); use listTasksPage to read them all.
   listTasks(filters?: TaskFilters): Promise<TaskSummary[]>
+  // One page: { items, page_size, next_cursor, total_count? }. Pass next_cursor as filters.cursor.
+  listTasksPage(filters?: TaskFilters): Promise<TaskPage>
   getTask(taskId: string): Promise<Task>
   getProject(): Promise<ProjectSummary>
   listMembers(opts?: ListMembersOptions): Promise<MemberPage>
@@ -235,8 +238,19 @@ interface TaskFilters {
   assignee_ids?: string[];
   sprint_id?: string;
   parent_task_id?: string;
-  page?: number;
+  /** Cursor from a previous page's next_cursor (see listTasksPage). */
+  cursor?: string;
   page_size?: number;
+}
+
+/** One page of tasks, keyset-paginated by cursor. */
+interface TaskPage {
+  items: TaskSummary[];
+  page_size: number;
+  /** Pass as `cursor` for the next page; null on the last page. */
+  next_cursor: string | null;
+  /** Tasks matching the filters across all pages (first page only). */
+  total_count?: number;
 }
 
 // Project

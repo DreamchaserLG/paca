@@ -1,6 +1,7 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { PacaAPIClient, PacaAPIDocClient } from "../api/index.js";
+import { pagingFields, pagingProperties } from "../api/paginate.js";
 import type { Document, DocumentFolder } from "../types/index.js";
 import { blocknoteToMarkdown } from "../utils/index.js";
 
@@ -9,6 +10,7 @@ import { blocknoteToMarkdown } from "../utils/index.js";
 const ListDocsSchema = z.object({
 	projectId: z.string(),
 	path: z.string().optional(),
+	...pagingFields,
 });
 
 const ReadDocSchema = z
@@ -45,86 +47,15 @@ const MoveDocSchema = z.object({
 
 // ── Internal types ────────────────────────────────────────────────────────────
 
-type FoldersByParent = Map<string | null, DocumentFolder[]>;
-type DocsByFolder = Map<string | null, Document[]>;
-
-interface DocTree {
-	folders: DocumentFolder[];
-	documents: Document[];
-	foldersByParent: FoldersByParent;
-	docsByFolder: DocsByFolder;
-	foldersById: Map<string, DocumentFolder>;
-}
-
 type ResolvedPath =
 	| { type: "root" }
 	| { type: "folder"; folder: DocumentFolder }
 	| { type: "doc"; doc: Document };
 
-// ── Tree building ─────────────────────────────────────────────────────────────
-
-async function buildDocTree(
-	projectId: string,
-	apiClient: PacaAPIClient,
-	docClient: PacaAPIDocClient,
-): Promise<DocTree> {
-	const [folders, documents] = await Promise.all([
-		docClient.listFolders(projectId),
-		apiClient.listDocuments(projectId),
-	]);
-
-	const foldersByParent: FoldersByParent = new Map();
-	const foldersById = new Map<string, DocumentFolder>();
-
-	for (const f of folders) {
-		const pid = f.parent_id || null;
-		if (!foldersByParent.has(pid)) foldersByParent.set(pid, []);
-		foldersByParent.get(pid)?.push(f);
-		foldersById.set(f.id, f);
-	}
-
-	const docsByFolder: DocsByFolder = new Map();
-	for (const d of documents) {
-		const fid = d.folder_id || null;
-		if (!docsByFolder.has(fid)) docsByFolder.set(fid, []);
-		docsByFolder.get(fid)?.push(d);
-	}
-
-	return { folders, documents, foldersByParent, docsByFolder, foldersById };
-}
-
-// ── Tree rendering ────────────────────────────────────────────────────────────
-
-function renderLines(parentId: string | null, tree: DocTree): string[] {
-	const childFolders = (tree.foldersByParent.get(parentId) || [])
-		.slice()
-		.sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
-	const childDocs = (tree.docsByFolder.get(parentId) || [])
-		.slice()
-		.sort((a, b) => a.position - b.position || a.title.localeCompare(b.title));
-
-	type Entry = { label: string; folderId?: string };
-	const entries: Entry[] = [
-		...childFolders.map((f) => ({ label: `📁 ${f.name}/`, folderId: f.id })),
-		...childDocs.map((d) => ({ label: `📄 ${d.title}` })),
-	];
-
-	const lines: string[] = [];
-	entries.forEach((entry, i) => {
-		const last = i === entries.length - 1;
-		const connector = last ? "└── " : "├── ";
-		const childIndent = last ? "    " : "│   ";
-		lines.push(connector + entry.label);
-		if (entry.folderId) {
-			for (const child of renderLines(entry.folderId, tree)) {
-				lines.push(childIndent + child);
-			}
-		}
-	});
-	return lines;
-}
-
 // ── Path helpers ──────────────────────────────────────────────────────────────
+//
+// A path is resolved one component at a time with exact-name lookups against
+// the folder / document lists, so no call ever reads the whole tree.
 
 function parsePath(path: string): string[] {
 	return path
@@ -133,36 +64,65 @@ function parsePath(path: string): string[] {
 		.filter((p) => p.length > 0);
 }
 
-function resolvePath(path: string, tree: DocTree): ResolvedPath | null {
+async function findFolder(
+	projectId: string,
+	parentId: string | null,
+	name: string,
+	docClient: PacaAPIDocClient,
+): Promise<DocumentFolder | undefined> {
+	const page = await docClient.listFolders(projectId, {
+		parentId,
+		name,
+		pageSize: 1,
+	});
+	return page.items[0];
+}
+
+async function findDoc(
+	projectId: string,
+	folderId: string | null,
+	title: string,
+	apiClient: PacaAPIClient,
+): Promise<Document | undefined> {
+	const page = await apiClient.listDocuments(projectId, {
+		folderId: folderId ?? "null",
+		title,
+		pageSize: 1,
+	});
+	return page.items[0];
+}
+
+async function resolvePath(
+	projectId: string,
+	path: string,
+	apiClient: PacaAPIClient,
+	docClient: PacaAPIDocClient,
+): Promise<ResolvedPath | null> {
 	const parts = parsePath(path);
 	if (parts.length === 0) return { type: "root" };
 
 	let currentFolderId: string | null = null;
-
 	for (let i = 0; i < parts.length - 1; i++) {
-		const name = parts[i];
-		const siblings: DocumentFolder[] =
-			tree.foldersByParent.get(currentFolderId) || [];
-		const found: DocumentFolder | undefined = siblings.find(
-			(f: DocumentFolder) => f.name === name,
+		const found = await findFolder(
+			projectId,
+			currentFolderId,
+			parts[i],
+			docClient,
 		);
 		if (!found) return null;
 		currentFolderId = found.id;
 	}
 
 	const lastName = parts[parts.length - 1];
-
-	const siblingFolders: DocumentFolder[] =
-		tree.foldersByParent.get(currentFolderId) || [];
-	const folder: DocumentFolder | undefined = siblingFolders.find(
-		(f: DocumentFolder) => f.name === lastName,
+	const folder = await findFolder(
+		projectId,
+		currentFolderId,
+		lastName,
+		docClient,
 	);
 	if (folder) return { type: "folder", folder };
 
-	const siblingDocs: Document[] = tree.docsByFolder.get(currentFolderId) || [];
-	const doc: Document | undefined = siblingDocs.find(
-		(d: Document) => d.title === lastName,
-	);
+	const doc = await findDoc(projectId, currentFolderId, lastName, apiClient);
 	if (doc) return { type: "doc", doc };
 
 	return null;
@@ -172,33 +132,50 @@ async function ensureFolderPath(
 	projectId: string,
 	folderNames: string[],
 	docClient: PacaAPIDocClient,
-	tree: DocTree,
 ): Promise<string | null> {
 	let currentFolderId: string | null = null;
 
 	for (const name of folderNames) {
-		const siblings: DocumentFolder[] =
-			tree.foldersByParent.get(currentFolderId) || [];
-		let folder: DocumentFolder | undefined = siblings.find(
-			(f: DocumentFolder) => f.name === name,
-		);
-
+		let folder = await findFolder(projectId, currentFolderId, name, docClient);
 		if (!folder) {
 			folder = await docClient.createFolder(projectId, {
 				name,
 				parent_id: currentFolderId || undefined,
 			});
-			if (!tree.foldersByParent.has(currentFolderId)) {
-				tree.foldersByParent.set(currentFolderId, []);
-			}
-			tree.foldersByParent.get(currentFolderId)?.push(folder);
-			tree.foldersById.set(folder.id, folder);
 		}
-
 		currentFolderId = folder.id;
 	}
 
 	return currentFolderId;
+}
+
+// ── Directory listing cursor ──────────────────────────────────────────────────
+//
+// A directory shows its folders first, then its documents; the two lists page
+// separately, so the cursor says which one it resumes.
+
+interface DirCursor {
+	phase: "folders" | "docs";
+	cursor?: string;
+}
+
+function encodeDirCursor(c: DirCursor): string {
+	return Buffer.from(JSON.stringify(c)).toString("base64url");
+}
+
+function decodeDirCursor(raw: string | undefined): DirCursor {
+	if (!raw) return { phase: "folders" };
+	try {
+		const c = JSON.parse(Buffer.from(raw, "base64url").toString("utf8"));
+		if (c && (c.phase === "folders" || c.phase === "docs")) {
+			return { phase: c.phase, cursor: c.cursor };
+		}
+	} catch {
+		/* fall through */
+	}
+	throw new Error(
+		"Invalid cursor: pass the cursor from the previous list_docs reply.",
+	);
 }
 
 // ── Tool definitions ──────────────────────────────────────────────────────────
@@ -208,8 +185,9 @@ export function getFilesystemDocTools(): Tool[] {
 		{
 			name: "list_docs",
 			description:
-				"List the documentation tree for a project, showing folders and documents in a filesystem-like hierarchy. " +
-				"Optionally start from a specific folder path. Use this to explore the project documentation structure.",
+				"List one folder of a project's documentation: its subfolders first, then its documents, one page at a time. " +
+				"Optionally name the folder by path (the top level when omitted) and open subfolders with further calls. " +
+				"When more remain, the reply says so and gives a cursor to pass to the next call.",
 			inputSchema: {
 				type: "object",
 				properties: {
@@ -224,6 +202,7 @@ export function getFilesystemDocTools(): Tool[] {
 							"Optional folder path to list from (e.g. 'Architecture' or 'Guides/Setup'). " +
 							"Omit or leave empty to list from the root.",
 					},
+					...pagingProperties,
 				},
 				required: ["projectId"],
 			},
@@ -346,20 +325,24 @@ export async function handleFilesystemDocTool(
 ): Promise<any> {
 	switch (toolName) {
 		case "list_docs": {
-			const { projectId, path } = ListDocsSchema.parse(args);
-			const tree = await buildDocTree(projectId, apiClient, docClient);
+			const { projectId, path, cursor, pageSize } = ListDocsSchema.parse(args);
 
-			let rootId: string | null = null;
+			let folderId: string | null = null;
 			let header = "/";
-
 			if (path && path.trim() !== "" && path.trim() !== "/") {
-				const resolved = resolvePath(path, tree);
+				const resolved = await resolvePath(
+					projectId,
+					path,
+					apiClient,
+					docClient,
+				);
 				if (!resolved) {
 					return {
 						content: [{ type: "text", text: `Path not found: ${path}` }],
 						isError: true,
 					};
-				} else if (resolved.type === "doc") {
+				}
+				if (resolved.type === "doc") {
 					return {
 						content: [
 							{
@@ -369,16 +352,45 @@ export async function handleFilesystemDocTool(
 						],
 						isError: true,
 					};
-				} else if (resolved.type === "folder") {
-					rootId = resolved.folder.id;
+				}
+				if (resolved.type === "folder") {
+					folderId = resolved.folder.id;
 					header = path;
 				}
 			}
 
-			const lines = renderLines(rootId, tree);
-			const treeStr = lines.length > 0 ? lines.join("\n") : "(empty)";
+			const position = decodeDirCursor(cursor);
+			const lines: string[] = [];
+			let next: DirCursor | null = null;
+
+			if (position.phase === "folders") {
+				const folders = await docClient.listFolders(projectId, {
+					parentId: folderId,
+					cursor: position.cursor,
+					pageSize,
+				});
+				lines.push(...folders.items.map((f) => `📁 ${f.name}/`));
+				if (folders.nextCursor) {
+					next = { phase: "folders", cursor: folders.nextCursor };
+				}
+			}
+			if (!next) {
+				// Folders are exhausted (or this call resumes at the documents).
+				const docs = await apiClient.listDocuments(projectId, {
+					folderId: folderId ?? "null",
+					cursor: position.phase === "docs" ? position.cursor : undefined,
+					pageSize,
+				});
+				lines.push(...docs.items.map((d) => `📄 ${d.title}`));
+				if (docs.nextCursor) next = { phase: "docs", cursor: docs.nextCursor };
+			}
+
+			const listing = lines.length > 0 ? lines.join("\n") : "(empty)";
+			const notice = next
+				? `\n\n_More entries available — call list_docs again with cursor="${encodeDirCursor(next)}" for the next page._`
+				: "";
 			return {
-				content: [{ type: "text", text: `📂 ${header}\n${treeStr}` }],
+				content: [{ type: "text", text: `📂 ${header}\n${listing}${notice}` }],
 			};
 		}
 
@@ -411,8 +423,7 @@ export async function handleFilesystemDocTool(
 				};
 			}
 
-			const tree = await buildDocTree(projectId, apiClient, docClient);
-			const resolved = resolvePath(path, tree);
+			const resolved = await resolvePath(projectId, path, apiClient, docClient);
 
 			if (!resolved) {
 				return {
@@ -446,7 +457,6 @@ export async function handleFilesystemDocTool(
 
 		case "write_doc": {
 			const { projectId, path, content } = WriteDocSchema.parse(args);
-			const tree = await buildDocTree(projectId, apiClient, docClient);
 			const parts = parsePath(path);
 
 			if (parts.length === 0) {
@@ -467,11 +477,9 @@ export async function handleFilesystemDocTool(
 				projectId,
 				folderNames,
 				docClient,
-				tree,
 			);
 
-			const siblingDocs = tree.docsByFolder.get(folderId) || [];
-			const existing = siblingDocs.find((d) => d.title === docTitle);
+			const existing = await findDoc(projectId, folderId, docTitle, apiClient);
 
 			if (existing) {
 				await apiClient.updateDocument(projectId, existing.id, { content });
@@ -493,8 +501,7 @@ export async function handleFilesystemDocTool(
 
 		case "delete_doc": {
 			const { projectId, path } = DeleteDocSchema.parse(args);
-			const tree = await buildDocTree(projectId, apiClient, docClient);
-			const resolved = resolvePath(path, tree);
+			const resolved = await resolvePath(projectId, path, apiClient, docClient);
 
 			if (!resolved || resolved.type === "root") {
 				return {
@@ -518,8 +525,12 @@ export async function handleFilesystemDocTool(
 
 		case "move_doc": {
 			const { projectId, sourcePath, destPath } = MoveDocSchema.parse(args);
-			const tree = await buildDocTree(projectId, apiClient, docClient);
-			const source = resolvePath(sourcePath, tree);
+			const source = await resolvePath(
+				projectId,
+				sourcePath,
+				apiClient,
+				docClient,
+			);
 
 			if (!source || source.type === "root") {
 				return {
@@ -547,7 +558,6 @@ export async function handleFilesystemDocTool(
 				projectId,
 				destFolderNames,
 				docClient,
-				tree,
 			);
 
 			if (source.type === "doc") {

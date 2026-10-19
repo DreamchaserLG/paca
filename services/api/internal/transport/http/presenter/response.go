@@ -157,6 +157,12 @@ func statusAndCodeFor(err error) (int, apierr.Code) {
 		return http.StatusUnprocessableEntity, apierr.CodeInvalidCurrentPassword
 	case errors.Is(err, userdom.ErrPasswordSetTokenInvalid):
 		return http.StatusUnprocessableEntity, apierr.CodePasswordSetTokenInvalid
+	case errors.Is(err, attachmentdom.ErrInvalidCursor):
+		return http.StatusBadRequest, apierr.CodeBadRequest
+	case errors.Is(err, taskdom.ErrInvalidCursor):
+		return http.StatusBadRequest, apierr.CodeBadRequest
+	case errors.Is(err, roledom.ErrInvalidCursor):
+		return http.StatusBadRequest, apierr.CodeBadRequest
 	case errors.Is(err, roledom.ErrNotFound):
 		return http.StatusNotFound, apierr.CodeRoleNotFound
 	case errors.Is(err, roledom.ErrNameTaken):
@@ -333,6 +339,8 @@ func statusAndCodeFor(err error) (int, apierr.Code) {
 	case errors.Is(err, environmentdom.ErrInvalidCursor):
 		return http.StatusBadRequest, apierr.CodeBadRequest
 	case errors.Is(err, agentdom.ErrInvalidCursor):
+		return http.StatusBadRequest, apierr.CodeBadRequest
+	case errors.Is(err, sprintdom.ErrInvalidCursor):
 		return http.StatusBadRequest, apierr.CodeBadRequest
 	case errors.Is(err, apikeydom.ErrInvalidCursor):
 		return http.StatusBadRequest, apierr.CodeBadRequest

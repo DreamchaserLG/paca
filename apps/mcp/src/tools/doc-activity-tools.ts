@@ -1,11 +1,13 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { PacaAPIDocClient } from "../api/index.js";
+import { moreNotice, pagingFields, pagingProperties } from "../api/paginate.js";
 import { blocknoteToMarkdown, formatToolError } from "../utils/index.js";
 
 const ListDocActivitiesSchema = z.object({
 	projectId: z.string(),
 	docId: z.string(),
+	...pagingFields,
 });
 
 const AddDocCommentSchema = z.object({
@@ -47,12 +49,13 @@ export function getDocActivityTools(): Tool[] {
 		{
 			name: "list_doc_activities",
 			description:
-				"List all activity for a document (comments and system events), oldest first. Each entry includes actor_name and actor_username.",
+				"List activity for a document (comments and system events), newest first, one page per call; pass the returned cursor for older entries. Each entry includes actor_name and actor_username.",
 			inputSchema: {
 				type: "object",
 				properties: {
 					projectId: { type: "string", description: PROJECT_ID_DESC },
 					docId: { type: "string", description: DOC_ID_DESC },
+					...pagingProperties,
 				},
 				required: ["projectId", "docId"],
 			},
@@ -141,15 +144,19 @@ export async function handleDocActivityTool(
 	try {
 		switch (toolName) {
 			case "list_doc_activities": {
-				const { projectId, docId } = ListDocActivitiesSchema.parse(args);
-				const activities = await client.listDocumentActivities(
-					projectId,
-					docId,
-				);
-				const formatted = activities.map(formatDocActivity).join("\n\n---\n\n");
+				const { projectId, docId, cursor, pageSize } =
+					ListDocActivitiesSchema.parse(args);
+				const page = await client.listDocumentActivities(projectId, docId, {
+					cursor,
+					pageSize,
+				});
+				const formatted = page.items.map(formatDocActivity).join("\n\n---\n\n");
 				return {
 					content: [
-						{ type: "text", text: `Document Activities:\n\n${formatted}` },
+						{
+							type: "text",
+							text: `Document Activities (newest first):\n\n${formatted}${moreNotice(page, "list_doc_activities")}`,
+						},
 					],
 				};
 			}

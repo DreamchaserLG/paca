@@ -11,7 +11,6 @@ import {
 	addComment,
 	deleteComment,
 	listTaskActivities,
-	sprintsQueryOptions,
 	updateComment,
 	updateTask,
 } from "@/lib/interaction-api";
@@ -20,6 +19,7 @@ import {
 	taskStatusesQueryOptions,
 	taskTypesQueryOptions,
 } from "@/lib/project-api";
+import { useSprintDirectory } from "@/lib/sprint-directory";
 import { describeTaskChange } from "./activity-item";
 
 type FieldChange = {
@@ -42,7 +42,7 @@ export function TaskActivityPane({
 	const { t } = useTranslation("projects");
 	const qc = useQueryClient();
 	const getMember = useMemberDirectory(projectId);
-	const { data: sprintsData } = useQuery(sprintsQueryOptions(projectId));
+	const getSprint = useSprintDirectory(projectId);
 	const { data: currentUser } = useQuery(currentUserQueryOptions);
 	const { data: statusesData } = useQuery(taskStatusesQueryOptions(projectId));
 	const { data: taskTypesData } = useQuery(taskTypesQueryOptions(projectId));
@@ -54,12 +54,9 @@ export function TaskActivityPane({
 			const m = getMember(id);
 			return m ? m.full_name || m.username : undefined;
 		};
-		const sprints: Record<string, string> = {};
-		for (const s of sprintsData ?? []) {
-			sprints[s.id] = s.name;
-		}
+		const sprints = (id: string) => getSprint(id)?.name;
 		return { members, sprints };
-	}, [getMember, sprintsData]);
+	}, [getMember, getSprint]);
 
 	const describeActivity = useCallback(
 		(entry: Activity) => {

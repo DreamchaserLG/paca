@@ -89,6 +89,7 @@ func parseTreeParent(raw string) (*uuid.UUID, error) {
 // ListFolders handles GET /projects/:projectId/docs/folders — one
 // cursor-paginated level of the folder tree, in manual order:
 //   - parent_id=<uuid>|null  the folder whose children to list (default null = top level)
+//   - name=<text>            only folders with exactly this name (case-insensitive)
 //   - page_size=<1-200>      (default 50)
 //   - cursor=<opaque>        from the previous page's next_cursor
 //
@@ -111,7 +112,7 @@ func (h *DocumentHandler) ListFolders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cursor := parseCursorParam(r)
-	folders, hasMore, err := h.svc.ListFolders(r.Context(), projectID, parent, cursor, pageSize)
+	folders, hasMore, err := h.svc.ListFolders(r.Context(), projectID, parent, docdom.FolderFilter{Name: strings.TrimSpace(q.Get("name"))}, cursor, pageSize)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
@@ -247,7 +248,8 @@ func (h *DocumentHandler) DeleteFolder(w http.ResponseWriter, r *http.Request) {
 // page of documents in manual order (position, title), without their bodies:
 //   - folder_id=<uuid>|null  only documents directly in that folder / outside any
 //     folder; omit for documents anywhere in the project
-//   - search=<text>          case-insensitive title match
+//   - search=<text>          case-insensitive title match (substring)
+//   - title=<text>           case-insensitive exact title match
 //   - page_size=<1-200>      (default 50)
 //   - cursor=<opaque>        from the previous page's next_cursor
 //
@@ -270,6 +272,7 @@ func (h *DocumentHandler) ListDocuments(w http.ResponseWriter, r *http.Request) 
 		filter.RootOnly = folderID == nil
 	}
 	filter.Search = strings.TrimSpace(q.Get("search"))
+	filter.Title = strings.TrimSpace(q.Get("title"))
 	pageSize, err := parsePageSize(r, 50, 200)
 	if err != nil {
 		presenter.Error(w, r, err)

@@ -1862,7 +1862,13 @@ func (h *TaskHandler) ListTaskLinks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	links, err := h.svc.ListTaskLinks(r.Context(), projectID, taskID)
+	pageSize, err := parsePageSize(r, 30, 100)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+	cursor := parseCursorParam(r)
+	links, hasMore, total, err := h.svc.ListTaskLinks(r.Context(), projectID, taskID, cursor, pageSize)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
@@ -1872,7 +1878,12 @@ func (h *TaskHandler) ListTaskLinks(w http.ResponseWriter, r *http.Request) {
 	for _, l := range links {
 		resp = append(resp, dto.TaskLinkFromEntity(l))
 	}
-	presenter.OK(w, r, map[string]any{"items": resp})
+	var nextCursor *string
+	if hasMore && len(links) > 0 {
+		c := taskdom.EncodeLinkCursor(links[len(links)-1])
+		nextCursor = &c
+	}
+	presenter.OK(w, r, map[string]any{"items": resp, "page_size": pageSize, "next_cursor": nextCursor, "total_count": total})
 }
 
 // CreateTaskLink handles POST /projects/:projectId/tasks/:taskId/links.

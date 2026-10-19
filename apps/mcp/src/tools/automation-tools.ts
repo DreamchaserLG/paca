@@ -1,6 +1,7 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { PacaAPIAutomationClient } from "../api/index.js";
+import { moreNotice, pagingFields, pagingProperties } from "../api/paginate.js";
 import type { Automation, AutomationGraph } from "../types/index.js";
 import { formatToolError } from "../utils/index.js";
 
@@ -102,6 +103,7 @@ const GetAutomationSchema = z.object({
 	projectId: z.string(),
 	automationId: z.string().optional(),
 	status: AutomationStatusEnum.optional(),
+	...pagingFields,
 });
 
 const CreateAutomationSchema = z.object({
@@ -146,7 +148,7 @@ export function getAutomationTools(): Tool[] {
 		{
 			name: "get_automation",
 			description:
-				"Get information about automations in a project. Pass automationId to fetch one automation's full graph: every node (Trigger/Condition/Action, with its type and config) and every edge (which node feeds which, and — for a Condition source — which branch). Omit automationId to list all automations in the project instead (optionally filtered by status) — e.g. to find an automation's ID before fetching its graph.\n\n" +
+				"Get information about automations in a project. Pass automationId to fetch one automation's full graph: every node (Trigger/Condition/Action, with its type and config) and every edge (which node feeds which, and — for a Condition source — which branch). Omit automationId to list the automations in the project instead, one page at a time (optionally filtered by status; when more remain the reply gives a cursor to pass to the next call) — e.g. to find an automation's ID before fetching its graph.\n\n" +
 				"An automation is a graph of three node kinds:\n" +
 				"- Trigger: starts a run when a matching event occurs (a task's status/assignee/priority changes, a task is created, a tag is added, a due date is reached, or all of a set of watched tasks reach a 'done' status). A graph can have more than one trigger — any of them firing starts the same downstream chain.\n" +
 				"- Condition: branches. Evaluates each declared branch's leaf-tree in order against the task and follows the first one that matches, or the 'else' edge if none do.\n" +
@@ -167,6 +169,7 @@ export function getAutomationTools(): Tool[] {
 						description:
 							"Optional filter by lifecycle status. Only used when automationId is omitted.",
 					},
+					...pagingProperties,
 				},
 				required: ["projectId"],
 			},
@@ -437,10 +440,12 @@ export async function handleAutomationTool(
 						content: [{ type: "text", text: formatAutomationGraph(graph) }],
 					};
 				}
-				const automations = await client.listAutomations(
-					input.projectId,
-					input.status,
-				);
+				const page = await client.listAutomations(input.projectId, {
+					status: input.status,
+					cursor: input.cursor,
+					pageSize: input.pageSize,
+				});
+				const automations = page.items;
 				if (automations.length === 0) {
 					return {
 						content: [
@@ -452,7 +457,7 @@ export async function handleAutomationTool(
 					content: [
 						{
 							type: "text",
-							text: automations.map(formatAutomation).join("\n\n"),
+							text: `${automations.map(formatAutomation).join("\n\n")}${moreNotice(page, "get_automation")}`,
 						},
 					],
 				};

@@ -1,9 +1,7 @@
 import {
 	ArrowRight,
-	BookOpen,
 	Check,
 	ExternalLink,
-	KanbanSquare,
 	Layers,
 	Loader2,
 	Plus,
@@ -20,7 +18,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useJevEnabled } from "@/hooks/use-jev-enabled";
-import type { Sprint, Task } from "@/lib/interaction-api";
+import type { Task } from "@/lib/interaction-api";
 import {
 	findEpicType,
 	type ProjectMember,
@@ -37,6 +35,7 @@ import {
 	PRIORITY_LEVELS,
 } from "../priority";
 import { ReporterPicker } from "../reporter-picker";
+import { SprintPicker } from "../sprint-picker";
 import { TaskTypeSelector } from "../task-type-selector";
 import { useEpicSearch } from "../use-epic-search";
 import {
@@ -76,7 +75,6 @@ interface PropertiesPanelProps {
 	reporter: ProjectMember | undefined;
 	statuses?: TaskStatus[];
 	taskTypes?: TaskType[];
-	sprints?: Sprint[];
 	projectId?: string;
 	initialCustomFields?: CustomFieldDef[];
 	canEdit?: boolean;
@@ -93,8 +91,6 @@ interface PropertiesPanelProps {
 	onNavigateToTask?: (taskId: string) => void;
 }
 
-const SPRINT_GROUP_ORDER = { active: 0, planned: 1, completed: 2 } as const;
-
 export function PropertiesPanel({
 	task,
 	status,
@@ -102,7 +98,6 @@ export function PropertiesPanel({
 	reporter,
 	statuses = [],
 	taskTypes = [],
-	sprints = [],
 	projectId,
 	initialCustomFields = [],
 	canEdit = true,
@@ -139,36 +134,6 @@ export function PropertiesPanel({
 		label: s.name,
 		colorDot: s.color ?? undefined,
 	}));
-
-	const selectableSprints = sprints.filter(
-		(s) => s.status !== "completed" || s.id === task.sprint_id,
-	);
-	const sprintOptions: SelectOption[] = [
-		{
-			value: "__backlog__",
-			label: t("taskDetail.properties.productBacklog"),
-			icon: <BookOpen className="size-3 shrink-0 opacity-60" />,
-		},
-		// Completed sprints can't be assigned to, but keep the task's current
-		// sprint so the select still shows its value. Grouped by status (stable
-		// sort keeps the API order within each group).
-		...[...selectableSprints]
-			.sort(
-				(a, b) => SPRINT_GROUP_ORDER[a.status] - SPRINT_GROUP_ORDER[b.status],
-			)
-			.map((s) => ({
-				value: s.id,
-				label: s.name,
-				group: t(`taskDetail.properties.sprintGroup.${s.status}`),
-				icon: (
-					<KanbanSquare className="size-3 shrink-0 text-muted-foreground/70" />
-				),
-				hint:
-					s.status === "planned"
-						? t("taskDetail.properties.sprintNotStarted")
-						: undefined,
-			})),
-	];
 
 	return (
 		<>
@@ -331,20 +296,16 @@ export function PropertiesPanel({
 					/>
 				</FieldRow>
 
-				<PropertyField
-					label={t("taskDetail.properties.sprint")}
-					mode="select"
-					value={task.sprint_id ?? "__backlog__"}
-					options={sprintOptions}
-					onChange={(v) =>
-						onUpdate?.({
-							sprint_id:
-								v === "__backlog__" ? null : typeof v === "string" ? v : null,
-						})
-					}
-					canEdit={canEdit && selectableSprints.length > 0}
-					hidden={!task.sprint_id && !(canEdit && selectableSprints.length > 0)}
-				/>
+				{(task.sprint_id || canEdit) && (
+					<FieldRow label={t("taskDetail.properties.sprint")}>
+						<SprintPicker
+							projectId={task.project_id}
+							sprintId={task.sprint_id ?? null}
+							canEdit={canEdit}
+							onChange={(sprint_id) => onUpdate?.({ sprint_id })}
+						/>
+					</FieldRow>
+				)}
 
 				{/* Epic field – normal tasks only */}
 				{taskRole === "normal" &&

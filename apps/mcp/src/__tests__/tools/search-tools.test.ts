@@ -23,7 +23,19 @@ function block(text: string) {
 function makeDocClient(hits: any[]) {
 	return {
 		searchDocuments: vi.fn().mockResolvedValue(hits),
-		listFolders: vi.fn().mockResolvedValue(FOLDERS),
+		// A hit's location is its folder chain from the top level, read per folder.
+		getFolderPath: vi
+			.fn()
+			.mockImplementation(async (_p: string, id: string) => {
+				const byId = new Map(FOLDERS.map((f) => [f.id, f]));
+				const chain = [];
+				let cur = byId.get(id);
+				while (cur) {
+					chain.unshift(cur);
+					cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
+				}
+				return chain;
+			}),
 	} as any;
 }
 
@@ -80,6 +92,8 @@ describe("search_docs", () => {
 		);
 		const out = result.content[0].text;
 		expect(docClient.searchDocuments).toHaveBeenCalledWith("p1", "login", 20);
+		// One path lookup per distinct folder, not a read of the whole tree.
+		expect(docClient.getFolderPath).toHaveBeenCalledTimes(1);
 		expect(out).toContain(
 			"Architecture/API/Endpoints  (content match, id: d1)",
 		);

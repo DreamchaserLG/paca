@@ -47,24 +47,24 @@ func (f *fakeRepo) addRole(r *roledom.Role) *roledom.Role {
 	return r
 }
 
-func (f *fakeRepo) ListPlatform(context.Context) ([]*roledom.Role, error) {
+func (f *fakeRepo) ListPlatform(context.Context, roledom.RoleFilter, *string, int) ([]*roledom.Role, bool, int, error) {
 	var out []*roledom.Role
 	for _, r := range f.roles {
 		if r.ProjectID == nil {
 			out = append(out, r)
 		}
 	}
-	return out, nil
+	return out, false, len(out), nil
 }
 
-func (f *fakeRepo) ListForProject(_ context.Context, p uuid.UUID) ([]*roledom.Role, error) {
+func (f *fakeRepo) ListForProject(_ context.Context, p uuid.UUID, _ roledom.RoleFilter, _ *string, _ int) ([]*roledom.Role, bool, int, error) {
 	var out []*roledom.Role
 	for _, r := range f.roles {
 		if r.ProjectID == nil || *r.ProjectID == p {
 			out = append(out, r)
 		}
 	}
-	return out, nil
+	return out, false, len(out), nil
 }
 
 func (f *fakeRepo) FindByID(_ context.Context, id uuid.UUID, _ *uuid.UUID) (*roledom.Role, error) {
@@ -413,7 +413,7 @@ func TestGet_Scope(t *testing.T) {
 
 func TestListForProject_UnknownProject(t *testing.T) {
 	f := newFixture()
-	if _, err := f.svc.ListForProject(t.Context(), uuid.New()); !errors.Is(err, roledom.ErrProjectNotFound) {
+	if _, _, _, err := f.svc.ListForProject(t.Context(), uuid.New(), roledom.RoleFilter{}, nil, 30); !errors.Is(err, roledom.ErrProjectNotFound) {
 		t.Fatalf("got %v", err)
 	}
 }

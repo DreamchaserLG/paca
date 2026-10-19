@@ -40,7 +40,7 @@ func newFakeDocRepo() *fakeDocRepo {
 
 // -- DocFolderRepository --
 
-func (r *fakeDocRepo) ListFolders(context.Context, uuid.UUID, *uuid.UUID, *string, int) ([]*docdom.DocFolder, bool, error) {
+func (r *fakeDocRepo) ListFolders(context.Context, uuid.UUID, *uuid.UUID, docdom.FolderFilter, *string, int) ([]*docdom.DocFolder, bool, error) {
 	return nil, false, nil
 }
 

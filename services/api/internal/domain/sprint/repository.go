@@ -8,7 +8,14 @@ import (
 
 // SprintRepository defines persistence operations for sprints.
 type SprintRepository interface {
-	ListSprints(ctx context.Context, projectID uuid.UUID) ([]*Sprint, error)
+	// ListSprints returns one page of the project's sprints in filter.Sort
+	// order. cursorAfter is the opaque cursor from EncodeCursor (nil for the
+	// first page); hasMore reports whether more follow and total counts every
+	// sprint matching the filter.
+	ListSprints(ctx context.Context, projectID uuid.UUID, filter SprintFilter, cursorAfter *string, limit int) (sprints []*Sprint, hasMore bool, total int, err error)
+	// ListAllSprints returns every sprint of the project, oldest first. For
+	// internal jobs such as exports; not exposed over the API.
+	ListAllSprints(ctx context.Context, projectID uuid.UUID) ([]*Sprint, error)
 	FindSprintByID(ctx context.Context, id uuid.UUID) (*Sprint, error)
 	CreateSprint(ctx context.Context, s *Sprint) error
 	// UpdateSprintAtomic loads sprint id under a row lock, calls decide to

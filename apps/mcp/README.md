@@ -258,8 +258,11 @@ If a tool call fails with `403` / "Permission denied: ...", none of the caller's
 
 The MCP server provides **81 tools** across **16 categories** for comprehensive project management.
 
+
+> **Paged lists.** List tools (`list_projects`, `list_sprints`, `list_project_members`, `list_project_roles`, `list_task_links`, `list_task_attachments`, `list_task_activities`, `list_doc_activities`, `list_docs`, `get_automation` without `automationId`, `list_tasks`, `search_tasks`) return one page per call and never read a list to the end on their own. When more results exist, the reply ends with a line giving a `cursor`; call the same tool again with that `cursor` (and optionally `pageSize`, 1-100) for the next page. `get_task` loads the first 20 items of each of its lists (subtasks, attachments, activities, links) and says how to read the rest.
+
 ### 📁 Project Management (5 tools)
-- `list_projects` - List all accessible projects
+- `list_projects` - List accessible projects (paged)
 - `get_project` - Get details of a specific project
 - `create_project` - Create a new project
 - `update_project` - Update an existing project
@@ -274,7 +277,7 @@ The MCP server provides **81 tools** across **16 categories** for comprehensive 
 - `delete_task` - Delete a task
 
 ### 🏃 Sprint Management (6 tools)
-- `list_sprints` - List all sprints in a project
+- `list_sprints` - List the sprints in a project (paged)
 - `get_sprint` - Get details of a specific sprint
 - `create_sprint` - Create a new sprint
 - `update_sprint` - Update an existing sprint
@@ -289,7 +292,7 @@ The MCP server provides **81 tools** across **16 categories** for comprehensive 
 - `delete_document` - Delete a document
 
 ### 👥 Project Members (5 tools)
-- `list_project_members` - List all members of a project
+- `list_project_members` - List the members of a project (paged)
 - `add_project_member` - Add a member to a project
 - `get_my_project_permissions` - List the IAM actions (e.g. `tasks:write`) the caller may perform in a project
 - `update_project_member_role` - Replace the set of roles (`roleIds`) a member holds in the project
@@ -357,7 +360,7 @@ The MCP server provides **81 tools** across **16 categories** for comprehensive 
 - `unlink_github_repository` - Unlink a GitHub repository
 
 ### 💬 Task Activities (4 tools)
-- `list_task_activities` - List all activities for a task
+- `list_task_activities` - List activities for a task (newest first, one page per call)
 - `add_task_comment` - Add a comment to a task
 - `update_task_comment` - Update a task comment
 - `delete_task_comment` - Delete a task comment

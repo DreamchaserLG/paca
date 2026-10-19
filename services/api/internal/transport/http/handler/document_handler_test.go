@@ -37,7 +37,7 @@ type fakeDocSvc struct {
 	snapLimit   int
 }
 
-func (f *fakeDocSvc) ListFolders(_ context.Context, _ uuid.UUID, parent *uuid.UUID, cursor *string, limit int) ([]*docdom.DocFolder, bool, error) {
+func (f *fakeDocSvc) ListFolders(_ context.Context, _ uuid.UUID, parent *uuid.UUID, _ docdom.FolderFilter, cursor *string, limit int) ([]*docdom.DocFolder, bool, error) {
 	f.treeCalls++
 	f.treeFolder, f.treeCursor, f.treeLimit = parent, cursor, limit
 	return f.treeFolders, f.treeMore, nil

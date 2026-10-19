@@ -50,7 +50,7 @@ Request body for create and update (`name` is trimmed, 1 to 100 characters; `des
 
 | Method | Path | Auth | Function |
 |---|---|---|---|
-| `GET` | `/admin/roles` | `roles:read` | List platform roles (`project_id` null). |
+| `GET` | `/admin/roles` | `roles:read` | List platform roles (`project_id` null), cursor-paginated: `{items, page_size, next_cursor, total_count}` with `cursor`, `page_size` (≤ 100), `search` and `ids` (≤ 100). |
 | `POST` | `/admin/roles` | `roles:write` | Create a platform role. `201` with the role. |
 | `GET` | `/admin/roles/:roleId` | `roles:read` on the role | Get a role. |
 | `PUT` | `/admin/roles/:roleId` | `roles:write` on the role | Replace name, description and policy. |

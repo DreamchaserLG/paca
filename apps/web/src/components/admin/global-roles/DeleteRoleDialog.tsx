@@ -13,11 +13,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import {
-	deleteRole,
-	platformRolesQueryOptions,
-	type Role,
-} from "@/lib/role-api";
+import { deleteRole, platformRolesKey, type Role } from "@/lib/role-api";
 
 interface DeleteRoleDialogProps {
 	role: Role;
@@ -39,7 +35,7 @@ export function DeleteRoleDialog({
 		mutationFn: () => deleteRole(role.id),
 		onSuccess: () => {
 			void queryClient.invalidateQueries({
-				queryKey: platformRolesQueryOptions.queryKey,
+				queryKey: platformRolesKey,
 			});
 			onOpenChange(false);
 		},

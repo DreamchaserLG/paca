@@ -1,10 +1,12 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { PacaAPIClient } from "../api/index.js";
+import { moreNotice, pagingFields, pagingProperties } from "../api/paginate.js";
 import { formatList, formatSprint } from "../utils/index.js";
 
 const ListSprintsSchema = z.object({
 	projectId: z.string(),
+	...pagingFields,
 });
 
 const GetSprintSchema = z.object({
@@ -45,7 +47,8 @@ export function getSprintTools(): Tool[] {
 	return [
 		{
 			name: "list_sprints",
-			description: "List all sprints in a project",
+			description:
+				"List the sprints in a project, one page at a time. When more remain, the reply says so and gives a cursor to pass to the next call.",
 			inputSchema: {
 				type: "object",
 				properties: {
@@ -54,6 +57,7 @@ export function getSprintTools(): Tool[] {
 						description:
 							"The technical UUID of the project (e.g., '550e8400-e29b-41d4-a716-446655440000'). Use list_projects to get the project ID. Do NOT use the project name.",
 					},
+					...pagingProperties,
 				},
 				required: ["projectId"],
 			},
@@ -194,14 +198,14 @@ export async function handleSprintTool(
 ): Promise<any> {
 	switch (toolName) {
 		case "list_sprints": {
-			const { projectId } = ListSprintsSchema.parse(args);
-			const sprints = await client.listSprints(projectId);
-			const formatted = formatList(sprints, formatSprint);
+			const { projectId, cursor, pageSize } = ListSprintsSchema.parse(args);
+			const page = await client.listSprints(projectId, { cursor, pageSize });
+			const formatted = formatList(page.items, formatSprint);
 			return {
 				content: [
 					{
 						type: "text",
-						text: `Sprints:\n\n${formatted}`,
+						text: `Sprints:\n\n${formatted}${moreNotice(page, "list_sprints")}`,
 					},
 				],
 			};

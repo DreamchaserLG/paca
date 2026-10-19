@@ -9,13 +9,12 @@ import type {
 	UpdateFolderInput,
 } from "../types/index.js";
 import { formatApiRequestError, markdownToBlocknote } from "../utils/index.js";
-import { fetchAllPages, MAX_LISTED_ITEMS, withPaging } from "./paginate.js";
+import { type Page, type PageOptions, toPage, withPaging } from "./paginate.js";
 
 /**
  * Extended API client for Document features.
  */
 /** Most timeline entries a tool call collects (the newest ones). */
-const MAX_ACTIVITY_ITEMS = 500;
 
 export class PacaAPIDocClient {
 	private config: PacaConfig;
@@ -93,38 +92,34 @@ export class PacaAPIDocClient {
 
 	// ==================== Document Folders ====================
 
-	async listFolders(projectId: string): Promise<DocumentFolder[]> {
-		// The API lists one level of the tree per call, so walk it level by level.
-		const all: DocumentFolder[] = [];
-		let parents: (string | null)[] = [null];
-		while (parents.length > 0 && all.length < MAX_LISTED_ITEMS) {
-			const next: string[] = [];
-			for (let i = 0; i < parents.length; i += 8) {
-				const levels = await Promise.all(
-					parents
-						.slice(i, i + 8)
-						.map((parent) =>
-							fetchAllPages<DocumentFolder>((cursor) =>
-								this.get(
-									withPaging(
-										`/api/v1/projects/${projectId}/docs/folders?parent_id=${parent ?? "null"}`,
-										cursor,
-										200,
-									),
-								),
-							),
-						),
-				);
-				for (const folders of levels) {
-					for (const f of folders) {
-						all.push(f);
-						next.push(f.id);
-					}
-				}
-			}
-			parents = next;
-		}
-		return all;
+	/** One page of the folders directly inside `parentId` (the top level when
+	 *  omitted). `name` narrows to an exact, case-insensitive folder name. */
+	async listFolders(
+		projectId: string,
+		opts: PageOptions & { parentId?: string | null; name?: string } = {},
+	): Promise<Page<DocumentFolder>> {
+		const filters = new URLSearchParams();
+		filters.set("parent_id", opts.parentId ?? "null");
+		if (opts.name) filters.set("name", opts.name);
+		return toPage<DocumentFolder>(
+			await this.get(
+				withPaging(
+					`/api/v1/projects/${projectId}/docs/folders?${filters.toString()}`,
+					opts,
+				),
+			),
+		);
+	}
+
+	/** The folders from the top level down to (and including) `folderId`. */
+	async getFolderPath(
+		projectId: string,
+		folderId: string,
+	): Promise<DocumentFolder[]> {
+		const response = await this.get(
+			`/api/v1/projects/${projectId}/docs/folders/${folderId}/path`,
+		);
+		return Array.isArray(response) ? response : (response?.items ?? []);
 	}
 
 	async createFolder(
@@ -154,17 +149,16 @@ export class PacaAPIDocClient {
 	async listSnapshots(
 		projectId: string,
 		docId: string,
-	): Promise<DocumentSnapshot[]> {
-		// Newest first; list items carry no body (getSnapshot returns it).
-		return fetchAllPages(
-			(cursor) =>
-				this.get(
-					withPaging(
-						`/api/v1/projects/${projectId}/docs/${docId}/snapshots`,
-						cursor,
-					),
+		opts: PageOptions = {},
+	): Promise<Page<DocumentSnapshot>> {
+		// One page, newest first; list items carry no body (getSnapshot returns it).
+		return toPage<DocumentSnapshot>(
+			await this.get(
+				withPaging(
+					`/api/v1/projects/${projectId}/docs/${docId}/snapshots`,
+					opts,
 				),
-			MAX_ACTIVITY_ITEMS,
+			),
 		);
 	}
 
@@ -183,19 +177,17 @@ export class PacaAPIDocClient {
 	async listDocumentActivities(
 		projectId: string,
 		docId: string,
-	): Promise<DocumentActivity[]> {
-		// The API pages newest first; callers read the timeline oldest first.
-		const newestFirst = await fetchAllPages<DocumentActivity>(
-			(cursor) =>
-				this.get(
-					withPaging(
-						`/api/v1/projects/${projectId}/docs/${docId}/activities`,
-						cursor,
-					),
+		opts: PageOptions = {},
+	): Promise<Page<DocumentActivity>> {
+		// One page, newest first; next pages reach further back in time.
+		return toPage<DocumentActivity>(
+			await this.get(
+				withPaging(
+					`/api/v1/projects/${projectId}/docs/${docId}/activities`,
+					opts,
 				),
-			MAX_ACTIVITY_ITEMS,
+			),
 		);
-		return newestFirst.reverse();
 	}
 
 	// ==================== Document Comments ====================

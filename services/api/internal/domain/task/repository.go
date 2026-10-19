@@ -17,9 +17,15 @@ type Repository interface {
 
 // TaskLinkRepository defines persistence operations for task links.
 type TaskLinkRepository interface {
-	// ListTaskLinks returns all links where taskID is either source or target,
-	// with LinkedTask populated. Links are ordered by created_at ascending.
-	ListTaskLinks(ctx context.Context, taskID uuid.UUID) ([]*TaskLink, error)
+	// ListTaskLinks returns one page of the links where taskID is either source
+	// or target, with LinkedTask populated, ordered by created_at then id
+	// ascending. cursorAfter is the cursor from EncodeLinkCursor (nil for the
+	// first page); hasMore reports whether more follow and total counts every
+	// link of the task.
+	ListTaskLinks(ctx context.Context, taskID uuid.UUID, cursorAfter *string, limit int) (links []*TaskLink, hasMore bool, total int, err error)
+	// ListAllTaskLinks returns every link of the task. For internal jobs such
+	// as automations; not exposed over the API.
+	ListAllTaskLinks(ctx context.Context, taskID uuid.UUID) ([]*TaskLink, error)
 	// FindTaskLinkByID returns a single link by primary key.
 	FindTaskLinkByID(ctx context.Context, id uuid.UUID) (*TaskLink, error)
 	// CreateTaskLinkIfNotExists persists l, unless an equivalent link already

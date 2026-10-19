@@ -28,7 +28,11 @@ func newFakeSprintRepo() *fakeSprintRepo {
 	return &fakeSprintRepo{sprints: make(map[uuid.UUID]*sprintdom.Sprint)}
 }
 
-func (r *fakeSprintRepo) ListSprints(_ context.Context, projectID uuid.UUID) ([]*sprintdom.Sprint, error) {
+func (r *fakeSprintRepo) ListSprints(ctx context.Context, projectID uuid.UUID, _ sprintdom.SprintFilter, _ *string, _ int) ([]*sprintdom.Sprint, bool, int, error) {
+	out, err := r.ListAllSprints(ctx, projectID)
+	return out, false, len(out), err
+}
+func (r *fakeSprintRepo) ListAllSprints(_ context.Context, projectID uuid.UUID) ([]*sprintdom.Sprint, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	out := make([]*sprintdom.Sprint, 0)
@@ -214,7 +218,11 @@ func (r *fakeTaskRepo) SumTaskField(_ context.Context, _ uuid.UUID, _ taskdom.Ta
 	return 0, nil
 }
 
-func (r *fakeTaskRepo) ListTaskLinks(_ context.Context, _ uuid.UUID) ([]*taskdom.TaskLink, error) {
+func (r *fakeTaskRepo) ListTaskLinks(_ context.Context, _ uuid.UUID, _ *string, _ int) ([]*taskdom.TaskLink, bool, int, error) {
+	return []*taskdom.TaskLink{}, false, 0, nil
+}
+
+func (r *fakeTaskRepo) ListAllTaskLinks(_ context.Context, _ uuid.UUID) ([]*taskdom.TaskLink, error) {
 	return []*taskdom.TaskLink{}, nil
 }
 
@@ -543,12 +551,12 @@ func TestListSprints_ReturnsProjectSprints(t *testing.T) {
 		t.Fatalf("create other sprint: %v", err)
 	}
 
-	sprints, err := svc.ListSprints(ctx, projectID)
+	sprints, _, total, err := svc.ListSprints(ctx, projectID, sprintdom.SprintFilter{}, nil, 30)
 	if err != nil {
 		t.Fatalf("list sprints: %v", err)
 	}
-	if len(sprints) != 3 {
-		t.Errorf("expected 3 sprints for project, got %d", len(sprints))
+	if len(sprints) != 3 || total != 3 {
+		t.Errorf("expected 3 sprints for project, got %d (total %d)", len(sprints), total)
 	}
 }
 

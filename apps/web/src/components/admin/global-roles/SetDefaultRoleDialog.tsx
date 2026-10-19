@@ -16,11 +16,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import {
-	platformRolesQueryOptions,
-	type Role,
-	setDefaultRole,
-} from "@/lib/role-api";
+import { platformRolesKey, type Role, setDefaultRole } from "@/lib/role-api";
 
 interface SetDefaultRoleDialogProps {
 	role: Role;
@@ -47,7 +43,7 @@ export function SetDefaultRoleDialog({
 		mutationFn: () => setDefaultRole(role.id),
 		onSuccess: () => {
 			void queryClient.invalidateQueries({
-				queryKey: platformRolesQueryOptions.queryKey,
+				queryKey: platformRolesKey,
 			});
 			onOpenChange(false);
 		},

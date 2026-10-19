@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -28,6 +29,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
+import { usePagedSlice } from "@/hooks/use-table-paging";
 import {
 	ApiErrorCode,
 	getApiErrorCode,
@@ -857,6 +859,10 @@ export function CustomFieldsSettings({
 		isError,
 		error,
 	} = useQuery({ ...customFieldsQueryOptions(projectId), enabled: canRead });
+	const { pageItems: pagedFields, paginationProps } = usePagedSlice(
+		"project-custom-fields",
+		fields,
+	);
 	// While permissions are still loading, canRead defaults to false same as
 	// a confirmed denial — guard on isPermissionsLoading (and fold it into
 	// isLoading) so the section shows the skeleton instead of flashing
@@ -963,7 +969,7 @@ export function CustomFieldsSettings({
 							</TableRow>
 						</TableHeader>
 						<TableBody>
-							{fields.map((field) => (
+							{pagedFields.map((field) => (
 								<TableRow key={field.id} className="group">
 									<TableCell className="px-5 font-medium">
 										{field.display_name}
@@ -1029,6 +1035,7 @@ export function CustomFieldsSettings({
 							))}
 						</TableBody>
 					</Table>
+					<Pagination className="border-t px-4 py-3" {...paginationProps} />
 				</div>
 			)}
 

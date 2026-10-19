@@ -219,13 +219,13 @@ func TestScopedAgentEnvironmentSprintLists(t *testing.T) {
 	if err != nil || len(envs) != 1 || envs[0].ID != e1 {
 		t.Fatalf("environments = %v (%v), want only the docker one", envs, err)
 	}
-	sprints, err := NewSprintRepository(f.db).ListSprints(f.ctx("sprints:read", "sprint"), f.p)
+	sprints, _, _, err := NewSprintRepository(f.db).ListSprints(f.ctx("sprints:read", "sprint"), f.p, sprintdom.SprintFilter{}, nil, 50)
 	if err != nil || len(sprints) != 1 || sprints[0].ID != s2 {
 		t.Fatalf("sprints = %v (%v), want only s2", sprints, err)
 	}
 	// A condition on an attribute with no SQL mapping must fail, never list everything.
 	bad := iam.WithScope(context.Background(), "sprint", &iam.Node{Kind: iam.NodeCond, Key: "sprint.nope", Op: "In", Values: iam.ValueList{"x"}})
-	if _, err := NewSprintRepository(f.db).ListSprints(bad, f.p); err == nil {
+	if _, _, _, err := NewSprintRepository(f.db).ListSprints(bad, f.p, sprintdom.SprintFilter{}, nil, 50); err == nil {
 		t.Fatal("unmapped attribute must be an error")
 	}
 }

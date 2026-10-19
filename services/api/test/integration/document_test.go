@@ -52,7 +52,7 @@ func newFakeDocRepoIT() *fakeDocRepoIT {
 
 // ListFolders returns the project's direct children of parentID (root when
 // nil) in one page; the fake does not page.
-func (r *fakeDocRepoIT) ListFolders(_ context.Context, projectID uuid.UUID, parentID *uuid.UUID, _ *string, _ int) ([]*docdom.DocFolder, bool, error) {
+func (r *fakeDocRepoIT) ListFolders(_ context.Context, projectID uuid.UUID, parentID *uuid.UUID, _ docdom.FolderFilter, _ *string, _ int) ([]*docdom.DocFolder, bool, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var out []*docdom.DocFolder

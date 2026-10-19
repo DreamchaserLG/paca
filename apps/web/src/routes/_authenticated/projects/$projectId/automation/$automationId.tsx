@@ -50,7 +50,6 @@ import {
 	updateAutomation,
 	updateAutomationNode,
 } from "@/lib/automation-api";
-import { sprintsQueryOptions } from "@/lib/interaction-api";
 import { useMemberDirectory } from "@/lib/member-directory";
 import {
 	customFieldsQueryOptions,
@@ -58,6 +57,7 @@ import {
 	taskTypesQueryOptions,
 } from "@/lib/project-api";
 import { useCurrentContextStore } from "@/lib/shortcuts/current-context-store";
+import { useSprintDirectory } from "@/lib/sprint-directory";
 import { cn } from "@/lib/utils";
 
 function extractErrorMessage(err: unknown, fallback: string): string {
@@ -122,7 +122,7 @@ function AutomationBuilderPage() {
 		customFieldsQueryOptions(projectId),
 	);
 	const { data: taskTypes = [] } = useQuery(taskTypesQueryOptions(projectId));
-	const { data: sprints = [] } = useQuery(sprintsQueryOptions(projectId));
+	const getSprint = useSprintDirectory(projectId);
 	const {
 		data: runPages,
 		fetchNextPage: fetchMoreRuns,
@@ -387,7 +387,7 @@ function AutomationBuilderPage() {
 					);
 					pushField(
 						"sprint_id",
-						sprints.find((s) => s.id === fields.sprint_id)?.name,
+						fields.sprint_id ? getSprint(fields.sprint_id)?.name : undefined,
 					);
 					pushField("start_date", fields.start_date?.slice(0, 10));
 					pushField("due_date", fields.due_date?.slice(0, 10));

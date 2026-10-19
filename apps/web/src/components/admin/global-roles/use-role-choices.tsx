@@ -16,13 +16,22 @@ import type { Role } from "@/lib/role-api";
  * A project template (project/*) only works attached per project; given
  * platform-wide it would reach every project, so it is not offered — unless
  * the account already holds it, so saving never drops a role it could not see.
+ *
+ * With a `projectId` the choices are the roles usable inside that project
+ * (project templates included), so nothing is filtered out.
  */
-export function useRoleChoices(open: boolean, heldIds: string[]) {
-	const search = useRoleSearch(undefined, open);
-	const knownRoles = useRolesByIds(undefined, heldIds, open);
-	const roles = search.roles.filter(
-		(r: Role) => !isProjectTemplate(r.policy) || heldIds.includes(r.id),
-	);
+export function useRoleChoices(
+	open: boolean,
+	heldIds: string[],
+	projectId?: string,
+) {
+	const search = useRoleSearch(projectId, open);
+	const knownRoles = useRolesByIds(projectId, heldIds, open);
+	const roles = projectId
+		? search.roles
+		: search.roles.filter(
+				(r: Role) => !isProjectTemplate(r.policy) || heldIds.includes(r.id),
+			);
 	const remote: RemoteRoleSearch = {
 		query: search.query,
 		onQueryChange: search.onQueryChange,

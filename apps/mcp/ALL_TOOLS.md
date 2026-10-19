@@ -108,7 +108,7 @@ This document lists all MCP tools implemented for the Paca API server.
 - `unlink_github_repository` - Unlink a GitHub repository from a project
 
 ### 15. Task Activities (4 tools)
-- `list_task_activities` - List all activities for a task
+- `list_task_activities` - List activities for a task (newest first, one page per call)
 - `add_task_comment` - Add a comment to a task
 - `update_task_comment` - Update a task comment
 - `delete_task_comment` - Delete a task comment

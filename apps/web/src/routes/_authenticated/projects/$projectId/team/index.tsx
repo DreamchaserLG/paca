@@ -22,6 +22,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { RoleOptionList } from "@/components/admin/global-roles/role-option-list";
+import { useRoleChoices } from "@/components/admin/global-roles/use-role-choices";
 import { projectPermissionBadgeClass } from "@/components/projects/roles/utils";
 import { MembersFilters } from "@/components/projects/team/MembersFilters";
 import { EntityAvatar } from "@/components/shared/entity-avatar";
@@ -183,16 +184,21 @@ function AddMemberDialog({
 	open,
 	onOpenChange,
 	projectId,
-	roles,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	projectId: string;
-	roles: Role[];
 }) {
 	const { t } = useTranslation("projects");
 	const queryClient = useQueryClient();
 	const { hasPermission: can } = usePermissions();
+	// Every role assignable in the project, searched and paged on the server.
+	const {
+		roles,
+		knownRoles: knownRoleChoices,
+		remote: roleRemote,
+		status: roleStatus,
+	} = useRoleChoices(open, [], projectId);
 	const [mode, setMode] = useState<"user" | "agent" | "service_account">(
 		"user",
 	);
@@ -742,13 +748,17 @@ function AddMemberDialog({
 						<p className="text-sm font-medium">
 							{t("team.addMemberDialog.roleLabel")}
 						</p>
-						<RoleOptionList
-							roles={roles}
-							values={selectedRoleIds}
-							onChange={(ids) => setSelectedRoleIds(ids)}
-							label={t("team.addMemberDialog.roleLabel")}
-							badgeClass={projectPermissionBadgeClass}
-						/>
+						{roleStatus ?? (
+							<RoleOptionList
+								roles={roles}
+								knownRoles={knownRoleChoices}
+								remote={roleRemote}
+								values={selectedRoleIds}
+								onChange={(ids) => setSelectedRoleIds(ids)}
+								label={t("team.addMemberDialog.roleLabel")}
+								badgeClass={projectPermissionBadgeClass}
+							/>
+						)}
 					</div>
 
 					{/* Only for humans — an invited agent's description lives on the
@@ -835,7 +845,6 @@ function RoleChip({
 			<MemberRoleDialog
 				member={member}
 				projectId={projectId}
-				roles={roles}
 				open={open}
 				onOpenChange={setOpen}
 			/>
@@ -846,13 +855,11 @@ function RoleChip({
 function MemberRoleDialog({
 	member,
 	projectId,
-	roles,
 	open,
 	onOpenChange,
 }: {
 	member: ProjectMember;
 	projectId: string;
-	roles: Role[];
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 }) {
@@ -860,6 +867,12 @@ function MemberRoleDialog({
 	const queryClient = useQueryClient();
 	const [error, setError] = useState<string | null>(null);
 	const currentIds = member.roles.map((r) => r.id);
+	// Every role assignable in the project, not just those held by loaded members.
+	const { roles, knownRoles, remote, status } = useRoleChoices(
+		open,
+		currentIds,
+		projectId,
+	);
 
 	const handleOpenChange = (next: boolean) => {
 		if (!next) setError(null);
@@ -907,6 +920,9 @@ function MemberRoleDialog({
 			})}
 			person={{ avatar: memberAvatar(member), handle: member.username }}
 			roles={roles}
+			knownRoles={knownRoles}
+			remote={remote}
+			status={status}
 			currentIds={currentIds}
 			// A member keeps at least one role: with none they could do nothing,
 			// and removing them is its own action.
@@ -1199,7 +1215,8 @@ function TeamPage() {
 		[filterRoles],
 	);
 	// What the visible members' roles grant (badge descriptions), looked up by
-	// id rather than loading every role.
+	// id rather than loading every role. Only for display: the Add Member and
+	// Change Role pickers search the project's roles on the server instead.
 	const roles = useRolesByIds(
 		projectId,
 		[
@@ -1388,7 +1405,6 @@ function TeamPage() {
 				open={addMemberOpen}
 				onOpenChange={setAddMemberOpen}
 				projectId={projectId}
-				roles={roles}
 			/>
 
 			{/* Remove confirmation dialog */}

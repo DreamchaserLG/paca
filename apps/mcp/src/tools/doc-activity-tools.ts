@@ -49,7 +49,7 @@ export function getDocActivityTools(): Tool[] {
 		{
 			name: "list_doc_activities",
 			description:
-				"List all activity for a document (comments and system events), oldest first. Each entry includes actor_name and actor_username.",
+				"List activity for a document (comments and system events), newest first, one page per call; pass the returned cursor for older entries. Each entry includes actor_name and actor_username.",
 			inputSchema: {
 				type: "object",
 				properties: {

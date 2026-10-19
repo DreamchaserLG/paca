@@ -36,7 +36,8 @@ export function getTaskActivityTools(): Tool[] {
 	return [
 		{
 			name: "list_task_activities",
-			description: "List all activities for a task",
+			description:
+				"List activities for a task, newest first, one page per call; pass the returned cursor for older entries",
 			inputSchema: {
 				type: "object",
 				properties: {

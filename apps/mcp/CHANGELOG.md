@@ -8,6 +8,7 @@ The package version follows the main Paca repository release and is published on
 
 ### Fixed
 - `create_sprint` and `update_sprint` accept a `goal`, and `update_sprint` clears it when `goal` is `null` ([#597](https://github.com/Paca-AI/paca/issues/597)).
+- `update_task` accepts `sprintId: null`, which moves the task out of its sprint and back to the backlog ([#597](https://github.com/Paca-AI/paca/issues/597)).
 - Preserve legacy link URLs when inline text omits `styles` or sets it to `null`; malformed content still degrades safely to text.
 - Malformed BlockNote links in comments degrade to recoverable plain text instead of breaking MCP task and activity reads ([#589](https://github.com/Paca-AI/paca/issues/589)).
 

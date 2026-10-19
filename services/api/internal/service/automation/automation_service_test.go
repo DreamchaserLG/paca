@@ -785,3 +785,57 @@ func TestValidateNoSelfParent_EventDrivenTrigger_Skipped(t *testing.T) {
 		t.Fatalf("expected an event-driven trigger to be skipped, got %v", err)
 	}
 }
+
+func updateTaskNodeWithParentAndTarget(t *testing.T, parentTaskID *uuid.UUID, target *automationdom.TaskTarget) *automationdom.Node {
+	t.Helper()
+	cfg, err := json.Marshal(automationdom.ActionConfig{
+		Update: &automationdom.TaskFieldUpdate{ParentTaskID: parentTaskID},
+		Target: target,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return newNode(automationdom.KindAction, string(automationdom.ActionUpdateTask), string(cfg))
+}
+
+// A retargeted action mutates the task it names, so parenting that task to
+// itself is the same failure — even with no trigger in play at all.
+func TestValidateNoSelfParent_RetargetedOtherTask_Rejected(t *testing.T) {
+	other := uuid.New()
+	update := updateTaskNodeWithParentAndTarget(t, &other, &automationdom.TaskTarget{
+		Kind:        automationdom.TaskTargetOther,
+		OtherTaskID: &other,
+	})
+	if err := validateNoSelfParent([]*automationdom.Node{update}, nil); !errors.Is(err, automationdom.ErrUpdateTaskSelfParent) {
+		t.Fatalf("expected a retargeted update_task to reject parenting its own target task to itself, got %v", err)
+	}
+}
+
+// ...and parenting some unrelated task to the run's task is not a self-parent.
+func TestValidateNoSelfParent_RetargetedOtherTask_Allowed(t *testing.T) {
+	target, other := uuid.New(), uuid.New()
+	trigger := targetedTriggerNodeWithTask(t, automationdom.TriggerAPITrigger, target)
+	update := updateTaskNodeWithParentAndTarget(t, &target, &automationdom.TaskTarget{
+		Kind:        automationdom.TaskTargetOther,
+		OtherTaskID: &other,
+	})
+	nodes := []*automationdom.Node{trigger, update}
+	edges := []*automationdom.Edge{newEdge(trigger.ID, update.ID)}
+	if err := validateNoSelfParent(nodes, edges); err != nil {
+		t.Fatalf("expected a retargeted action setting another task's parent to the run's task to be valid, got %v", err)
+	}
+}
+
+// children/parent/link targets resolve per run, so the static pass must not
+// guess: the same parent_task_id that is rejected for a non-retargeted node
+// is left to the runtime check here.
+func TestValidateNoSelfParent_DynamicTarget_Skipped(t *testing.T) {
+	target := uuid.New()
+	trigger := targetedTriggerNodeWithTask(t, automationdom.TriggerAPITrigger, target)
+	update := updateTaskNodeWithParentAndTarget(t, &target, &automationdom.TaskTarget{Kind: automationdom.TaskTargetChildren})
+	nodes := []*automationdom.Node{trigger, update}
+	edges := []*automationdom.Edge{newEdge(trigger.ID, update.ID)}
+	if err := validateNoSelfParent(nodes, edges); err != nil {
+		t.Fatalf("expected a children-targeted update_task to be skipped by the static check, got %v", err)
+	}
+}

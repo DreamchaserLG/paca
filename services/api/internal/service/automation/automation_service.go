@@ -1209,16 +1209,21 @@ func hasCycle(nodes []*automationdom.Node, edges []*automationdom.Edge) bool {
 	return false
 }
 
-// validateNoSelfParent rejects an update_task node that sets the triggered
-// task as its own parent. The task service rejects a task as its own parent
-// (task: a task cannot be its own parent), which fails the whole run at that
+// validateNoSelfParent rejects an update_task node that would set the task it
+// mutates as its own parent. The task service rejects that at runtime
+// (task: a task cannot be its own parent), failing the whole run at that
 // step — a graph that saves cleanly would therefore fail every single run
 // with nothing in the API logs to show it.
 //
-// Only triggers with a fixed TargetTaskID can be checked statically: a
-// task-activity trigger derives its task from the event, so there is nothing
-// to compare parent_task_id against until the run exists. The runtime check
-// still rejects those; this is the save-time half.
+// Which task is mutated depends on the node's ActionConfig.Target:
+//
+//   - nil / "self" (not retargeted): the walk's task, which for a trigger
+//     with a fixed TargetTaskID is that task — checked below per trigger.
+//   - "other": the explicitly chosen task, checkable on its own, with no
+//     trigger involved.
+//   - "parent"/"children"/link kinds: resolved against the task graph during
+//     the run, so there is nothing to compare against statically. The
+//     runtime check still rejects those; this is the save-time half.
 func validateNoSelfParent(nodes []*automationdom.Node, edges []*automationdom.Edge) error {
 	nodesByID := make(map[uuid.UUID]*automationdom.Node, len(nodes))
 	for _, n := range nodes {
@@ -1227,6 +1232,18 @@ func validateNoSelfParent(nodes []*automationdom.Node, edges []*automationdom.Ed
 	outgoing := make(map[uuid.UUID][]uuid.UUID, len(edges))
 	for _, e := range edges {
 		outgoing[e.SourceNodeID] = append(outgoing[e.SourceNodeID], e.TargetNodeID)
+	}
+
+	// Retargeted actions mutate the task they name, not the run's task.
+	for _, n := range nodes {
+		cfg, ok := updateTaskConfig(n)
+		if !ok || cfg.Update == nil || cfg.Update.ParentTaskID == nil {
+			continue
+		}
+		if cfg.Target != nil && cfg.Target.Kind == automationdom.TaskTargetOther &&
+			cfg.Target.OtherTaskID != nil && *cfg.Update.ParentTaskID == *cfg.Target.OtherTaskID {
+			return automationdom.ErrUpdateTaskSelfParent
+		}
 	}
 
 	for _, n := range nodes {
@@ -1252,19 +1269,34 @@ func validateNoSelfParent(nodes []*automationdom.Node, edges []*automationdom.Ed
 			if !ok {
 				continue
 			}
-			if node.Kind == automationdom.KindAction && automationdom.ActionType(node.Type) == automationdom.ActionUpdateTask {
-				var cfg automationdom.ActionConfig
-				if err := json.Unmarshal(node.Config, &cfg); err != nil {
-					return err
-				}
-				if cfg.Update != nil && cfg.Update.ParentTaskID != nil && *cfg.Update.ParentTaskID == target {
-					return automationdom.ErrUpdateTaskSelfParent
-				}
+			if cfg, ok := updateTaskConfig(node); ok && cfg.Update != nil && cfg.Update.ParentTaskID != nil &&
+				!retargetsAction(cfg) && *cfg.Update.ParentTaskID == target {
+				return automationdom.ErrUpdateTaskSelfParent
 			}
 			queue = append(queue, outgoing[id]...)
 		}
 	}
 	return nil
+}
+
+// updateTaskConfig returns node's decoded config when node is an update_task
+// action.
+func updateTaskConfig(node *automationdom.Node) (*automationdom.ActionConfig, bool) {
+	if node.Kind != automationdom.KindAction || automationdom.ActionType(node.Type) != automationdom.ActionUpdateTask {
+		return nil, false
+	}
+	var cfg automationdom.ActionConfig
+	if err := json.Unmarshal(node.Config, &cfg); err != nil {
+		return nil, false
+	}
+	return &cfg, true
+}
+
+// retargetsAction reports whether cfg makes the action operate on a task
+// other than the walk's own. An empty or "self" kind is the default and is
+// not a retarget.
+func retargetsAction(cfg *automationdom.ActionConfig) bool {
+	return cfg.Target != nil && cfg.Target.Kind != "" && cfg.Target.Kind != automationdom.TaskTargetSelf
 }
 
 // validateTaskReachability enforces that a trigger with no target task

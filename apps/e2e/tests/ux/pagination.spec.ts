@@ -332,6 +332,7 @@ test.describe("Load-more lists", () => {
 	test("the sidebar counts every draft sprint and loads the rest on demand", async ({
 		page,
 		request,
+		isMobile,
 	}) => {
 		await authRequest(request);
 		const projectId = await createProject(request, `${PROJECT_PREFIX}SPRINTS`);
@@ -340,6 +341,10 @@ test.describe("Load-more lists", () => {
 		);
 
 		await page.goto(`${BASE_URL}/projects/${projectId}/interactions/backlog`);
+		// On a phone the sidebar is an off-canvas sheet until it is opened.
+		if (isMobile) {
+			await page.getByRole("button", { name: "Toggle Sidebar" }).click();
+		}
 		// The badge comes from the server's total, not from what is loaded.
 		await expect(
 			page.getByRole("button", { name: "Draft Sprints" }).getByText("35"),

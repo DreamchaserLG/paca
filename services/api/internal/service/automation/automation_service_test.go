@@ -3,6 +3,7 @@ package automationsvc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -680,5 +681,161 @@ func TestValidateConditionConfig_RejectsBadMatchMode(t *testing.T) {
 	})
 	if err := svc.validateConditionConfig(context.Background(), uuid.New(), cfg, true); err == nil {
 		t.Fatal("expected an invalid match_mode to be rejected")
+	}
+}
+
+// --- validateNoSelfParent ----------------------------------------------------
+
+func targetedTriggerNodeWithTask(t *testing.T, triggerType automationdom.TriggerType, targetTaskID uuid.UUID) *automationdom.Node {
+	t.Helper()
+	id := targetTaskID
+	cfg, err := json.Marshal(automationdom.TriggerConfig{TargetTaskID: &id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return newNode(automationdom.KindTrigger, string(triggerType), string(cfg))
+}
+
+func updateTaskNodeWithParent(t *testing.T, parentTaskID *uuid.UUID) *automationdom.Node {
+	t.Helper()
+	cfg, err := json.Marshal(automationdom.ActionConfig{
+		Update: &automationdom.TaskFieldUpdate{ParentTaskID: parentTaskID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return newNode(automationdom.KindAction, string(automationdom.ActionUpdateTask), string(cfg))
+}
+
+func TestValidateNoSelfParent_DirectChild_Rejected(t *testing.T) {
+	target := uuid.New()
+	trigger := targetedTriggerNodeWithTask(t, automationdom.TriggerAPITrigger, target)
+	update := updateTaskNodeWithParent(t, &target)
+	nodes := []*automationdom.Node{trigger, update}
+	edges := []*automationdom.Edge{newEdge(trigger.ID, update.ID)}
+
+	err := validateNoSelfParent(nodes, edges)
+	if !errors.Is(err, automationdom.ErrUpdateTaskSelfParent) {
+		t.Fatalf("expected ErrUpdateTaskSelfParent for parent_task_id == the trigger's target task, got %v", err)
+	}
+}
+
+func TestValidateNoSelfParent_TransitiveChild_Rejected(t *testing.T) {
+	target := uuid.New()
+	trigger := targetedTriggerNodeWithTask(t, automationdom.TriggerAPITrigger, target)
+	condition := newNode(automationdom.KindCondition, automationdom.ConditionNodeType, "{}")
+	update := updateTaskNodeWithParent(t, &target)
+	nodes := []*automationdom.Node{trigger, condition, update}
+	edges := []*automationdom.Edge{newEdge(trigger.ID, condition.ID), newEdge(condition.ID, update.ID)}
+
+	if err := validateNoSelfParent(nodes, edges); !errors.Is(err, automationdom.ErrUpdateTaskSelfParent) {
+		t.Fatalf("expected the check to catch a self-parent reached transitively, got %v", err)
+	}
+}
+
+func TestValidateNoSelfParent_DifferentParent_Allowed(t *testing.T) {
+	target, otherParent := uuid.New(), uuid.New()
+	trigger := targetedTriggerNodeWithTask(t, automationdom.TriggerAPITrigger, target)
+	update := updateTaskNodeWithParent(t, &otherParent)
+	nodes := []*automationdom.Node{trigger, update}
+	edges := []*automationdom.Edge{newEdge(trigger.ID, update.ID)}
+
+	if err := validateNoSelfParent(nodes, edges); err != nil {
+		t.Fatalf("expected a parent that is not the triggered task to be valid, got %v", err)
+	}
+}
+
+func TestValidateNoSelfParent_NoParentSet_Allowed(t *testing.T) {
+	target := uuid.New()
+	trigger := targetedTriggerNodeWithTask(t, automationdom.TriggerAPITrigger, target)
+	update := updateTaskNodeWithParent(t, nil)
+	nodes := []*automationdom.Node{trigger, update}
+	edges := []*automationdom.Edge{newEdge(trigger.ID, update.ID)}
+
+	if err := validateNoSelfParent(nodes, edges); err != nil {
+		t.Fatalf("expected an update_task without parent_task_id to be valid, got %v", err)
+	}
+}
+
+// An update_task node off the trigger's own path can never see the triggered
+// task, so its parent choice is none of this check's business.
+func TestValidateNoSelfParent_NotDownstream_Allowed(t *testing.T) {
+	target := uuid.New()
+	trigger := targetedTriggerNodeWithTask(t, automationdom.TriggerAPITrigger, target)
+	other := targetedTriggerNodeWithTask(t, automationdom.TriggerStatusChanged, uuid.New())
+	update := updateTaskNodeWithParent(t, &target)
+	nodes := []*automationdom.Node{trigger, other, update}
+	edges := []*automationdom.Edge{newEdge(other.ID, update.ID)}
+
+	if err := validateNoSelfParent(nodes, edges); err != nil {
+		t.Fatalf("expected an update_task outside the trigger's subtree to be valid, got %v", err)
+	}
+}
+
+// Task-activity triggers derive the task from the event, so no static target
+// task exists to compare against; runtime keeps rejecting it.
+func TestValidateNoSelfParent_EventDrivenTrigger_Skipped(t *testing.T) {
+	parent := uuid.New()
+	trigger := newNode(automationdom.KindTrigger, string(automationdom.TriggerStatusChanged), "{}")
+	update := updateTaskNodeWithParent(t, &parent)
+	nodes := []*automationdom.Node{trigger, update}
+	edges := []*automationdom.Edge{newEdge(trigger.ID, update.ID)}
+
+	if err := validateNoSelfParent(nodes, edges); err != nil {
+		t.Fatalf("expected an event-driven trigger to be skipped, got %v", err)
+	}
+}
+
+func updateTaskNodeWithParentAndTarget(t *testing.T, parentTaskID *uuid.UUID, target *automationdom.TaskTarget) *automationdom.Node {
+	t.Helper()
+	cfg, err := json.Marshal(automationdom.ActionConfig{
+		Update: &automationdom.TaskFieldUpdate{ParentTaskID: parentTaskID},
+		Target: target,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return newNode(automationdom.KindAction, string(automationdom.ActionUpdateTask), string(cfg))
+}
+
+// A retargeted action mutates the task it names, so parenting that task to
+// itself is the same failure — even with no trigger in play at all.
+func TestValidateNoSelfParent_RetargetedOtherTask_Rejected(t *testing.T) {
+	other := uuid.New()
+	update := updateTaskNodeWithParentAndTarget(t, &other, &automationdom.TaskTarget{
+		Kind:        automationdom.TaskTargetOther,
+		OtherTaskID: &other,
+	})
+	if err := validateNoSelfParent([]*automationdom.Node{update}, nil); !errors.Is(err, automationdom.ErrUpdateTaskSelfParent) {
+		t.Fatalf("expected a retargeted update_task to reject parenting its own target task to itself, got %v", err)
+	}
+}
+
+// ...and parenting some unrelated task to the run's task is not a self-parent.
+func TestValidateNoSelfParent_RetargetedOtherTask_Allowed(t *testing.T) {
+	target, other := uuid.New(), uuid.New()
+	trigger := targetedTriggerNodeWithTask(t, automationdom.TriggerAPITrigger, target)
+	update := updateTaskNodeWithParentAndTarget(t, &target, &automationdom.TaskTarget{
+		Kind:        automationdom.TaskTargetOther,
+		OtherTaskID: &other,
+	})
+	nodes := []*automationdom.Node{trigger, update}
+	edges := []*automationdom.Edge{newEdge(trigger.ID, update.ID)}
+	if err := validateNoSelfParent(nodes, edges); err != nil {
+		t.Fatalf("expected a retargeted action setting another task's parent to the run's task to be valid, got %v", err)
+	}
+}
+
+// children/parent/link targets resolve per run, so the static pass must not
+// guess: the same parent_task_id that is rejected for a non-retargeted node
+// is left to the runtime check here.
+func TestValidateNoSelfParent_DynamicTarget_Skipped(t *testing.T) {
+	target := uuid.New()
+	trigger := targetedTriggerNodeWithTask(t, automationdom.TriggerAPITrigger, target)
+	update := updateTaskNodeWithParentAndTarget(t, &target, &automationdom.TaskTarget{Kind: automationdom.TaskTargetChildren})
+	nodes := []*automationdom.Node{trigger, update}
+	edges := []*automationdom.Edge{newEdge(trigger.ID, update.ID)}
+	if err := validateNoSelfParent(nodes, edges); err != nil {
+		t.Fatalf("expected a children-targeted update_task to be skipped by the static check, got %v", err)
 	}
 }

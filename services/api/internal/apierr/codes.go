@@ -482,6 +482,8 @@ const (
 	CodeAutomationActivateNoAction Code = "AUTOMATION_ACTIVATE_NO_ACTION"
 	// CodeAutomationWebhookTokenInvalid indicates a webhook trigger POST presented a missing, wrong, or revoked token.
 	CodeAutomationWebhookTokenInvalid Code = "AUTOMATION_WEBHOOK_TOKEN_INVALID"
+	// CodeAutomationUpdateTaskSelfParent indicates an update_task node would set the triggered task as its own parent.
+	CodeAutomationUpdateTaskSelfParent Code = "AUTOMATION_UPDATE_TASK_SELF_PARENT"
 
 	// CodeAnnotationNotFound indicates the requested page annotation does not exist.
 	CodeAnnotationNotFound Code = "ANNOTATION_NOT_FOUND"

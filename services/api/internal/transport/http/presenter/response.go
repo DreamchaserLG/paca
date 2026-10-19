@@ -533,6 +533,8 @@ func statusAndCodeFor(err error) (int, apierr.Code) {
 		return http.StatusBadRequest, apierr.CodeAutomationActivateNoAction
 	case errors.Is(err, automationdom.ErrWebhookTokenInvalid):
 		return http.StatusUnauthorized, apierr.CodeAutomationWebhookTokenInvalid
+	case errors.Is(err, automationdom.ErrUpdateTaskSelfParent):
+		return http.StatusBadRequest, apierr.CodeAutomationUpdateTaskSelfParent
 	case errors.Is(err, annotationdom.ErrAnnotationNotFound):
 		return http.StatusNotFound, apierr.CodeAnnotationNotFound
 	case errors.Is(err, annotationdom.ErrAnnotationBodyEmpty),

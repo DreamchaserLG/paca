@@ -227,6 +227,9 @@ func (s *Service) Activate(ctx context.Context, projectID, automationID uuid.UUI
 	if err := validateTaskReachability(nodes, edges); err != nil {
 		return nil, err
 	}
+	if err := validateNoSelfParent(nodes, edges); err != nil {
+		return nil, err
+	}
 
 	a.Status = automationdom.StatusActive
 	a.UpdatedAt = time.Now()
@@ -312,11 +315,13 @@ func (s *Service) UpdateNode(ctx context.Context, projectID, automationID, nodeI
 			return nil, err
 		}
 		newConfig := normalizeConfig(*in.Config)
-		if n.Kind == automationdom.KindTrigger {
-			// A trigger's TargetTaskID can change here (e.g. cleared to
-			// nil) — re-check the whole graph, not just this node's own
-			// config, since that can retroactively make an already-valid
-			// downstream edge invalid (see validateTaskReachability).
+		// A trigger's TargetTaskID can change here (e.g. cleared to nil), and
+		// an update_task node's parent can change into the triggered task —
+		// either way, re-check the whole graph, not just this node's own
+		// config, since that can retroactively invalidate (or newly violate)
+		// an invariant downstream (see validateTaskReachability and
+		// validateNoSelfParent).
+		if n.Kind == automationdom.KindTrigger || (n.Kind == automationdom.KindAction && automationdom.ActionType(n.Type) == automationdom.ActionUpdateTask) {
 			nodes, err := s.repo.ListNodesByAutomation(ctx, a.ID)
 			if err != nil {
 				return nil, err
@@ -336,6 +341,9 @@ func (s *Service) UpdateNode(ctx context.Context, projectID, automationID, nodeI
 				}
 			}
 			if err := validateTaskReachability(tentativeNodes, edges); err != nil {
+				return nil, err
+			}
+			if err := validateNoSelfParent(tentativeNodes, edges); err != nil {
 				return nil, err
 			}
 		}
@@ -429,6 +437,9 @@ func (s *Service) AddEdge(ctx context.Context, projectID, automationID uuid.UUID
 	copy(tentativeEdges, edges)
 	tentativeEdges = append(tentativeEdges, &automationdom.Edge{SourceNodeID: source.ID, TargetNodeID: target.ID})
 	if err := validateTaskReachability(nodes, tentativeEdges); err != nil {
+		return nil, err
+	}
+	if err := validateNoSelfParent(nodes, tentativeEdges); err != nil {
 		return nil, err
 	}
 
@@ -1196,6 +1207,64 @@ func hasCycle(nodes []*automationdom.Node, edges []*automationdom.Edge) bool {
 		}
 	}
 	return false
+}
+
+// validateNoSelfParent rejects an update_task node that sets the triggered
+// task as its own parent. The task service rejects a task as its own parent
+// (task: a task cannot be its own parent), which fails the whole run at that
+// step — a graph that saves cleanly would therefore fail every single run
+// with nothing in the API logs to show it.
+//
+// Only triggers with a fixed TargetTaskID can be checked statically: a
+// task-activity trigger derives its task from the event, so there is nothing
+// to compare parent_task_id against until the run exists. The runtime check
+// still rejects those; this is the save-time half.
+func validateNoSelfParent(nodes []*automationdom.Node, edges []*automationdom.Edge) error {
+	nodesByID := make(map[uuid.UUID]*automationdom.Node, len(nodes))
+	for _, n := range nodes {
+		nodesByID[n.ID] = n
+	}
+	outgoing := make(map[uuid.UUID][]uuid.UUID, len(edges))
+	for _, e := range edges {
+		outgoing[e.SourceNodeID] = append(outgoing[e.SourceNodeID], e.TargetNodeID)
+	}
+
+	for _, n := range nodes {
+		if n.Kind != automationdom.KindTrigger {
+			continue
+		}
+		var trigger automationdom.TriggerConfig
+		if err := json.Unmarshal(n.Config, &trigger); err != nil || trigger.TargetTaskID == nil {
+			continue
+		}
+		target := *trigger.TargetTaskID
+
+		visited := map[uuid.UUID]bool{n.ID: true}
+		queue := append([]uuid.UUID{}, outgoing[n.ID]...)
+		for len(queue) > 0 {
+			id := queue[0]
+			queue = queue[1:]
+			if visited[id] {
+				continue
+			}
+			visited[id] = true
+			node, ok := nodesByID[id]
+			if !ok {
+				continue
+			}
+			if node.Kind == automationdom.KindAction && automationdom.ActionType(node.Type) == automationdom.ActionUpdateTask {
+				var cfg automationdom.ActionConfig
+				if err := json.Unmarshal(node.Config, &cfg); err != nil {
+					return err
+				}
+				if cfg.Update != nil && cfg.Update.ParentTaskID != nil && *cfg.Update.ParentTaskID == target {
+					return automationdom.ErrUpdateTaskSelfParent
+				}
+			}
+			queue = append(queue, outgoing[id]...)
+		}
+	}
+	return nil
 }
 
 // validateTaskReachability enforces that a trigger with no target task

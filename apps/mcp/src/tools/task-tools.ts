@@ -54,13 +54,13 @@ const UpdateTaskSchema = z.object({
 	statusId: z.string().optional(),
 	typeId: z.string().optional(),
 	sprintId: z.string().nullable().optional(),
-	assigneeId: z.string().optional(),
+	assigneeId: z.string().nullable().optional(),
 	parentTaskId: z.string().nullable().optional(),
 	importance: z.number().optional(),
 	storyPoints: z.number().int().min(0).nullable().optional(),
 	tags: z.array(z.string()).optional(),
-	startDate: z.string().optional(),
-	dueDate: z.string().optional(),
+	startDate: z.string().nullable().optional(),
+	dueDate: z.string().nullable().optional(),
 });
 
 const DeleteTaskSchema = z.object({
@@ -275,9 +275,9 @@ export function getTaskTools(): Tool[] {
 							"The technical UUID of the sprint (e.g., '550e8400-e29b-41d4-a716-446655440000'). Use list_sprints to get the sprint ID. Set to null to move the task out of its sprint and back to the backlog.",
 					},
 					assigneeId: {
-						type: "string",
+						type: ["string", "null"],
 						description:
-							"The technical UUID of the project MEMBER to assign the task to (e.g., '550e8400-e29b-41d4-a716-446655440000') — NOT the user ID; a member has both, and they differ. Use list_project_members and read the 'Member ID' field (works for both human and agent members). Never assume or reuse an ID seen elsewhere for a named person without confirming it there first.",
+							"The technical UUID of the project MEMBER to assign the task to (e.g., '550e8400-e29b-41d4-a716-446655440000') — NOT the user ID; a member has both, and they differ. Use list_project_members and read the 'Member ID' field (works for both human and agent members). Never assume or reuse an ID seen elsewhere for a named person without confirming it there first. Set to null to unassign the task. Any assignee change made here also switches the task to manual assignment mode.",
 					},
 					parentTaskId: {
 						type: ["string", "null"],
@@ -299,12 +299,14 @@ export function getTaskTools(): Tool[] {
 						description: "Tags for the task",
 					},
 					startDate: {
-						type: "string",
-						description: "The start date (ISO 8601 format)",
+						type: ["string", "null"],
+						description:
+							"The start date as an RFC 3339 timestamp, e.g. 2026-10-31T00:00:00Z (a date-only value is rejected). Set to null to clear it.",
 					},
 					dueDate: {
-						type: "string",
-						description: "The due date (ISO 8601 format)",
+						type: ["string", "null"],
+						description:
+							"The due date as an RFC 3339 timestamp, e.g. 2026-10-31T00:00:00Z (a date-only value is rejected). Set to null to clear it.",
 					},
 				},
 				required: ["projectId", "taskId"],

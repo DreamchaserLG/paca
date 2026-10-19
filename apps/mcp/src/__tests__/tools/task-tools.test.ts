@@ -417,6 +417,30 @@ describe("handleTaskTool – update_task", () => {
 		);
 	});
 
+	it("passes null through for assigneeId, startDate and dueDate so they can be cleared", async () => {
+		const client = makeApiClient();
+		await handleTaskTool(
+			"update_task",
+			{
+				projectId: "p1",
+				taskId: "t1",
+				assigneeId: null,
+				startDate: null,
+				dueDate: null,
+			},
+			client,
+		);
+		expect(client.updateTask).toHaveBeenCalledWith(
+			"p1",
+			"t1",
+			expect.objectContaining({
+				assignee_id: null,
+				start_date: null,
+				due_date: null,
+			}),
+		);
+	});
+
 	it("includes 'updated successfully' in response", async () => {
 		const result = await handleTaskTool(
 			"update_task",

@@ -1094,16 +1094,18 @@ func (c *AutomationConsumer) resumeWalk(ctx context.Context, wait *automationdom
 	}
 
 	if status != "finished" {
+		stepErr := fmt.Sprintf("agent conversation %s", status)
 		if err := c.repo.CreateRunStep(ctx, &automationdom.RunStep{
 			ID:         uuid.New(),
 			RunID:      wait.RunID,
 			NodeID:     wait.NodeID,
 			Status:     automationdom.RunStepFailed,
-			Error:      fmt.Sprintf("agent conversation %s", status),
+			Error:      stepErr,
 			ExecutedAt: time.Now(),
 		}); err != nil {
 			return fmt.Errorf("record failed run step: %w", err)
 		}
+		c.logFailedStep(wait.RunID, wait.NodeID, automation.Name, stepErr)
 	}
 
 	// Resolve this wait now, atomically with learning how many siblings
@@ -1858,6 +1860,19 @@ func (w *walker) recordStep(ctx context.Context, nodeID uuid.UUID, status automa
 	if err := w.consumer.repo.CreateRunStep(ctx, step); err != nil {
 		w.consumer.log.Warn("automation consumer: record run step", "node_id", nodeID, "err", err)
 	}
+	if status == automationdom.RunStepFailed {
+		w.consumer.logFailedStep(w.runID, nodeID, w.automationName, errMsg)
+	}
+}
+
+// logFailedStep is the one log line a run that did nothing leaves behind: the
+// failure otherwise exists only in the run's step list. Shared by recordStep
+// (the walk's own steps) and resumeWalk (the step it writes itself when an
+// agent conversation ends failed/stopped), the two places a failed RunStep is
+// created.
+func (c *AutomationConsumer) logFailedStep(runID, nodeID uuid.UUID, automationName, errMsg string) {
+	c.log.Warn("automation consumer: run step failed",
+		"run_id", runID, "node_id", nodeID, "automation", automationName, "err", errMsg)
 }
 
 // --- Action handlers -----------------------------------------------------------

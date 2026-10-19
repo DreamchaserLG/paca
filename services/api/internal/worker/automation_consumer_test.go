@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -670,6 +671,28 @@ func TestTriggerAIAgentPauseResume_Finished_ContinuesToNextNode(t *testing.T) {
 	}
 	if sawFailedStep {
 		t.Fatal("did not expect a failed run step recorded for the trigger_ai_agent node on a finished conversation")
+	}
+}
+
+// The failed step a failed/stopped agent conversation produces is written by
+// resumeWalk, not the walker, so it needs the same WARN to be visible.
+func TestTriggerAIAgentPauseResume_Failed_IsLogged(t *testing.T) {
+	c, client, repo, _, runID, agentNodeID, _ := newPauseResumeFixture(t)
+	defer func() { _ = client.Close() }()
+	var buf strings.Builder
+	c.log = slog.New(slog.NewTextHandler(&buf, nil))
+	convID := conversationIDFromPendingWaits(repo.pendingWaits)
+
+	c.handleAgentConversationStatus(redis.XMessage{ID: "1-1", Values: map[string]any{
+		"conversation_id": convID.String(),
+		"status":          "failed",
+	}})
+
+	out := buf.String()
+	for _, want := range []string{"level=WARN", runID.String(), agentNodeID.String(), "agent conversation failed"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected the failed-conversation log line to contain %q, got %q", want, out)
+		}
 	}
 }
 
@@ -2544,5 +2567,46 @@ func TestApplyUpdateSprint_GoalTemplateIsRendered(t *testing.T) {
 	}
 	if updater.lastUpdate.Goal == nil || **updater.lastUpdate.Goal != "Ship: Fix the bug" {
 		t.Fatalf("expected the rendered goal to be sent, got %v", updater.lastUpdate.Goal)
+	}
+}
+
+// --- recordStep logging ------------------------------------------------------
+
+func TestRecordStep_FailedStepIsLogged(t *testing.T) {
+	var buf strings.Builder
+	c := &AutomationConsumer{
+		repo: &fakePauseResumeRepo{},
+		log:  slog.New(slog.NewTextHandler(&buf, nil)),
+	}
+	runID, nodeID := uuid.New(), uuid.New()
+	w := &walker{consumer: c, runID: runID, automationName: "demo-automation"}
+
+	w.recordStep(context.Background(), nodeID, automationdom.RunStepFailed, nil, nil,
+		"update_task: tx: task: a task cannot be its own parent")
+
+	out := buf.String()
+	for _, want := range []string{"level=WARN", runID.String(), nodeID.String(), "demo-automation", "a task cannot be its own parent"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected the failed-step log line to contain %q, got %q", want, out)
+		}
+	}
+	if len(c.repo.(*fakePauseResumeRepo).runSteps) != 1 {
+		t.Error("expected the step to still be persisted")
+	}
+}
+
+func TestRecordStep_NonFailedStepIsNotLogged(t *testing.T) {
+	var buf strings.Builder
+	c := &AutomationConsumer{
+		repo: &fakePauseResumeRepo{},
+		log:  slog.New(slog.NewTextHandler(&buf, nil)),
+	}
+	w := &walker{consumer: c, runID: uuid.New(), automationName: "demo-automation"}
+
+	w.recordStep(context.Background(), uuid.New(), automationdom.RunStepCompleted, nil, json.RawMessage(`{"applied":true}`), "")
+	w.recordStep(context.Background(), uuid.New(), automationdom.RunStepSkipped, nil, nil, "")
+
+	if buf.String() != "" {
+		t.Errorf("expected no log line for completed/skipped steps, got %q", buf.String())
 	}
 }

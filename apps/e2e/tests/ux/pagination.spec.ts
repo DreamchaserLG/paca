@@ -352,10 +352,10 @@ test.describe("Load-more lists", () => {
 		await expect(async () => {
 			if (await loadMore.isVisible())
 				await loadMore.click({ timeout: 2_000 }).catch(() => {});
-			await expect(
-				sidebar.getByRole("link", { name: "Draft 35" }),
-			).toBeVisible({ timeout: 2_000 });
-		}).toPass();
+			await expect(sidebar.getByRole("link", { name: "Draft 35" })).toBeVisible(
+				{ timeout: 2_000 },
+			);
+		}).toPass({ timeout: 10_000 });
 		await expect(sidebar.getByRole("link", { name: "Draft 01" })).toBeVisible();
 	});
 
@@ -390,6 +390,6 @@ test.describe("Load-more lists", () => {
 			await expect(page.getByText("Paged Member 32")).toBeVisible({
 				timeout: 2_000,
 			});
-		}).toPass();
+		}).toPass({ timeout: 10_000 });
 	});
 });

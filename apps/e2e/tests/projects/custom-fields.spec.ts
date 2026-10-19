@@ -248,7 +248,7 @@ test.describe('Custom Fields Management', () => {
       await expect(dialog.getByRole('textbox', { name: /Field key/i })).toBeVisible();
 
       // The dialog should contain field type buttons: Text, Number, Date, Checkbox, Select
-      await expect(dialog.getByRole('button', { name: 'Text' })).toBeVisible();
+      await expect(dialog.getByRole('button', { name: 'Text', exact: true })).toBeVisible();
       await expect(dialog.getByRole('button', { name: 'Number' })).toBeVisible();
       await expect(dialog.getByRole('button', { name: 'Date' })).toBeVisible();
       await expect(dialog.getByRole('button', { name: 'Checkbox' })).toBeVisible();
@@ -297,7 +297,7 @@ test.describe('Custom Fields Management', () => {
       await dialog.getByRole('textbox', { name: /Display name/i }).fill('E2E Text Field');
 
       // And the user selects "Text" field type
-      await dialog.getByRole('button', { name: 'Text' }).click();
+      await dialog.getByRole('button', { name: 'Text', exact: true }).click();
 
       // And the user clicks "Create field"
       await dialog.getByRole('button', { name: 'Create field' }).click();

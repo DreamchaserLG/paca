@@ -941,3 +941,69 @@ func TestPrompt_CancelledMidBacklogReturnsPromptly(t *testing.T) {
 			elapsed, backlogSize, time.Duration(backlogSize)*20*time.Millisecond)
 	}
 }
+
+// TestNewSession_HTTPServerCarriesTypeDiscriminator is the regression guard
+// for the ACP wire contract that broke agent conversations with an http MCP
+// server: agent-client-protocol-schema v1.5.0 (goose 1.50.1) tags the
+// http/sse arms of McpServer and leaves only stdio untagged, so an http
+// entry without "type":"http" matches no arm at all and session/new fails
+// with "enabledExtensions: data did not match any variant of untagged enum
+// McpServer". Asserted on the marshalled wire shape, since that is exactly
+// what the server deserializes.
+func TestNewSession_HTTPServerCarriesTypeDiscriminator(t *testing.T) {
+	srv := newACPMockServer(t)
+	srv.onInitialize = initializeOK
+	var wire string
+	srv.onPost = func(s *acpMockServer, req rpcRequest, hdrSessionID string) {
+		if req.Method != "session/new" {
+			return
+		}
+		raw, _ := json.Marshal(req)
+		wire = string(raw)
+		s.enqueueConn(fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"result":{"sessionId":"20261019_1","modes":{"currentModeId":"auto"}}}`, req.ID))
+	}
+	ts := httptest.NewServer(srv.handler())
+	defer ts.Close()
+
+	c := NewClient(ts.URL, testSecret, nil)
+	defer c.Close()
+	if err := c.Initialize(context.Background()); err != nil {
+		t.Fatalf("Initialize: %v", err)
+	}
+	headers := []HTTPHeader{}
+	servers := []MCPServerConfig{{
+		Type:    McpServerHTTP,
+		Name:    "platform-knowledge",
+		URL:     "http://sgc-platform-knowledge-mcp.example.svc:4000",
+		Headers: &headers,
+	}}
+	if _, err := c.NewSession(context.Background(), "/home/goose", servers); err != nil {
+		t.Fatalf("NewSession: %v", err)
+	}
+	if !strings.Contains(wire, `"type":"http"`) {
+		t.Fatalf("session/new body is missing the http transport discriminator: %s", wire)
+	}
+	if strings.Contains(wire, `"command"`) {
+		t.Errorf("http extension must not carry a command field: %s", wire)
+	}
+}
+
+// A stdio extension must stay untagged: ACP's stdio arm is the untagged
+// fallback, so a "type" here would have to match the tagged arms instead.
+func TestBuildEnabledExtensions_StdioServerHasNoTypeTag(t *testing.T) {
+	args := []string{"-y", "@modelcontextprotocol/server-filesystem", "/tmp"}
+	env := []EnvVariable{}
+	exts := buildEnabledExtensions([]MCPServerConfig{{
+		Type: McpServerStdio, Name: "filesystem", Command: "npx", Args: &args, Env: &env,
+	}})
+	if len(exts) != 2 {
+		t.Fatalf("extensions = %+v, want [skills, filesystem]", exts)
+	}
+	server := exts[1].Server
+	if server == nil || server.Type != "" {
+		t.Fatalf("stdio extension server = %+v, want no type tag", server)
+	}
+	if server.Command != "npx" || server.Args == nil || len(*server.Args) != 3 {
+		t.Fatalf("stdio extension server = %+v, want the command and args preserved", server)
+	}
+}

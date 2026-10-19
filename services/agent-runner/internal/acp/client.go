@@ -420,11 +420,14 @@ func mcpServerToGooseExtension(s MCPServerConfig) (ext GooseExtension, ok bool) 
 		}, true
 
 	case McpServerHTTP:
-		// Headers travel inline with real values, unlike stdio's env — see
-		// GooseExtension's doc comment.
+		// "type":"http" is required here: ACP tags the http/sse arms of
+		// McpServer and leaves only stdio untagged (see UntaggedMcpServer's
+		// doc comment). Headers travel inline with real values, unlike
+		// stdio's env — see GooseExtension's doc comment.
 		return GooseExtension{
 			Type: "mcp",
 			Server: &UntaggedMcpServer{
+				Type:    string(McpServerHTTP),
 				Name:    s.Name,
 				URL:     s.URL,
 				Headers: s.Headers,

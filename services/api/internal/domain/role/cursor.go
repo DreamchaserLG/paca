@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/google/uuid"
 )
@@ -36,11 +35,11 @@ func EncodeCursor(r *Role) string {
 	if r.ProjectID == nil {
 		shared = 1
 	}
-	b, _ := json.Marshal(roleCursor{Shared: shared, Name: strings.ToLower(r.Name), ID: r.ID.String()})
+	b, _ := json.Marshal(roleCursor{Shared: shared, Name: r.Name, ID: r.ID.String()})
 	return base64.URLEncoding.EncodeToString(b)
 }
 
-// DecodeCursor returns the (shared, lowercased name, id) position in a token
+// DecodeCursor returns the (shared, name, id) position in a token
 // produced by EncodeCursor; any failure wraps ErrInvalidCursor.
 func DecodeCursor(s string) (shared int, name string, id uuid.UUID, err error) {
 	b, err := base64.URLEncoding.DecodeString(s)

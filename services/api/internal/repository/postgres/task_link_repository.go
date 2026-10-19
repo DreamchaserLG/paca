@@ -98,18 +98,17 @@ func (r *TaskLinkRepository) ListTaskLinks(ctx context.Context, taskID uuid.UUID
 		return nil, false, 0, err
 	}
 	q := taskLinkSelect
-	args := []any{taskID.String()}
+	sink := &argList{args: []any{taskID.String()}}
 	if cursorAfter != nil {
 		at, id, err := taskdom.DecodeLinkCursor(*cursorAfter)
 		if err != nil {
 			return nil, false, 0, err
 		}
-		q += ` AND (tl.created_at, tl.id) > ($2, $3::uuid)`
-		args = append(args, at, id.String())
+		q += ` AND (tl.created_at, tl.id) > (` + sink.addArg(at) + `, ` + sink.addArg(id.String()) + `::uuid)`
 	}
-	q += fmt.Sprintf(` ORDER BY tl.created_at ASC, tl.id ASC LIMIT %d`, limit+1)
+	q += ` ORDER BY tl.created_at ASC, tl.id ASC LIMIT ` + sink.addArg(limit+1)
 	var rows []taskLinkWithTaskRow
-	if err := r.db.SelectContext(ctx, &rows, q, args...); err != nil {
+	if err := r.db.SelectContext(ctx, &rows, q, sink.args...); err != nil {
 		return nil, false, 0, err
 	}
 	hasMore := len(rows) > limit

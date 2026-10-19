@@ -145,18 +145,17 @@ func (r *AttachmentRepository) ListTaskAttachments(ctx context.Context, taskID u
 		return nil, false, 0, fmt.Errorf("attachment repo: count task attachments: %w", err)
 	}
 	q := taskAttachmentJoinSQL + ` WHERE ta.task_id = $1`
-	args := []any{taskID.String()}
+	sink := &argList{args: []any{taskID.String()}}
 	if cursorAfter != nil {
 		at, id, err := attachmentdom.DecodeCursor(*cursorAfter)
 		if err != nil {
 			return nil, false, 0, err
 		}
-		q += ` AND (ta.created_at, ta.id) > ($2, $3::uuid)`
-		args = append(args, at, id.String())
+		q += ` AND (ta.created_at, ta.id) > (` + sink.addArg(at) + `, ` + sink.addArg(id.String()) + `::uuid)`
 	}
-	q += fmt.Sprintf(` ORDER BY ta.created_at ASC, ta.id ASC LIMIT %d`, limit+1)
+	q += ` ORDER BY ta.created_at ASC, ta.id ASC LIMIT ` + sink.addArg(limit+1)
 	var rows []taskAttachmentWithFileRow
-	if err := r.db.SelectContext(ctx, &rows, q, args...); err != nil {
+	if err := r.db.SelectContext(ctx, &rows, q, sink.args...); err != nil {
 		return nil, false, 0, fmt.Errorf("attachment repo: list task attachments: %w", err)
 	}
 	hasMore := len(rows) > limit

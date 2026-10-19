@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,7 +16,8 @@ const (
 	// SprintSortName orders by (LOWER(name), id) ascending — the default.
 	SprintSortName SprintSort = "name"
 	// SprintSortRecent orders by (updated_at, id) descending, so the most
-	// recently touched sprint (e.g. the last completed) comes first.
+	// recently touched sprint (e.g. the last completed) comes first. Editing a
+	// sprint moves it, so a walk in progress may skip or repeat that sprint.
 	SprintSortRecent SprintSort = "recent"
 )
 
@@ -44,11 +44,11 @@ type sprintCursor struct {
 
 // EncodeCursor builds the cursor that resumes either sprint ordering after s.
 func EncodeCursor(s *Sprint) string {
-	b, _ := json.Marshal(sprintCursor{Name: strings.ToLower(s.Name), UpdatedAt: s.UpdatedAt.UTC(), ID: s.ID.String()})
+	b, _ := json.Marshal(sprintCursor{Name: s.Name, UpdatedAt: s.UpdatedAt.UTC(), ID: s.ID.String()})
 	return base64.URLEncoding.EncodeToString(b)
 }
 
-// DecodeCursor returns the (lowercased name, updated_at, id) position in a
+// DecodeCursor returns the (name, updated_at, id) position in a
 // token produced by EncodeCursor; any failure wraps ErrInvalidCursor.
 func DecodeCursor(s string) (name string, updatedAt time.Time, id uuid.UUID, err error) {
 	b, err := base64.URLEncoding.DecodeString(s)

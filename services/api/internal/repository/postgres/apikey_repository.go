@@ -103,13 +103,13 @@ func (r *APIKeyRepository) FindByHash(ctx context.Context, keyHash string) (*api
 
 // ListByAccountID returns one page of the account's non-revoked API keys,
 // newest first (created_at DESC, id DESC). The total is returned on the
-// first page (no cursor) only.
+// first cursor page and on every numbered page only.
 func (r *APIKeyRepository) ListByAccountID(ctx context.Context, accountID uuid.UUID, filter apikeydom.KeyFilter, cursorAfter *string, limit int) ([]*apikeydom.APIKey, bool, int, error) {
 	if limit <= 0 {
 		limit = 30
 	}
-	// The total is a first-page field: later cursor pages skip the COUNT. A
-	// numbered page (Offset) always carries it.
+	// The total is returned on the first cursor page and on every numbered
+	// page (Offset); later cursor pages skip the COUNT.
 	var total int
 	if cursorAfter == nil || filter.Offset > 0 {
 		if err := r.db.GetContext(ctx, &total, `SELECT COUNT(*) FROM `+apiKeyFrom+` WHERE k.account_id = $1 AND k.revoked_at IS NULL`, accountID.String()); err != nil {

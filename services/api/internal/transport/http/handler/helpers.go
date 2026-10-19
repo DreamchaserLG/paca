@@ -106,14 +106,18 @@ func pageOffset(page, pageSize int) int {
 // parsePage reads the page query parameter (1-indexed). An absent param
 // silently falls back to 1 — only an explicitly supplied, invalid value
 // (non-numeric or less than 1) is rejected. See parsePageSize for why.
+// maxPage bounds the page number so (page-1)*pageSize cannot overflow into a
+// negative OFFSET, and keeps numbered paging from scanning absurd depths.
+const maxPage = 100000
+
 func parsePage(r *http.Request) (int, error) {
 	raw := r.URL.Query().Get("page")
 	if raw == "" {
 		return 1, nil
 	}
 	n, err := strconv.Atoi(raw)
-	if err != nil || n < 1 {
-		return 0, apierr.New(apierr.CodeBadRequest, "page must be a positive integer")
+	if err != nil || n < 1 || n > maxPage {
+		return 0, apierr.New(apierr.CodeBadRequest, fmt.Sprintf("page must be an integer between 1 and %d", maxPage))
 	}
 	return n, nil
 }

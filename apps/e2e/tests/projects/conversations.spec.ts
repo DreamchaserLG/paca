@@ -226,9 +226,10 @@ function composerInput(page: Page): Locator {
 }
 
 async function selectAgent(page: Page, agentName: string): Promise<void> {
-	// The agent picker is the first combobox in the composer's action row.
-	await page.getByRole("combobox").first().click();
-	await page.getByRole("option", { name: agentName, exact: true }).click();
+	// The agent picker is a popover button in the composer's action row; its
+	// label is the placeholder until an agent is chosen.
+	await page.getByRole("button", { name: "Select an agent…" }).click();
+	await page.getByRole("button", { name: agentName, exact: true }).click();
 }
 
 async function sendMessage(page: Page, text: string): Promise<void> {
@@ -317,9 +318,9 @@ test.describe("Project-scoped conversations list", () => {
 
 		await expect(composerInput(page)).toBeVisible();
 		await expect(composerInput(page)).toBeEnabled();
-		await expect(page.getByRole("combobox").first()).toContainText(
-			"Select an agent…",
-		);
+		await expect(
+			page.getByRole("button", { name: "Select an agent…" }),
+		).toBeVisible();
 	});
 
 	test("A conversation list item shows the agent name, status badge, and trigger label", async ({
@@ -648,9 +649,9 @@ test.describe("Starting a new project-scoped conversation", () => {
 		);
 		await expect(composerInput(page)).toBeEnabled();
 		await expect(composerInput(page)).toHaveValue("");
-		await expect(page.getByRole("combobox").first()).toContainText(
-			"Select an agent…",
-		);
+		await expect(
+			page.getByRole("button", { name: "Select an agent…" }),
+		).toBeVisible();
 	});
 });
 

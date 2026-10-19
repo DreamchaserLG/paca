@@ -53,7 +53,7 @@ const UpdateTaskSchema = z.object({
 	description: z.string().optional(),
 	statusId: z.string().optional(),
 	typeId: z.string().optional(),
-	sprintId: z.string().optional(),
+	sprintId: z.string().nullable().optional(),
 	assigneeId: z.string().optional(),
 	parentTaskId: z.string().nullable().optional(),
 	importance: z.number().optional(),
@@ -270,9 +270,9 @@ export function getTaskTools(): Tool[] {
 							"The technical UUID of the task type (e.g., '550e8400-e29b-41d4-a716-446655440000'). Use list_task_types to get the type ID.",
 					},
 					sprintId: {
-						type: "string",
+						type: ["string", "null"],
 						description:
-							"The technical UUID of the sprint (e.g., '550e8400-e29b-41d4-a716-446655440000'). Use list_sprints to get the sprint ID.",
+							"The technical UUID of the sprint (e.g., '550e8400-e29b-41d4-a716-446655440000'). Use list_sprints to get the sprint ID. Set to null to move the task out of its sprint and back to the backlog.",
 					},
 					assigneeId: {
 						type: "string",

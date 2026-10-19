@@ -403,6 +403,20 @@ describe("handleTaskTool – update_task", () => {
 		});
 	});
 
+	it("passes sprintId null through to move the task to the backlog", async () => {
+		const client = makeApiClient();
+		await handleTaskTool(
+			"update_task",
+			{ projectId: "p1", taskId: "t1", sprintId: null },
+			client,
+		);
+		expect(client.updateTask).toHaveBeenCalledWith(
+			"p1",
+			"t1",
+			expect.objectContaining({ sprint_id: null }),
+		);
+	});
+
 	it("includes 'updated successfully' in response", async () => {
 		const result = await handleTaskTool(
 			"update_task",

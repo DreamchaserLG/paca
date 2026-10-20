@@ -34,6 +34,7 @@ import {
 	uninstallPlugin,
 	upgradePlugin,
 } from "@/lib/plugin-api";
+import { PACA_AVATAR_LIGHT } from "@/lib/provider-logos";
 
 /**
  * Resolves an install/upgrade mutation failure to a fully translated message
@@ -44,6 +45,11 @@ import {
  * recognized codes get a plain friendly translated message; anything else
  * falls back to the raw server message, then a generic translated string.
  */
+/** Plugins published under the com.paca namespace are first-party. */
+function isOfficialPlugin(name: string): boolean {
+	return name.startsWith("com.paca.");
+}
+
 function resolveMutationErrorMessage(
 	err: unknown,
 	t: TFunction<"plugins">,
@@ -194,11 +200,22 @@ function PluginCard({
 	return (
 		<div className="rounded-lg border border-border/60 bg-card p-4 space-y-3 hover:border-border/80 transition-colors">
 			<div className="flex items-start gap-3">
-				<EntityAvatar
-					name={plugin.display_name}
-					avatarUrl={plugin.avatar_url}
-					size="lg"
-				/>
+				<div className="relative shrink-0">
+					<EntityAvatar
+						name={plugin.display_name}
+						avatarUrl={plugin.avatar_url}
+						size="lg"
+						shape="rounded"
+					/>
+					{isOfficialPlugin(plugin.name) ? (
+						<img
+							src={PACA_AVATAR_LIGHT}
+							alt=""
+							data-testid="paca-plugin-badge"
+							className="absolute -right-1 -bottom-1 size-4 rounded-full bg-white p-px ring-2 ring-white"
+						/>
+					) : null}
+				</div>
 				<div className="min-w-0 flex-1">
 					<div className="flex items-center gap-2 flex-wrap">
 						<p className="font-medium text-sm truncate">

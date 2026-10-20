@@ -36,6 +36,11 @@ import {
 } from "@/lib/plugin-api";
 import { PACA_AVATAR_LIGHT } from "@/lib/provider-logos";
 
+/** Plugins published under the com.paca namespace are first-party. */
+function isOfficialPlugin(name: string): boolean {
+	return name.startsWith("com.paca.");
+}
+
 /**
  * Resolves an install/upgrade mutation failure to a fully translated message
  * worth showing the admin. `PLUGIN_INCOMPATIBLE_HOST_VERSION` carries
@@ -45,11 +50,6 @@ import { PACA_AVATAR_LIGHT } from "@/lib/provider-logos";
  * recognized codes get a plain friendly translated message; anything else
  * falls back to the raw server message, then a generic translated string.
  */
-/** Plugins published under the com.paca namespace are first-party. */
-function isOfficialPlugin(name: string): boolean {
-	return name.startsWith("com.paca.");
-}
-
 function resolveMutationErrorMessage(
 	err: unknown,
 	t: TFunction<"plugins">,
@@ -210,9 +210,10 @@ function PluginCard({
 					{isOfficialPlugin(plugin.name) ? (
 						<img
 							src={PACA_AVATAR_LIGHT}
-							alt=""
+							alt={t("marketplace.card.official")}
+							title={t("marketplace.card.official")}
 							data-testid="paca-plugin-badge"
-							className="absolute -right-1 -bottom-1 size-4 rounded-full bg-white p-px ring-2 ring-white"
+							className="absolute -right-1 -bottom-1 size-4 rounded-full bg-white object-contain p-px ring-2 ring-white"
 						/>
 					) : null}
 				</div>

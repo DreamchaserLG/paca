@@ -110,9 +110,9 @@ func (s *Service) WithEnvironmentService(svc environmentdom.Service) *Service {
 // satisfied by *iam.Authorizer.
 type ConversationReadAuthorizer = iam.Checker
 
-// WithAuthorizer wires in the IAM authorizer — see the authorizer field's
-// doc comment for what it's used for. A nil *iam.Authorizer leaves the
-// check unconfigured (skipped), never a typed nil.
+// WithGrantsNotifier wires in the policy cache invalidation called after an
+// agent is deleted (its attachments and memberships go with it), which also
+// announces the change to services/realtime.
 func (s *Service) WithGrantsNotifier(inv events.PolicyInvalidator) *Service {
 	s.grants = inv
 	return s
@@ -125,6 +125,9 @@ func (s *Service) accessRevoked() {
 	}
 }
 
+// WithAuthorizer wires in the IAM authorizer — see the authorizer field's
+// doc comment for what it's used for. A nil *iam.Authorizer leaves the
+// check unconfigured (skipped), never a typed nil.
 func (s *Service) WithAuthorizer(a *iam.Authorizer) *Service {
 	if a != nil {
 		s.authorizer = a

@@ -81,28 +81,40 @@ export function createResyncer(
 		sockets: Socket[],
 		announce: boolean,
 	): Promise<void> {
-		const first = sockets[0];
-		if (!first) return;
-		let perms: Record<string, boolean> | null;
-		try {
-			perms = await fetchProjectPermissions(
-				apiUrl,
-				first.data.rawToken,
-				projectId,
-			);
-		} catch (err) {
-			logger.warn(
-				{ userId: first.data.userId, projectId, err },
-				"room resync failed",
-			);
-			// A dead token cannot be resynced: end the socket so it reconnects
-			// with a fresh one. Any other failure keeps the rooms as they are
-			// until the next pass; per-event checks still protect delivery.
-			if (err instanceof ApiRequestError && err.status === 401) {
-				for (const s of sockets) s.disconnect(true);
+		// One account's sockets can hold different tokens (a tab that
+		// reconnected on a refreshed cookie next to one whose token has
+		// expired), and a 401 for one token says nothing about the others. So
+		// try each distinct token until one is accepted, ending only the
+		// sockets whose own token the API rejected; the answer is the
+		// account's, so it then applies to every socket still connected.
+		let live = sockets;
+		let perms: Record<string, boolean> | null | undefined;
+		for (const token of new Set(sockets.map((s) => s.data.rawToken))) {
+			const holders = live.filter((s) => s.data.rawToken === token);
+			const first = holders[0];
+			if (!first) continue;
+			try {
+				perms = await fetchProjectPermissions(apiUrl, token, projectId);
+				break;
+			} catch (err) {
+				logger.warn(
+					{ userId: first.data.userId, projectId, err },
+					"room resync failed",
+				);
+				if (err instanceof ApiRequestError && err.status === 401) {
+					// A dead token cannot be resynced: end its sockets so they
+					// reconnect with a fresh one.
+					for (const s of holders) s.disconnect(true);
+					live = live.filter((s) => s.data.rawToken !== token);
+					continue;
+				}
+				// Any other failure keeps the rooms as they are until the next
+				// pass; per-event checks still protect delivery.
+				return;
 			}
-			return;
 		}
+		if (perms === undefined) return;
+		sockets = live;
 		for (const socket of sockets) {
 			const before = roomsOf(socket, projectId);
 			const after = syncProjectRooms(socket, projectId, perms);

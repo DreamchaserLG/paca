@@ -109,6 +109,58 @@ describe("resyncer", () => {
 		expect(u.s.data.projects.size).toBe(0);
 	});
 
+	it("ends only the sockets whose own token is rejected, and still re-syncs the account's other sockets", async () => {
+		// Two tabs of one account: one on an expired token, one on a fresh one.
+		const stale = fakeSocket(
+			"u",
+			["p1"],
+			["project:p1:tasks", "project:p1:docs"],
+		);
+		const fresh = fakeSocket(
+			"u",
+			["p1"],
+			["project:p1:tasks", "project:p1:docs"],
+		);
+		stale.s.data.rawToken = "tok-stale";
+		fresh.s.data.rawToken = "tok-fresh";
+		const urls = api((token) =>
+			token === "tok-stale"
+				? new Response("{}", { status: 401 })
+				: actions("tasks:read"),
+		);
+		createResyncer(
+			ioOf(stale, fresh),
+			"http://api",
+			new AccessDecider("http://api"),
+			log,
+		).onIamChanged();
+		await sleep(30);
+
+		expect(stale.wasDisconnected()).toBe(true);
+		expect(fresh.wasDisconnected()).toBe(false);
+		// The healthy socket was re-synced on the account's answer.
+		expect([...fresh.s.rooms]).toEqual(["project:p1:tasks"]);
+		expect(fresh.emitted.length).toBe(1);
+		expect(urls.length).toBe(2); // the stale token, then the fresh one
+	});
+
+	it("ends every socket of the account when all of its tokens are rejected", async () => {
+		const a = fakeSocket("u", ["p1"], ["project:p1:tasks"]);
+		const b = fakeSocket("u", ["p1"], ["project:p1:tasks"]);
+		a.s.data.rawToken = "tok-a";
+		b.s.data.rawToken = "tok-b";
+		api(() => new Response("{}", { status: 401 }));
+		createResyncer(
+			ioOf(a, b),
+			"http://api",
+			new AccessDecider("http://api"),
+			log,
+		).onIamChanged();
+		await sleep(30);
+		expect(a.wasDisconnected()).toBe(true);
+		expect(b.wasDisconnected()).toBe(true);
+	});
+
 	it("disconnects a socket whose token the API rejects, and keeps rooms on other failures", async () => {
 		const dead = fakeSocket("dead", ["p1"], ["project:p1:tasks"]);
 		const flaky = fakeSocket("flaky", ["p1"], ["project:p1:tasks"]);

@@ -4,6 +4,7 @@
 // into namespace-scoped rooms at join time:
 //
 //   project:<projectId>:tasks        — receives all task.* events
+//   project:<projectId>:conversations — receives all agent.* conversation events
 //   project:<projectId>:docs         — receives all doc.* events
 //   project:<projectId>:workflows    — receives all workflow.* graph events
 //   project:<projectId>:sprints      — receives all sprint.* and view.* events
@@ -17,6 +18,7 @@
 // EventNamespace identifies the permission-gated sub-domains.
 export type EventNamespace =
 	| "tasks"
+	| "conversations"
 	| "docs"
 	| "workflows"
 	| "sprints"
@@ -26,6 +28,7 @@ export type EventNamespace =
 // to receive events in that namespace.
 export const NAMESPACE_PERMISSIONS: Record<EventNamespace, string> = {
 	tasks: "tasks:read",
+	conversations: "conversations:read",
 	docs: "docs:read",
 	workflows: "workflows:read",
 	sprints: "sprints:read",
@@ -61,9 +64,15 @@ export function eventNamespace(type: string): EventNamespace | undefined {
 	// github.branch.* and github.pr.* events are delivered to the tasks room
 	// because they are task-scoped and require the same tasks:read permission.
 	if (type.startsWith("github.")) return "tasks";
-	// agent.* events are task-scoped (conversation started/finished/events) and
-	// require the same tasks:read permission.
-	if (type.startsWith("agent.")) return "tasks";
+	// The ACP bridge's connected/disconnected status carries no conversation
+	// content, only an agent id and a flag.
+	if (type === "agent.acp_bridge.status") return "tasks";
+	// Other agent.* events carry conversation content (messages, reasoning,
+	// tool actions), so they require conversations:read — the permission the
+	// REST conversation routes are gated on — not tasks:read. The room only
+	// says who may read conversations project-wide; the subscriber checks each
+	// conversation individually before delivering (see conversation-access.ts).
+	if (type.startsWith("agent.")) return "conversations";
 	// workflow.assigned is task-scoped (the automation engine reassigning a
 	// task) — special-cased ahead of the generic workflow.* rule below so it
 	// routes on tasks:read rather than workflows:read.

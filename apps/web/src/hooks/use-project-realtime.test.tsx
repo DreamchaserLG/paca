@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => {
 		onProjectNamespaces: vi.fn(),
 		unsubscribeNamespaces: vi.fn(),
 		invalidateQueries: vi.fn(),
+		resetQueries: vi.fn(),
 		setQueryData: vi.fn(),
 	};
 });
@@ -39,6 +40,7 @@ vi.mock("@tanstack/react-query", async () => {
 		...actual,
 		useQueryClient: () => ({
 			invalidateQueries: mocks.invalidateQueries,
+			resetQueries: mocks.resetQueries,
 			setQueryData: mocks.setQueryData,
 		}),
 	};
@@ -391,9 +393,10 @@ describe("useProjectRealtime", () => {
 			]);
 		});
 
-		it("refetches everything cached for the project when a kind of data was lost", () => {
+		it("resets everything cached for the project when a kind of data was lost, so refused data does not stay on screen", () => {
 			renderHook(() => useProjectRealtime("proj-abc"));
 			mocks.invalidateQueries.mockClear();
+			mocks.resetQueries.mockClear();
 
 			namespaceListener()({
 				projectId: "proj-abc",
@@ -401,9 +404,22 @@ describe("useProjectRealtime", () => {
 				removed: ["docs"],
 			});
 
-			expect(mocks.invalidateQueries).toHaveBeenCalledWith({
+			expect(mocks.resetQueries).toHaveBeenCalledWith({
 				queryKey: ["projects", "proj-abc"],
 			});
+		});
+
+		it("only invalidates, never resets, when nothing was lost", () => {
+			renderHook(() => useProjectRealtime("proj-abc"));
+			mocks.resetQueries.mockClear();
+
+			namespaceListener()({
+				projectId: "proj-abc",
+				namespaces: ["tasks", "docs"],
+				removed: [],
+			});
+
+			expect(mocks.resetQueries).not.toHaveBeenCalled();
 		});
 
 		it("ignores a report about another project", () => {

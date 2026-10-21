@@ -17,8 +17,8 @@
 //   2. Listens for "event" messages and maps event types to query
 //      invalidations using the same query key prefixes as the API helpers.
 //   3. Refetches the caller's permissions when the server reports that IAM
-//      changed ("permissions:changed"), and everything cached for the project
-//      when a kind of data the caller could see is no longer theirs.
+//      changed ("permissions:changed"), and resets everything cached for the
+//      project when a kind of data the caller could see is no longer theirs.
 //   4. Leaves the project rooms and removes the listeners on unmount.
 //
 // Query invalidation strategy
@@ -368,7 +368,10 @@ export function useProjectRealtime(projectId: string | undefined): void {
 				queryKey: ["auth", "me", "permissions"],
 			});
 			if (change.removed.length > 0) {
-				void queryClient.invalidateQueries({
+				// Reset, not just invalidate: a refetch the server now refuses
+				// (403) would leave the previous data on screen, still showing
+				// what the account may no longer see.
+				void queryClient.resetQueries({
 					queryKey: ["projects", currentProjectId],
 				});
 			}

@@ -38,7 +38,7 @@ import (
 // listings), credential exchange (/auth/* login/refresh/password-set/logout,
 // automation webhooks), the plugin proxy (gated per-manifest inside the
 // handler), self-service /users/me/*, handler-scoped listings (/projects,
-// workspace-stats, port-forward resolve, members/me/permissions) and the
+// workspace-stats, port-forward resolve, members/me/permissions and its batch check) and the
 // global-agent chat surface.
 
 // routeGates is one walked route and the gates declared on it.

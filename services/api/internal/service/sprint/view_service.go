@@ -55,10 +55,21 @@ func (s *ViewService) publish(ctx context.Context, topic string, payload map[str
 	if s.publisher == nil {
 		return
 	}
-	_ = s.publisher.Publish(ctx, events.ChannelRealtime, map[string]any{
-		"type":    topic,
-		"payload": payload,
-	})
+	e := events.Event{Topic: topic, Payload: payload, EntityType: events.EntityView}
+	if id, err := uuid.Parse(stringField(payload, "project_id")); err == nil {
+		e.ProjectID = id
+	}
+	// A reorder names no single view; its authorization falls back to the
+	// project.
+	if id, err := uuid.Parse(stringField(payload, "view_id")); err == nil {
+		e.EntityID = &id
+	}
+	events.PublishRealtime(ctx, s.publisher, e)
+}
+
+func stringField(m map[string]any, key string) string {
+	v, _ := m[key].(string)
+	return v
 }
 
 // record fans a view's create/update/delete out to realtime and the activity

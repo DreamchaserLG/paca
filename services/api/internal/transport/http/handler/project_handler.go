@@ -53,7 +53,6 @@ type ProjectsScoper interface {
 type projectAuthorizer interface {
 	iam.Checker
 	EffectiveActions(ctx context.Context, p iam.Principal, projectID string) ([]string, error)
-	ProjectWideActions(ctx context.Context, p iam.Principal, projectID string) ([]string, error)
 }
 
 // ProjectHandler handles project management endpoints.

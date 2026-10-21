@@ -486,6 +486,10 @@ func New(deps Deps) http.Handler {
 					// given: the caller needs roles:assign on each one inside this project.
 					r.With(require.Project(iam.ActionProjectMembersWrite), require.AssignNewProjectPrincipalRoles()).Post("/", deps.Project.AddMember)
 					r.Get("/me/permissions", deps.Project.GetMyProjectPermissions)
+					// Batch form of the line above for per-event authorization in
+					// services/realtime: the middleware evaluates each pair as the
+					// caller, the handler writes the answers. Gates nothing.
+					r.With(httpmw.ProbeAccess(deps.IAM, "projectId")).Post("/me/permissions/check", deps.Project.CheckMyAccess)
 					r.With(require.Project(iam.ActionProjectMembersWrite)).Patch("/{memberId}", deps.Project.UpdateMember)
 					r.With(require.Project(iam.ActionProjectMembersWrite)).Delete("/{memberId}", deps.Project.RemoveMember)
 					if deps.Role != nil {

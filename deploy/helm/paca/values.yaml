@@ -351,6 +351,15 @@ agentRunner:
     # which most managed Kubernetes offerings (EKS/GKE/AKS with
     # containerd) do not.
     backend: kubernetes
+    # Whether a docker_enabled environment/agent may run at all. Such a sandbox
+    # needs a privileged docker:dind sidecar, and Pod Security Admission rejects a
+    # privileged container under every standard except "privileged" — so on a
+    # sandbox namespace enforcing Baseline (the strictest level this backend
+    # supports, see README) it can never start. Set false there: agent-runner then
+    # refuses the sandbox up front with an actionable error and the UI hides the
+    # docker toggles. Read by both agent-runner and api, which report it on
+    # GET /environments/config.
+    dockerInSandbox: true
     image:
       repository: ghcr.io/paca-ai/paca-agent-server-goose
       tag: "latest"

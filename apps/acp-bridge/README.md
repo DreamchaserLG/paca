@@ -72,9 +72,11 @@ works), and authenticate it with `opencode auth login`.
 
 OpenCode owns its own MCP and skill configuration (`opencode.json`, or
 `~/.config/opencode/`), and the bridge injects none. To make it Paca-aware,
-run the skill installer below (OpenCode reads the `agents` platform's
-`~/.agents/skills` and `AGENTS.md` output) and add the Paca MCP server to
-your `opencode.json`:
+run the skill installer below with the `opencode` platform
+(`--platforms=opencode`; it writes `~/.config/opencode/skills/`) and add the
+Paca MCP server to your `opencode.json` — running `paca-mcp` by hand in a
+terminal does not register it with OpenCode. The agent id, API key and
+project id are in the setup steps Paca's Agents UI shows for this agent:
 
 ```json
 {
@@ -85,12 +87,20 @@ your `opencode.json`:
       "command": ["npx", "-y", "@paca-ai/paca-mcp"],
       "environment": {
         "PACA_API_URL": "<your-paca-url>",
-        "PACA_API_KEY": "<your-api-key>"
+        "PACA_API_KEY": "<agent-api-key>",
+        "PACA_AGENT_ID": "<agent-id>",
+        "PACA_PROJECT_ID": "<project-id>"
       }
     }
   }
 }
 ```
+
+This is the `mcp.<name>` shape used by current OpenCode releases (1.x). Newer
+OpenCode schemas move servers under `mcp.servers` and use `disabled` instead
+of `enabled`, while still accepting the form above as deprecated — if your
+version rejects it, check the schema at
+[opencode.ai/config.json](https://opencode.ai/config.json).
 
 ## Tools, MCP servers, skills, and git access
 

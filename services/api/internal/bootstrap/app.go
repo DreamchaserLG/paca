@@ -477,7 +477,8 @@ func New(cfg *config.Config) (*App, error) {
 		WithJevProjectService(projectService, encryptor)
 	environmentHandler := handler.NewEnvironmentHandler(environmentService, cfg.AIAgentInternalKey).
 		WithListScoper(authorizer).
-		WithDeploymentConfig(cfg.SSHBastionHost, cfg.PortForwardHost)
+		WithDeploymentConfig(cfg.SSHBastionHost, cfg.PortForwardHost).
+		WithDockerInSandbox(cfg.DockerInSandbox)
 	annotationHandler := handler.NewAnnotationHandler(annotationService).
 		WithAnnotationListScoper(authorizer).
 		WithAvatarService(attachmentService).

@@ -88,7 +88,10 @@ import {
 } from "@/lib/agent-api";
 import { invalidateAgentDirectory } from "@/lib/agent-directory";
 import { ApiErrorCode, getApiErrorCode } from "@/lib/api-error";
-import { environmentQueryOptions } from "@/lib/environment-api";
+import {
+	environmentConfigQueryOptions,
+	environmentQueryOptions,
+} from "@/lib/environment-api";
 import { agentAvatar } from "@/lib/provider-logos";
 import { splitShellCommand } from "@/lib/shell-command";
 import { AcpBridgeSetup } from "./acp-bridge-setup";
@@ -173,6 +176,10 @@ function OverviewTab({
 		agent.git_committer_email,
 	);
 	const [dockerEnabled, setDockerEnabled] = useState(agent.docker_enabled);
+	// Older APIs predate docker_in_sandbox and always allowed it, so only an
+	// explicit false hides the toggle.
+	const { data: deploymentConfig } = useQuery(environmentConfigQueryOptions());
+	const dockerInSandbox = deploymentConfig?.docker_in_sandbox !== false;
 	const [parallelismLimit, setParallelismLimit] = useState(
 		agent.parallelism_limit,
 	);
@@ -811,7 +818,7 @@ function OverviewTab({
 							    sandbox — once a static default environment is picked, that
 							    environment's own Docker setting (set at creation) governs
 							    instead, so this toggle no longer means anything. */}
-							{!defaultEnvironmentId && (
+							{!defaultEnvironmentId && dockerInSandbox && (
 								<div className="flex items-center justify-between gap-3">
 									<div>
 										<p className="text-sm font-medium">

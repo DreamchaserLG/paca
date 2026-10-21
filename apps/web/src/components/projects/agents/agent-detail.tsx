@@ -554,6 +554,9 @@ function OverviewTab({
 								<SelectItem value="goose">
 									{t("agents.detail.overview.acpProviderGoose")}
 								</SelectItem>
+								<SelectItem value="opencode">
+									{t("agents.detail.overview.acpProviderOpenCode")}
+								</SelectItem>
 								<SelectSeparator />
 								<SelectItem value="custom">
 									{t("agents.detail.overview.acpProviderCustom")}

@@ -2,7 +2,8 @@
 
 A small local daemon that connects an **ACP-type** Paca AI agent to a coding
 CLI running on your own machine — Claude Code, Codex, Gemini CLI,
-[Goose](https://github.com/block/goose), or a custom
+[Goose](https://github.com/block/goose),
+[OpenCode](https://opencode.ai), or a custom
 [Agent Client Protocol](https://agentclientprotocol.com) server. Run it from
 your project's source directory; it spawns the ACP server there and streams
 the conversation back to Paca. Nothing is cloned into a cloud sandbox and no
@@ -12,12 +13,14 @@ receives responses back.
 ## Prerequisites
 
 - Node.js (the built-in providers — Claude Code, Codex, Gemini CLI — are
-  launched via `npx`; not needed for Goose or a custom ACP server that
-  doesn't require it)
+  launched via `npx`; not needed for Goose, OpenCode, or a custom ACP server
+  that doesn't require it)
 - Your own local auth for whichever provider you pick — e.g. run
   `claude setup-token` for Claude Code, export `OPENAI_API_KEY` /
   `GEMINI_API_KEY` for Codex/Gemini CLI, or run `goose configure` (or export
-  `GOOSE_PROVIDER`/the provider's own API key env var) for Goose. This is
+  `GOOSE_PROVIDER`/the provider's own API key env var) for Goose, or run
+  `opencode auth login` (or export your model provider's API key) for
+  OpenCode. This is
   entirely your own local setup, exactly as if you were running that CLI
   yourself — Paca never sees, stores, or forwards this. Likewise, any MCP
   servers or skills you've configured for your local ACP client are used
@@ -56,6 +59,37 @@ Building from source instead (requires Go 1.26+):
 cd apps/acp-bridge
 go build -o paca-acp-bridge ./cmd/paca-acp-bridge
 ./paca-acp-bridge run --agent-id <agent-id> --token <token> --server <url>
+```
+
+## OpenCode
+
+Select **OpenCode** as the agent's ACP provider and the bridge launches
+`opencode acp` in your workspace — nothing to configure on the Paca side.
+Install the CLI first (`npm i -g opencode-ai`, or see
+[opencode.ai](https://opencode.ai/docs)) so `opencode` is on your `PATH`
+(on Windows, run the bridge from the same shell where `opencode --version`
+works), and authenticate it with `opencode auth login`.
+
+OpenCode owns its own MCP and skill configuration (`opencode.json`, or
+`~/.config/opencode/`), and the bridge injects none. To make it Paca-aware,
+run the skill installer below (OpenCode reads the `agents` platform's
+`~/.agents/skills` and `AGENTS.md` output) and add the Paca MCP server to
+your `opencode.json`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "paca": {
+      "type": "local",
+      "command": ["npx", "-y", "@paca-ai/paca-mcp"],
+      "environment": {
+        "PACA_API_URL": "<your-paca-url>",
+        "PACA_API_KEY": "<your-api-key>"
+      }
+    }
+  }
+}
 ```
 
 ## Tools, MCP servers, skills, and git access

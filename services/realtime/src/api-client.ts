@@ -108,6 +108,35 @@ export async function fetchProjectPermissions(
 	);
 }
 
+// canReadConversation asks the API whether the token's account may read one
+// conversation, by fetching it through GET /projects/:projectId/conversations/:id
+// — the route the REST side gates on conversations:read for that specific
+// conversation (so per-conversation / per-environment policies apply). A
+// project-wide permission list cannot answer this: it cannot see a policy
+// that excludes a single conversation. Returns false for 403/404; throws on
+// anything else (a 401 as an ApiRequestError so the caller can force a fresh
+// handshake) so callers fail closed instead of caching a guess.
+export async function canReadConversation(
+	apiUrl: string,
+	token: string,
+	projectId: string,
+	conversationId: string,
+): Promise<boolean> {
+	const res = await fetch(
+		`${apiUrl}/api/v1/projects/${encodeURIComponent(projectId)}/conversations/${encodeURIComponent(conversationId)}`,
+		{
+			headers: { Authorization: `Bearer ${token}` },
+			signal: AbortSignal.timeout(8_000),
+		},
+	);
+	if (res.ok) return true;
+	if (res.status === 403 || res.status === 404) return false;
+	throw new ApiRequestError(
+		`API conversation access check failed: HTTP ${res.status}`,
+		res.status,
+	);
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------

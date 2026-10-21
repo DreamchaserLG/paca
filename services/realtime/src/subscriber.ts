@@ -15,7 +15,12 @@
 //                          workflow.assigned, which is task-scoped)
 //   sprint.*   events  →  project:<projectId>:sprints
 //   environment.* events → project:<projectId>:environments
-//   agent.*    events  →  project:<projectId>:tasks, OR — when the event has
+//   agent.*    events  →  the sockets of project:<projectId>:conversations
+//                          that the API confirms can read that conversation
+//                          (see conversation-access.ts); a payload-free
+//                          agent.session.started also goes to the tasks room;
+//                          agent.acp_bridge.status goes to the tasks room. OR —
+//                          when the event has
 //                          no project_id (a global agent's home-page / admin
 //                          chat, see services/ai-agent's
 //                          core.streams.publish_realtime) —
@@ -33,6 +38,11 @@
 import Redis from "ioredis";
 import type { Logger } from "pino";
 import type { Server } from "socket.io";
+import {
+	ConversationAccess,
+	ConversationQueue,
+	deliverToConversationReaders,
+} from "./conversation-access.ts";
 import {
 	agentChatRoomName,
 	eventNamespace,
@@ -56,7 +66,12 @@ export function createSubscriber(
 	valkeyUrl: string,
 	io: Server,
 	logger: Logger,
+	apiUrl: string,
 ): Redis {
+	const conversations: ConversationRouting = {
+		access: new ConversationAccess(apiUrl),
+		queue: new ConversationQueue(),
+	};
 	// A separate client is required because ioredis clients in subscriber mode
 	// cannot issue regular commands.
 	const client = new Redis(valkeyUrl, {
@@ -97,13 +112,23 @@ export function createSubscriber(
 			return;
 		}
 
-		routeEvent(io, msg, logger);
+		routeEvent(io, msg, logger, conversations);
 	});
 
 	return client;
 }
 
-function routeEvent(io: Server, msg: RealtimeMessage, logger: Logger): void {
+interface ConversationRouting {
+	access: ConversationAccess;
+	queue: ConversationQueue;
+}
+
+function routeEvent(
+	io: Server,
+	msg: RealtimeMessage,
+	logger: Logger,
+	conversations: ConversationRouting,
+): void {
 	const { type } = msg;
 	const payload = eventPayload(msg);
 	if (!payload) {
@@ -149,6 +174,25 @@ function routeEvent(io: Server, msg: RealtimeMessage, logger: Logger): void {
 	// Project-scoped events (project-shared conversations, tasks, docs, ...).
 	const projectId = payload.project_id;
 	if (typeof projectId === "string" && projectId) {
+		// Conversation content is authorized per conversation, not per room.
+		const conversationId = payload.conversation_id;
+		if (
+			type.startsWith("agent.") &&
+			type !== "agent.acp_bridge.status" &&
+			typeof conversationId === "string" &&
+			conversationId
+		) {
+			routeConversationEvent(
+				io,
+				{ type, payload },
+				projectId,
+				conversationId,
+				logger,
+				conversations,
+			);
+			return;
+		}
+
 		// Resolve the namespace room from the event type prefix.
 		const ns = eventNamespace(type);
 		if (!ns) {
@@ -163,6 +207,44 @@ function routeEvent(io: Server, msg: RealtimeMessage, logger: Logger): void {
 	}
 
 	logger.debug({ type }, "event has no project or actor scope — skipped");
+}
+
+// routeConversationEvent delivers an agent.* conversation event to the sockets
+// in the project's conversations room that may read this conversation. Events
+// of one conversation are delivered in order.
+function routeConversationEvent(
+	io: Server,
+	event: { type: string; payload: Record<string, unknown> },
+	projectId: string,
+	conversationId: string,
+	logger: Logger,
+	{ access, queue }: ConversationRouting,
+): void {
+	// Task boards refresh on a conversation starting. The task-room copy
+	// carries no conversation content, only which conversation it was.
+	if (event.type === "agent.session.started") {
+		io.to(projectRoomName(projectId, "tasks")).emit("event", {
+			type: event.type,
+			payload: { project_id: projectId, conversation_id: conversationId },
+		});
+	}
+
+	const room = projectRoomName(projectId, "conversations");
+	queue.run(conversationId, async () => {
+		const sockets = await io.in(room).fetchSockets();
+		await deliverToConversationReaders(
+			sockets,
+			access,
+			projectId,
+			conversationId,
+			event,
+			(err, userId) =>
+				logger.warn(
+					{ type: event.type, conversationId, userId, err },
+					"conversation access check failed — event not delivered",
+				),
+		);
+	});
 }
 
 function eventPayload(msg: RealtimeMessage): Record<string, unknown> | null {

@@ -64,9 +64,14 @@ export function eventNamespace(type: string): EventNamespace | undefined {
 	// github.branch.* and github.pr.* events are delivered to the tasks room
 	// because they are task-scoped and require the same tasks:read permission.
 	if (type.startsWith("github.")) return "tasks";
-	// agent.* events carry conversation content (messages, reasoning, tool
-	// actions), so they require conversations:read — the permission the REST
-	// conversation routes are gated on — not tasks:read.
+	// The ACP bridge's connected/disconnected status carries no conversation
+	// content, only an agent id and a flag.
+	if (type === "agent.acp_bridge.status") return "tasks";
+	// Other agent.* events carry conversation content (messages, reasoning,
+	// tool actions), so they require conversations:read — the permission the
+	// REST conversation routes are gated on — not tasks:read. The room only
+	// says who may read conversations project-wide; the subscriber checks each
+	// conversation individually before delivering (see conversation-access.ts).
 	if (type.startsWith("agent.")) return "conversations";
 	// workflow.assigned is task-scoped (the automation engine reassigning a
 	// task) — special-cased ahead of the generic workflow.* rule below so it

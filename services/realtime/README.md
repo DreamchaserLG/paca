@@ -8,7 +8,8 @@ to the `paca.events` Valkey Pub/Sub channel published by `services/api`.
 - Accept authenticated Socket.IO client connections (JWT via cookie or handshake auth).
 - Delegate access-token verification to `services/api` (`GET /api/v1/users/me/global-permissions`) — no local JWT validation.
 - Subscribe to the `paca.events` Valkey Pub/Sub channel.
-- Route incoming events to namespace-scoped Socket.IO rooms (`project:<projectId>:tasks`, `project:<projectId>:docs`).
+- Route incoming events to namespace-scoped Socket.IO rooms (`project:<projectId>:tasks`, `project:<projectId>:docs`, `project:<projectId>:conversations`, …), each gated on the matching `<domain>:read` permission.
+- Deliver `agent.*` conversation events only to sockets whose account the API confirms can read that conversation (see below).
 - Expose a `/healthz` endpoint for container health checks.
 
 ## Stack
@@ -98,6 +99,23 @@ the shape published by `services/api`:
 
 Events with a `project_id` field are delivered only to sockets that joined the
 corresponding `project:<id>` room.
+
+## Conversation events
+
+`agent.*` events carry conversation content (messages, reasoning, tool actions),
+so they are gated on `conversations:read`, not `tasks:read`. Rooms are joined
+once, from project-wide permissions, and cannot express a policy that excludes
+a single conversation. So the `project:<id>:conversations` room only lists the
+candidates: for each event the service asks the API
+(`GET /projects/:projectId/conversations/:id`, as the socket's account) whether
+that account can read the conversation, caches the answer for 30 seconds, and
+emits only to those that can. Events of one conversation are delivered in
+order; a failed check delivers nothing (fail closed), and a 401 disconnects the
+socket so it reconnects with a fresh token.
+
+Exceptions: a payload-free `agent.session.started` (`project_id`,
+`conversation_id` only) also goes to the tasks room so task boards refresh, and
+`agent.acp_bridge.status` (no conversation content) goes to the tasks room.
 
 ## Linting & type checking
 

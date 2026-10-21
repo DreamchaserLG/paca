@@ -39,7 +39,12 @@ sessionRedis.on("error", (err: unknown) =>
 );
 
 const { httpServer, io } = createSocketServer(config, sessionRedis, logger);
-const subscriber = createSubscriber(config.valkey.url, io, logger);
+const subscriber = createSubscriber(
+	config.valkey.url,
+	io,
+	logger,
+	config.apiUrl,
+);
 
 httpServer.listen(config.port, () => {
 	logger.info({ port: config.port }, "realtime service listening");

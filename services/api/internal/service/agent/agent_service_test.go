@@ -3994,6 +3994,35 @@ func TestCreateAgent_ACPGooseProviderSuccess(t *testing.T) {
 	assert.Empty(t, result.ACPCommand)
 }
 
+func TestCreateAgent_ACPOpenCodeProviderSuccess(t *testing.T) {
+	projectID := uuid.New()
+	projectRoleID := uuid.New()
+
+	repo := &mockAgentRepo{
+		findAgentByHandle: func(_ context.Context, _ uuid.UUID, _ string) (*agentdom.Agent, error) {
+			return nil, agentdom.ErrAgentNotFound
+		},
+		createAgentWithMembership: func(_ context.Context, _ *agentdom.Agent, _ uuid.UUID, _, _ uuid.UUID) error {
+			return nil
+		},
+	}
+	svc := New(repo, projectRepoWithRole(projectID), nil, &mockPluginRepo{})
+
+	// opencode is a built-in provider — apps/acp-bridge resolves
+	// `opencode acp` itself, so no acp_command is required.
+	result, err := svc.CreateAgent(context.Background(), projectID, agentdom.CreateAgentInput{
+		Name:        "OpenCode Agent",
+		Handle:      "opencode-agent",
+		AgentType:   agentdom.AgentTypeACP,
+		ACPProvider: agentdom.ACPProviderOpenCode,
+		RoleIDs:     []uuid.UUID{projectRoleID},
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, agentdom.ACPProviderOpenCode, *result.ACPProvider)
+	assert.Empty(t, result.ACPCommand)
+}
+
 func TestCreateAgent_ACPRejectsSystemPromptAndGitCommitterFields(t *testing.T) {
 	projectID := uuid.New()
 	projectRoleID := uuid.New()

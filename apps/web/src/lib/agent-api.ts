@@ -148,6 +148,7 @@ export type ACPProvider =
 	| "codex"
 	| "gemini-cli"
 	| "goose"
+	| "opencode"
 	| "custom";
 
 // CLIProvider names which coding CLI Goose itself shells out to *inside*

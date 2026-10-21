@@ -830,6 +830,9 @@ export function CreateAgentDialog({
 											<SelectItem value="goose">
 												{t("agents.createDialog.acpProviderGoose")}
 											</SelectItem>
+											<SelectItem value="opencode">
+												{t("agents.createDialog.acpProviderOpenCode")}
+											</SelectItem>
 											<SelectSeparator />
 											<SelectItem value="custom">
 												{t("agents.createDialog.acpProviderCustom")}

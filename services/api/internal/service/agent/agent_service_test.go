@@ -1262,6 +1262,44 @@ func TestDeleteGlobalAgent_Success(t *testing.T) {
 	assert.ElementsMatch(t, []uuid.UUID{project1, project2}, projRepo.invalidatedProjectIDs)
 }
 
+type countingGrants struct{ calls int }
+
+func (c *countingGrants) Invalidate(...string) { c.calls++ }
+
+// A deleted agent loses its attachments and memberships, so open sockets
+// authenticated as it are re-checked: both delete paths announce, once.
+func TestDeletingAnAgentAnnouncesLostAccess(t *testing.T) {
+	projectID, agentID := uuid.New(), uuid.New()
+	repo := &mockAgentRepo{
+		findAgentByID: func(_ context.Context, _ uuid.UUID) (*agentdom.Agent, error) {
+			return &agentdom.Agent{ID: agentID, ProjectID: projectID, AgentScope: agentdom.AgentScopeGlobal}, nil
+		},
+		softDeleteAgentWithMembership: func(context.Context, uuid.UUID, uuid.UUID) error { return nil },
+		listInvitedProjectIDs:         func(context.Context, uuid.UUID) ([]uuid.UUID, error) { return nil, nil },
+		softDeleteGlobalAgentCascade:  func(context.Context, uuid.UUID) error { return nil },
+	}
+	grants := &countingGrants{}
+	svc := New(repo, &mockProjectRepo{}, nil, &mockPluginRepo{}).WithGrantsNotifier(grants)
+
+	assert.NoError(t, svc.DeleteGlobalAgent(context.Background(), agentID))
+	assert.Equal(t, 1, grants.calls)
+}
+
+func TestDeleteAgent_AnnouncesLostAccess(t *testing.T) {
+	projectID, agentID := uuid.New(), uuid.New()
+	repo := &mockAgentRepo{
+		findAgentByID: func(_ context.Context, _ uuid.UUID) (*agentdom.Agent, error) {
+			return &agentdom.Agent{ID: agentID, ProjectID: projectID, Name: "Test Agent"}, nil
+		},
+		softDeleteAgentWithMembership: func(context.Context, uuid.UUID, uuid.UUID) error { return nil },
+	}
+	grants := &countingGrants{}
+	svc := New(repo, &mockProjectRepo{}, nil, &mockPluginRepo{}).WithGrantsNotifier(grants)
+
+	assert.NoError(t, svc.DeleteAgent(context.Background(), projectID, agentID))
+	assert.Equal(t, 1, grants.calls)
+}
+
 func TestDeleteGlobalAgent_RejectsProjectScopedAgent(t *testing.T) {
 	agentID := uuid.New()
 	repo := &mockAgentRepo{

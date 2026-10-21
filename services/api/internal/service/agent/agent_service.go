@@ -77,6 +77,9 @@ type Service struct {
 	// constructs a bare Service with no authorizer. Production wiring
 	// (bootstrap/app.go) always configures one via WithAuthorizer.
 	authorizer ConversationReadAuthorizer
+	// grants is told when an agent's access is revoked (a deleted agent loses
+	// its attachments and memberships). Nil: nothing is announced.
+	grants events.PolicyInvalidator
 }
 
 // New returns a configured agent service.
@@ -110,6 +113,18 @@ type ConversationReadAuthorizer = iam.Checker
 // WithAuthorizer wires in the IAM authorizer — see the authorizer field's
 // doc comment for what it's used for. A nil *iam.Authorizer leaves the
 // check unconfigured (skipped), never a typed nil.
+func (s *Service) WithGrantsNotifier(inv events.PolicyInvalidator) *Service {
+	s.grants = inv
+	return s
+}
+
+// accessRevoked tells the policy cache that an agent's grants are gone.
+func (s *Service) accessRevoked() {
+	if s.grants != nil {
+		s.grants.Invalidate()
+	}
+}
+
 func (s *Service) WithAuthorizer(a *iam.Authorizer) *Service {
 	if a != nil {
 		s.authorizer = a
@@ -653,6 +668,7 @@ func (s *Service) DeleteAgent(ctx context.Context, projectID, agentID uuid.UUID)
 	}
 	// Best-effort cache invalidation so the deleted member disappears immediately.
 	_ = s.projRepo.InvalidateMembersCache(ctx, projectID)
+	s.accessRevoked()
 	s.recordAgent(ctx, projectID, a, TopicProjectAgentDeleted)
 	return nil
 }
@@ -969,6 +985,7 @@ func (s *Service) DeleteGlobalAgent(ctx context.Context, agentID uuid.UUID) erro
 	for _, projectID := range projectIDs {
 		_ = s.projRepo.InvalidateMembersCache(ctx, projectID)
 	}
+	s.accessRevoked()
 	return nil
 }
 

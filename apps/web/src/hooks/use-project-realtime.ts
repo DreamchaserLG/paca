@@ -16,7 +16,10 @@
 //      access based on the caller's permissions).
 //   2. Listens for "event" messages and maps event types to query
 //      invalidations using the same query key prefixes as the API helpers.
-//   3. Leaves the project rooms and removes the listener on unmount.
+//   3. Refetches the caller's permissions when the server reports that IAM
+//      changed ("permissions:changed"), and everything cached for the project
+//      when a kind of data the caller could see is no longer theirs.
+//   4. Leaves the project rooms and removes the listeners on unmount.
 //
 // Query invalidation strategy
 // ---------------------------
@@ -76,6 +79,7 @@ import {
 	connectSocket,
 	joinProject,
 	leaveProject,
+	onProjectNamespaces,
 	type RealtimeEvent,
 	rejoinProject,
 } from "@/lib/socket-client";
@@ -316,13 +320,63 @@ export function useProjectRealtime(projectId: string | undefined): void {
 		// the socket still reports connected. Uses `rejoinProject` (not
 		// `joinProject`) since this isn't a new subscriber — it must not bump
 		// the reference count that `leaveProject` decrements on unmount.
+		//
+		// Whatever the project's data did while the socket was away (a network
+		// drop, or the reconnect that follows a "reauth") never arrived as an
+		// event, so after a *re*connect the project's queries are refetched.
+		// That waits for the rejoin's ack (see the namespaces listener below),
+		// not the connect itself: an event landing between a refetch and the
+		// join would be missed by both.
+		let hasConnected = socket.connected;
+		let refetchAfterRejoin = false;
 		function handleConnect() {
+			if (hasConnected) refetchAfterRejoin = true;
+			hasConnected = true;
 			rejoinProject(currentProjectId);
 		}
 		socket.on("connect", handleConnect);
 
+		// The server reports the project's namespaces on the join ack and
+		// whenever IAM changes (a role edit, a detached role, a removed
+		// member). The caller's permissions may have changed, so refetch them:
+		// that re-renders everything gated on useEffectiveActions. When a kind
+		// of data is no longer visible to the caller, what is cached for the
+		// project may be stale or now refused, so refetch all of it; otherwise
+		// the data stays as it is, since the server announces this to every
+		// connected client on any role change.
+		const unsubscribeNamespaces = onProjectNamespaces((change) => {
+			if (change.projectId !== currentProjectId) return;
+			if (refetchAfterRejoin) {
+				refetchAfterRejoin = false;
+				void queryClient.invalidateQueries({
+					queryKey: ["projects", currentProjectId],
+				});
+				void queryClient.invalidateQueries({
+					queryKey: ["users", "me", "tasks"],
+				});
+			}
+			void queryClient.invalidateQueries({
+				queryKey: [
+					"projects",
+					currentProjectId,
+					"members",
+					"me",
+					"permissions",
+				],
+			});
+			void queryClient.invalidateQueries({
+				queryKey: ["auth", "me", "permissions"],
+			});
+			if (change.removed.length > 0) {
+				void queryClient.invalidateQueries({
+					queryKey: ["projects", currentProjectId],
+				});
+			}
+		});
+
 		return () => {
 			clearTimeout(activityRefreshTimer);
+			unsubscribeNamespaces();
 			socket.off("event", handleEvent);
 			socket.off("connect", handleConnect);
 			leaveProject(currentProjectId);

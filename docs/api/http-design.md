@@ -151,6 +151,7 @@ In the **Auth** column, actions joined by `+` are all required, and the action a
 | `GET` | `/api/v1/projects/:projectId/members/:memberId/roles` | Access token (fresh) + `project.members:read` | The roles a member holds in the project. |
 | `PUT` | `/api/v1/projects/:projectId/members/:memberId/roles` | Access token (fresh) + `roles:assign` on `project/:projectId/role/:roleId` for each role added or removed (no `project.members:write`) | Replace the member's roles in the project with `role_ids`. |
 | `GET` | `/api/v1/projects/:projectId/members/me/permissions` | Access token (fresh) | The caller's effective actions in the project, `{"actions": [...]}`. |
+| `POST` | `/api/v1/projects/:projectId/members/me/permissions/check` | Access token (fresh) | Batch access probe for services/realtime. Body `{"checks": [{"action", "resource"}, ...]}` (1-200 pairs, each resource inside the project); returns `{"allowed": [bool, ...]}` in order, judged as the caller by the IAM engine. Gates nothing. |
 | `GET` | `/api/v1/projects/:projectId/roles` | Access token (fresh) + `roles:read` | List the project's own roles (by name) followed by the platform roles already attached inside the project, cursor-paginated like `GET /admin/roles` (`cursor`, `page_size`, `search`, `ids`). |
 | `POST` | `/api/v1/projects/:projectId/roles` | Access token (fresh) + `roles:write` | Create a role owned by the project, from a policy document. |
 | `GET` | `/api/v1/projects/:projectId/roles/:roleId` | Access token (fresh) + `roles:read` | Get a project role. |

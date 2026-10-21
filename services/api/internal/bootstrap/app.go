@@ -14,6 +14,7 @@ import (
 	"github.com/Paca-AI/api/internal/bootstrap/defaultroles"
 	"github.com/Paca-AI/api/internal/config"
 	userdom "github.com/Paca-AI/api/internal/domain/user"
+	"github.com/Paca-AI/api/internal/events"
 	"github.com/Paca-AI/api/internal/platform/authz/iam"
 	"github.com/Paca-AI/api/internal/platform/cache"
 	"github.com/Paca-AI/api/internal/platform/database"
@@ -112,7 +113,10 @@ func New(cfg *config.Config) (*App, error) {
 	// cached policies after every committed change, and simulates through the
 	// same engine and action registry the gates use.
 	roleRepo := pgRepo.NewRoleRepository(db)
-	roleService := rolesvc.New(roleRepo, authorizer, authorizer, authorizer.Registry(), authorizer.Schema())
+	// Role and attachment changes, and accounts losing their access, are
+	// announced to services/realtime so open sockets are re-checked at once.
+	iamNotifier := events.NotifyIAMChanges(authorizer, publisher)
+	roleService := rolesvc.New(roleRepo, iamNotifier, authorizer, authorizer.Registry(), authorizer.Schema())
 	projectRepo := pgRepo.NewProjectRepository(db)
 	taskRepo := pgRepo.NewTaskRepository(db)
 	// The activity log: one repository and one service behind every
@@ -167,14 +171,15 @@ func New(cfg *config.Config) (*App, error) {
 	authService := authsvc.New(userRepo, tokenManager, refreshStore, cfg.JWT.RefreshTTL, cfg.JWT.RefreshSessionTTL)
 	userService := usersvc.New(userRepo, permissionStore).
 		WithPasswordSetTokenRepo(passwordSetTokenRepo).
-		WithEventPublishing(publisher)
+		WithEventPublishing(publisher).
+		WithGrantsNotifier(iamNotifier)
 	agentRepo := pgRepo.NewAgentRepository(db)
 	environmentRepo := pgRepo.NewEnvironmentRepository(db)
 	annotationRepo := pgRepo.NewAnnotationRepository(db)
 	projectServiceBase := projectsvc.New(projectRepo, taskRepo, agentRepo).
 		WithActivityRecorder(activityRecorder).
 		WithServiceAccounts(pgRepo.NewServiceAccountRepository(db))
-	projectServiceBase = projectServiceBase.WithRoleInvalidator(authorizer)
+	projectServiceBase = projectServiceBase.WithRoleInvalidator(iamNotifier)
 	projectService := projectsvc.NewCachedService(projectServiceBase, cacheStore, cfg.Cache.ProjectTTL, log)
 	// Member lists show each member's roles, so changing them drops the cache.
 	roleService = roleService.WithMembersCache(projectService)
@@ -199,7 +204,7 @@ func New(cfg *config.Config) (*App, error) {
 	agentService = agentService.WithEnvironmentService(environmentService)
 	// Backs GetConversationForAgent's agents.read check (read_conversation
 	// MCP tool) — see agentsvc.Service.authorizer's doc comment.
-	agentService = agentService.WithAuthorizer(authorizer)
+	agentService = agentService.WithAuthorizer(authorizer).WithGrantsNotifier(iamNotifier)
 	// Every agent run started without an HTTP request of its own (task
 	// assignment, automation, comment mention) and the description-write
 	// trigger go through this gate — see package triggergate. The agent
@@ -314,7 +319,7 @@ func New(cfg *config.Config) (*App, error) {
 	// --- API Key management -------------------------------------------------
 	apiKeyRepo := pgRepo.NewAPIKeyRepository(db)
 	apiKeyService := apikeysvc.New(apiKeyRepo)
-	serviceAccountService := serviceaccountsvc.New(pgRepo.NewServiceAccountRepository(db))
+	serviceAccountService := serviceaccountsvc.New(pgRepo.NewServiceAccountRepository(db)).WithGrantsNotifier(iamNotifier)
 	serviceAccountService.WithAvatarService(attachmentService)
 	// An agent authenticates with its own API key (an api_keys row of its
 	// account) and acts with its own permissions only; there is no shared

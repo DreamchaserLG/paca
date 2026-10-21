@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
 	const socket = {
+		connected: false,
 		on: vi.fn(),
 		off: vi.fn(),
 	};
@@ -15,6 +16,8 @@ const mocks = vi.hoisted(() => {
 		joinProject: vi.fn(),
 		leaveProject: vi.fn(),
 		rejoinProject: vi.fn(),
+		onProjectNamespaces: vi.fn(),
+		unsubscribeNamespaces: vi.fn(),
 		invalidateQueries: vi.fn(),
 		setQueryData: vi.fn(),
 	};
@@ -25,6 +28,7 @@ vi.mock("@/lib/socket-client", () => ({
 	joinProject: mocks.joinProject,
 	leaveProject: mocks.leaveProject,
 	rejoinProject: mocks.rejoinProject,
+	onProjectNamespaces: mocks.onProjectNamespaces,
 }));
 
 vi.mock("@tanstack/react-query", async () => {
@@ -47,7 +51,9 @@ import { useProjectRealtime } from "./use-project-realtime";
 describe("useProjectRealtime", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		mocks.socket.connected = false;
 		mocks.connectSocket.mockReturnValue(mocks.socket);
+		mocks.onProjectNamespaces.mockReturnValue(mocks.unsubscribeNamespaces);
 	});
 
 	it("joins the project rooms on mount", () => {
@@ -351,6 +357,123 @@ describe("useProjectRealtime", () => {
 
 		expect(mocks.invalidateQueries).toHaveBeenCalledWith({
 			queryKey: ["projects", "proj-abc", "conversations"],
+		});
+	});
+
+	describe("permission changes reported by the server", () => {
+		function namespaceListener() {
+			const [listener] = mocks.onProjectNamespaces.mock.calls[0] as [
+				(change: {
+					projectId: string;
+					namespaces: string[];
+					removed: string[];
+				}) => void,
+			];
+			return listener;
+		}
+
+		it("refetches the caller's permissions, and nothing else, when no namespace was lost", () => {
+			renderHook(() => useProjectRealtime("proj-abc"));
+			mocks.invalidateQueries.mockClear();
+
+			namespaceListener()({
+				projectId: "proj-abc",
+				namespaces: ["tasks", "docs"],
+				removed: [],
+			});
+
+			const keys = mocks.invalidateQueries.mock.calls.map(
+				([arg]) => arg.queryKey,
+			);
+			expect(keys).toEqual([
+				["projects", "proj-abc", "members", "me", "permissions"],
+				["auth", "me", "permissions"],
+			]);
+		});
+
+		it("refetches everything cached for the project when a kind of data was lost", () => {
+			renderHook(() => useProjectRealtime("proj-abc"));
+			mocks.invalidateQueries.mockClear();
+
+			namespaceListener()({
+				projectId: "proj-abc",
+				namespaces: ["tasks"],
+				removed: ["docs"],
+			});
+
+			expect(mocks.invalidateQueries).toHaveBeenCalledWith({
+				queryKey: ["projects", "proj-abc"],
+			});
+		});
+
+		it("ignores a report about another project", () => {
+			renderHook(() => useProjectRealtime("proj-abc"));
+			mocks.invalidateQueries.mockClear();
+
+			namespaceListener()({
+				projectId: "other",
+				namespaces: [],
+				removed: ["tasks"],
+			});
+
+			expect(mocks.invalidateQueries).not.toHaveBeenCalled();
+		});
+
+		it("stops listening on unmount", () => {
+			const { unmount } = renderHook(() => useProjectRealtime("proj-abc"));
+			unmount();
+			expect(mocks.unsubscribeNamespaces).toHaveBeenCalled();
+		});
+	});
+
+	describe("after a reconnect", () => {
+		function handlerFor(event: string) {
+			const call = mocks.socket.on.mock.calls.find(([name]) => name === event);
+			return call?.[1] as (...args: unknown[]) => void;
+		}
+		function ack(projectId = "proj-abc") {
+			const [listener] = mocks.onProjectNamespaces.mock.calls[0] as [
+				(c: {
+					projectId: string;
+					namespaces: string[];
+					removed: string[];
+				}) => void,
+			];
+			listener({ projectId, namespaces: ["tasks"], removed: [] });
+		}
+		const projectRefetches = () =>
+			mocks.invalidateQueries.mock.calls.filter(
+				([arg]) =>
+					arg.queryKey.length === 2 &&
+					arg.queryKey[0] === "projects" &&
+					arg.queryKey[1] === "proj-abc",
+			).length;
+
+		it("rejoins and refetches the project only once the rejoin is acked", () => {
+			mocks.socket.connected = true;
+			renderHook(() => useProjectRealtime("proj-abc"));
+			mocks.invalidateQueries.mockClear();
+			mocks.rejoinProject.mockClear();
+
+			handlerFor("connect")();
+			expect(mocks.rejoinProject).toHaveBeenCalledWith("proj-abc");
+			expect(projectRefetches()).toBe(0); // not before the join is acked
+
+			ack();
+			expect(projectRefetches()).toBe(1);
+			ack(); // a later permissions report must not refetch again
+			expect(projectRefetches()).toBe(1);
+		});
+
+		it("does not refetch on the first connect", () => {
+			mocks.socket.connected = false;
+			renderHook(() => useProjectRealtime("proj-abc"));
+			mocks.invalidateQueries.mockClear();
+
+			handlerFor("connect")();
+			ack();
+
+			expect(projectRefetches()).toBe(0);
 		});
 	});
 });

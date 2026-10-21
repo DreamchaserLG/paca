@@ -176,20 +176,20 @@ export function EnvironmentCreateDialog({
 					</div>
 
 					{deploymentConfig?.docker_in_sandbox !== false && (
-					<div className="flex items-center justify-between gap-3">
-						<div>
-							<p className="text-sm font-medium">
-								{t("environments.createDialog.dockerEnabledLabel")}
-							</p>
-							<p className="text-xs text-muted-foreground">
-								{t("environments.createDialog.dockerEnabledHint")}
-							</p>
+						<div className="flex items-center justify-between gap-3">
+							<div>
+								<p className="text-sm font-medium">
+									{t("environments.createDialog.dockerEnabledLabel")}
+								</p>
+								<p className="text-xs text-muted-foreground">
+									{t("environments.createDialog.dockerEnabledHint")}
+								</p>
+							</div>
+							<Switch
+								checked={dockerEnabled}
+								onCheckedChange={setDockerEnabled}
+							/>
 						</div>
-						<Switch
-							checked={dockerEnabled}
-							onCheckedChange={setDockerEnabled}
-						/>
-					</div>
 					)}
 
 					<div>

@@ -71,7 +71,10 @@ A namespace that enforces Baseline cannot run such a sandbox at all if it is
 privileged container. Set `agentRunner.sandbox.dockerInSandbox: false` on such a
 deployment — agent-runner then refuses a docker-enabled sandbox before creating
 anything, with an error naming the cause, and the UI hides the docker toggles
-rather than offering a setting that can never work.
+rather than offering a setting that can never work. The flag only governs what
+agent-runner submits next: an environment created while it was still
+docker-enabled keeps its existing privileged Deployment until that environment
+is deleted.
 
 If an agent has `docker_enabled: true` in the database, its sandbox Pod
 additionally gets a privileged `docker:dind` sidecar so it can run Docker

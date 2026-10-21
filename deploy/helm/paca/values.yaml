@@ -410,7 +410,7 @@ agentRunner:
       # default, or you want environments on a specific class (e.g. a
       # faster/cheaper tier than whatever's marked default).
       storageClassName: ""
-    # NOTE — not a toggle, just a heads-up: DockerEnabled agents
+    # NOTE — DockerEnabled agents
     # (agents.docker_enabled in the database) get a privileged
     # `docker:dind` sidecar added to their own sandbox Pod at runtime, one
     # conversation at a time, so they can run Docker commands — see
@@ -418,14 +418,16 @@ agentRunner:
     # (environments.docker_enabled) get the same sidecar, added once to
     # their own long-lived Deployment's Pod template at CreateEnvironment
     # time instead — see internal/sandbox/k8s/environment.go's own
-    # CreateEnvironment. There's nothing to configure here for either case
-    # (the sidecar only ever appears on a Pod belonging to an agent/
-    # environment that opts in) — but if `namespace` above enforces the
-    # Restricted Pod Security Standard, that agent's conversations (or that
-    # environment's Pod) will fail to start with a Forbidden admission
-    # error. Label the namespace with `pod-security.kubernetes.io/enforce:
-    # baseline` (or looser) if you plan to use DockerEnabled agents or
-    # environments.
+    # CreateEnvironment. The sidecar only ever appears on a Pod belonging to
+    # an agent/environment that opts in, but it is privileged, which Pod
+    # Security Admission forbids under every standard except "privileged":
+    # on a `namespace` enforcing Restricted or Baseline, those Pods are
+    # rejected outright. That is what `dockerInSandbox` above is for — set
+    # it false there. A namespace that must run Docker-enabled sandboxes
+    # needs `pod-security.kubernetes.io/enforce: privileged`, and the flag
+    # is not retroactive: flip it and any already-created Docker-enabled
+    # environment keeps its privileged Pod until that environment is
+    # deleted.
 
   # SSH bastion (optional, off by default) — lets a user
   # `ssh -p <port> root@<bastion-host>` straight into a running static

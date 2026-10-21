@@ -818,7 +818,10 @@ function OverviewTab({
 							    sandbox — once a static default environment is picked, that
 							    environment's own Docker setting (set at creation) governs
 							    instead, so this toggle no longer means anything. */}
-							{!defaultEnvironmentId && dockerInSandbox && (
+							{/* Shown when the deployment allows docker, or when this
+							    agent already has it on — an existing docker-enabled agent
+							    must keep a way to switch it off. */}
+							{!defaultEnvironmentId && (dockerInSandbox || dockerEnabled) && (
 								<div className="flex items-center justify-between gap-3">
 									<div>
 										<p className="text-sm font-medium">

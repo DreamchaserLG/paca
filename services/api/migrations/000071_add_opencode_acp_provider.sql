@@ -12,11 +12,6 @@ BEGIN;
 ALTER TABLE agents DROP CONSTRAINT IF EXISTS ck_agents_acp_provider;
 
 ALTER TABLE agents ADD CONSTRAINT ck_agents_acp_provider
-    CHECK (acp_provider IN ('claude-code', 'codex', 'gemini-cli', 'goose', 'opencode', 'custom'))
-    NOT VALID;
-
--- Validating separately only takes a SHARE UPDATE EXCLUSIVE lock, so writes
--- aren't blocked while existing rows are checked.
-ALTER TABLE agents VALIDATE CONSTRAINT ck_agents_acp_provider;
+    CHECK (acp_provider IN ('claude-code', 'codex', 'gemini-cli', 'goose', 'opencode', 'custom'));
 
 COMMIT;

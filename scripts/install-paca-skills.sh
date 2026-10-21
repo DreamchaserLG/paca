@@ -328,7 +328,7 @@ elif { : < /dev/tty; } 2>/dev/null; then
   info "  3) cursor  — Cursor        (project-scoped, needs a git working tree)"
   info "  4) agents  — AGENTS.md     (project-scoped, needs a git working tree)"
   info "  5) opencode — OpenCode     (~/.config/opencode/skills/)"
-  info "  6) goose   — Goose         (~/.agents/skills/)"
+  info "  6) goose   — Goose         (~/.agents/skills/; OpenCode also reads this, so 5+6 duplicates skills)"
   read -r -p "  Enter numbers or names, space/comma-separated (Enter for all): " platform_choice < /dev/tty
   echo ""
   if [[ -z "${platform_choice// /}" ]]; then

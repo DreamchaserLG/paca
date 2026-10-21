@@ -44,14 +44,15 @@ const CLAUDE_OAUTH_EXPORT_COMMAND =
 // both read their API key straight from an env var — so unlike Claude Code
 // above, this is the only auth step they need before the bridge starts.
 // Returns null for "custom" (unknown provider, no guidance possible) and for
-// "goose" and "opencode": Goose's own setup is `goose configure` (interactive) or one of
-// several possible underlying-provider env vars depending on what the user
-// picks inside it, neither of which fits this single copy-paste-able
-// non-interactive export line the way Codex/Gemini CLI's single env var
-// does — showing one anyway would risk being actively wrong. Goose users
-// get the generic guidance in the bridge's own README instead (OpenCode
-// likewise: `opencode auth login` / `opencode providers` is interactive and
-// its credentials depend on which model provider the user picks).
+// "goose" and "opencode": Goose's own setup is `goose configure`
+// (interactive) or one of several possible underlying-provider env vars
+// depending on what the user picks inside it, neither of which fits this
+// single copy-paste-able non-interactive export line the way Codex/Gemini
+// CLI's single env var does — showing one anyway would risk being actively
+// wrong. Goose users get the generic guidance in the bridge's own README
+// instead (OpenCode likewise: `opencode auth login` / `opencode providers`
+// is interactive and its credentials depend on which model provider the
+// user picks).
 function localAuthExportCommand(provider: ACPProvider): string | null {
 	switch (provider) {
 		case "codex":
@@ -172,7 +173,7 @@ function geminiMcpConnectCommand(
 
 // Goose's only persistent, non-interactive MCP registration is an entry in
 // the `extensions` section of ~/.config/goose/config.yaml (format per
-// Goose's own docs; not exercised against a real goose install). Values are
+// Goose's own docs; UNVERIFIED — not exercised against a real goose install). Values are
 // JSON-quoted, which is valid YAML flow-scalar syntax.
 function gooseMcpConfig(
 	agentId: string,
@@ -222,6 +223,29 @@ function opencodeMcpConfig(
 		null,
 		2,
 	);
+}
+
+// Picks the per-provider MCP registration step (a command or a config block).
+function buildMcpConnectCommand(
+	provider: ACPProvider,
+	agentId: string,
+	projectId: string | undefined,
+	apiKey: string,
+): string {
+	switch (provider) {
+		case "claude-code":
+			return claudeMcpConnectCommand(agentId, projectId, apiKey);
+		case "codex":
+			return codexMcpConnectCommand(agentId, projectId, apiKey);
+		case "gemini-cli":
+			return geminiMcpConnectCommand(agentId, projectId, apiKey);
+		case "opencode":
+			return opencodeMcpConfig(agentId, projectId, apiKey);
+		case "goose":
+			return gooseMcpConfig(agentId, projectId, apiKey);
+		default:
+			return genericMcpConnectCommand(agentId, projectId, apiKey);
+	}
 }
 
 type CopyField =
@@ -364,17 +388,7 @@ export function AcpBridgeSetup({
 			? skillInstallCommand(generatedKey)
 			: null;
 	const mcpCommand = generatedKey
-		? isClaudeCode
-			? claudeMcpConnectCommand(agentId, projectId, generatedKey)
-			: acpProvider === "codex"
-				? codexMcpConnectCommand(agentId, projectId, generatedKey)
-				: acpProvider === "gemini-cli"
-					? geminiMcpConnectCommand(agentId, projectId, generatedKey)
-					: acpProvider === "opencode"
-						? opencodeMcpConfig(agentId, projectId, generatedKey)
-						: acpProvider === "goose"
-							? gooseMcpConfig(agentId, projectId, generatedKey)
-							: genericMcpConnectCommand(agentId, projectId, generatedKey)
+		? buildMcpConnectCommand(acpProvider, agentId, projectId, generatedKey)
 		: null;
 	// Providers whose MCP step is a config-file block (not a command): which
 	// file, and the name of the top-level section to merge into.

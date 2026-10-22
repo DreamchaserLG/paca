@@ -464,9 +464,10 @@ export function TaskDetailModal({
 							onSubtaskUpdate={(subtaskId, payload) => {
 								if (!projectId) return;
 								updateTask(projectId, subtaskId, payload).then(() => {
+									// Prefix: also refreshes the nested list rows and the
+									// parent's progress chip, not just the detail section.
 									qc.invalidateQueries({
-										queryKey: subtasksInfiniteQueryOptions(projectId, task.id)
-											.queryKey,
+										queryKey: ["projects", projectId, "tasks"],
 									});
 								});
 							}}
@@ -479,9 +480,10 @@ export function TaskDetailModal({
 									status_id: todoStatus?.id ?? payload.status_id ?? null,
 									parent_task_id: task.id,
 								}).then(() => {
+									// Prefix: also refreshes the nested list rows and the
+									// parent's progress chip, not just the detail section.
 									qc.invalidateQueries({
-										queryKey: subtasksInfiniteQueryOptions(projectId, task.id)
-											.queryKey,
+										queryKey: ["projects", projectId, "tasks"],
 									});
 								});
 							}}

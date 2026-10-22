@@ -534,7 +534,7 @@ func applyTaskFilter(b *queryBuilder, filter taskdom.TaskFilter) {
 	if filter.ExcludeSubtasks {
 		b.whereClauses = append(b.whereClauses, `NOT EXISTS (
 			SELECT 1 FROM tasks sp
-			WHERE sp.id = tasks.parent_task_id AND sp.deleted_at IS NULL
+			WHERE sp.id = tasks.parent_task_id AND sp.project_id = tasks.project_id AND sp.deleted_at IS NULL
 			AND (sp.task_type_id IS NULL OR NOT EXISTS (
 				SELECT 1 FROM task_types spt
 				WHERE spt.id = sp.task_type_id AND spt.is_system AND spt.name = 'Epic')))`)
@@ -1760,7 +1760,9 @@ func (r *TaskRepository) attachSubtaskCounts(ctx context.Context, tasks []*taskd
 	var rows []countRow
 	query := `SELECT c.parent_task_id AS parent_task_id, COUNT(*) AS total,
 		COUNT(*) FILTER (WHERE s.category = 'done') AS done
-		FROM tasks c LEFT JOIN task_statuses s ON s.id = c.status_id
+		FROM tasks c
+		JOIN tasks p ON p.id = c.parent_task_id AND p.project_id = c.project_id
+		LEFT JOIN task_statuses s ON s.id = c.status_id
 		WHERE c.deleted_at IS NULL AND c.parent_task_id IN (` + strings.Join(placeholders, ",") + `)
 		GROUP BY c.parent_task_id`
 	if err := r.db.SelectContext(ctx, &rows, query, args...); err != nil {

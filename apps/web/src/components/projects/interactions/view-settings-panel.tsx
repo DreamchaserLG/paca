@@ -45,7 +45,7 @@ import { useSprintDirectory } from "@/lib/sprint-directory";
 import { cn } from "@/lib/utils";
 import { PRIORITY_LEVELS } from "./priority";
 import { ChipField } from "./task-detail/property-field/chip-field";
-
+import { resolveSubtaskMode } from "./use-subtask-expansion";
 import {
 	buildAllFieldOptions,
 	buildColumnByOptions,
@@ -57,6 +57,19 @@ import {
 	getDefaultPageSize,
 	PAGE_SIZE_OPTIONS,
 } from "./view-utils";
+
+/**
+ * The value to store for a chosen Subtasks option. "Collapsed" is the unset
+ * default, but when the team default is something else it has to be stored
+ * explicitly, or a personal "collapsed" could never override it.
+ */
+export function pickSubtaskMode(
+	chosen: string | undefined,
+	shared: ViewConfig | undefined,
+): ViewConfig["subtask_mode"] {
+	if (chosen === "expanded" || chosen === "hidden") return chosen;
+	return resolveSubtaskMode(shared) === "collapsed" ? undefined : "collapsed";
+}
 
 // ── Category visual config ────────────────────────────────────────────────────
 
@@ -1499,8 +1512,7 @@ export function ViewSettingsPanel({
 										]}
 										onChange={(v) =>
 											update({
-												subtask_mode:
-													v === "expanded" || v === "hidden" ? v : undefined,
+												subtask_mode: pickSubtaskMode(v, view?.shared_config),
 											})
 										}
 									/>

@@ -616,7 +616,8 @@ func TestAttachSubtaskCounts(t *testing.T) {
 			('c1', 'p', 'parent', 's-done', NULL),
 			('c2', 'p', 'parent', 's-todo', NULL),
 			('c3', 'p', 'parent', NULL, NULL),
-			('gone', 'p', 'parent', 's-done', CURRENT_TIMESTAMP)`,
+			('gone', 'p', 'parent', 's-done', CURRENT_TIMESTAMP),
+			('foreign', 'other', 'parent', 's-done', NULL)`,
 	} {
 		if _, err := db.ExecContext(ctx, stmt); err != nil {
 			t.Fatalf("setup %q: %v", stmt, err)
@@ -640,7 +641,7 @@ func TestAttachSubtaskCounts(t *testing.T) {
 		t.Fatalf("attachSubtaskCounts: %v", err)
 	}
 	if parent.SubtaskCount != 3 || parent.SubtaskDoneCount != 1 {
-		t.Errorf("parent counts = %d/%d, want 1/3 (deleted child excluded)", parent.SubtaskDoneCount, parent.SubtaskCount)
+		t.Errorf("parent counts = %d/%d, want 1/3 (deleted and other-project children excluded)", parent.SubtaskDoneCount, parent.SubtaskCount)
 	}
 	if lone.SubtaskCount != 0 || lone.SubtaskDoneCount != 0 {
 		t.Errorf("lone counts = %d/%d, want 0/0", lone.SubtaskDoneCount, lone.SubtaskCount)
@@ -660,6 +661,7 @@ func TestTaskRepository_CountTasks_ExcludeSubtasks(t *testing.T) {
 	} {
 		db.MustExec(stmt)
 	}
+	db.MustExec(`INSERT INTO tasks (id, project_id, task_type_id) VALUES ('foreign-parent', 'other-project', 'story')`)
 	for _, row := range []struct {
 		id, typ, parent string
 		deleted         bool
@@ -671,7 +673,8 @@ func TestTaskRepository_CountTasks_ExcludeSubtasks(t *testing.T) {
 		{"untyped-parent", "", "", false},
 		{"child-untyped", "story", "untyped-parent", false}, // parent without a type is not an Epic: hidden
 		{"gone-parent", "story", "", true},
-		{"orphan", "story", "gone-parent", false}, // parent deleted: stays
+		{"orphan", "story", "gone-parent", false},   // parent deleted: stays
+		{"cross", "story", "foreign-parent", false}, // parent is in another project: stays
 	} {
 		var typ, parent, deleted any
 		if row.typ != "" {
@@ -692,14 +695,14 @@ func TestTaskRepository_CountTasks_ExcludeSubtasks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if all != 7 {
-		t.Fatalf("without the filter want 7 live tasks, got %d", all)
+	if all != 8 {
+		t.Fatalf("without the filter want 8 live tasks, got %d", all)
 	}
 	got, err := repo.CountTasks(ctx, pid, taskdom.TaskFilter{ExcludeSubtasks: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != 5 {
-		t.Fatalf("ExcludeSubtasks want 5 (epic, parent, in-epic, untyped-parent, orphan), got %d", got)
+	if got != 6 {
+		t.Fatalf("ExcludeSubtasks want 6 (epic, parent, in-epic, untyped-parent, orphan, cross), got %d", got)
 	}
 }

@@ -1796,6 +1796,19 @@
 		"backlog": {
 			"title": "プロダクトバックログ",
 			"description": "スプリントに割り当てられていないすべての作業項目です。"
+		},
+		"subtasks": {
+			"expand": "{{n}} 件のサブタスクを展開",
+			"collapse": "{{n}} 件のサブタスクを折りたたむ",
+			"progress": "{{n}} 件中 {{done}} 件のサブタスクが完了",
+			"loading": "サブタスクを読み込み中",
+			"loadError": "サブタスクを読み込めませんでした。",
+			"retry": "再試行",
+			"matching": "{{total}} 件中 {{n}} 件のサブタスクが現在のフィルターに一致",
+			"noMatch": "現在のフィルターに一致するサブタスクはありません",
+			"loadMore": "さらにサブタスクを読み込む",
+			"add": "サブタスクを追加",
+			"addPlaceholder": "サブタスクのタイトル"
 		}
 	},
 	"conversationsPage": {
@@ -1938,7 +1951,11 @@
 			"tagsFilter": {
 				"addTag": "タグを追加",
 				"addTagPlaceholder": "タグを追加..."
-			}
+			},
+			"subtasksLabel": "サブタスク",
+			"subtasksCollapsed": "ネスト表示（折りたたみ）",
+			"subtasksExpanded": "ネスト表示（展開）",
+			"subtasksHidden": "非表示（フラット表示）"
 		},
 		"roadmap": {
 			"taskColumnLabel": "タスク",

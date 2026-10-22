@@ -1796,6 +1796,19 @@
 		"backlog": {
 			"title": "Backlog do produto",
 			"description": "Todos os itens de trabalho não atribuídos a um sprint."
+		},
+		"subtasks": {
+			"expand": "Expandir {{n}} subtarefas",
+			"collapse": "Recolher {{n}} subtarefas",
+			"progress": "{{done}} de {{n}} subtarefas concluídas",
+			"loading": "Carregando subtarefas",
+			"loadError": "Não foi possível carregar as subtarefas.",
+			"retry": "Tentar novamente",
+			"matching": "{{n}} de {{total}} subtarefas correspondem aos filtros atuais",
+			"noMatch": "Nenhuma subtarefa corresponde aos filtros atuais",
+			"loadMore": "Carregar mais subtarefas",
+			"add": "Adicionar subtarefa",
+			"addPlaceholder": "Título da subtarefa"
 		}
 	},
 	"conversationsPage": {
@@ -1938,7 +1951,11 @@
 			"tagsFilter": {
 				"addTag": "Adicionar etiqueta",
 				"addTagPlaceholder": "Adicionar etiqueta..."
-			}
+			},
+			"subtasksLabel": "Subtarefas",
+			"subtasksCollapsed": "Aninhadas, recolhidas",
+			"subtasksExpanded": "Aninhadas, expandidas",
+			"subtasksHidden": "Ocultas (lista plana)"
 		},
 		"roadmap": {
 			"taskColumnLabel": "Tarefa",

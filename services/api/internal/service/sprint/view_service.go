@@ -178,7 +178,7 @@ func (s *ViewService) CreateView(ctx context.Context, in sprintdom.CreateViewInp
 		ProjectID:   in.ProjectID,
 		Name:        name,
 		ViewType:    vt,
-		Config:      in.Config,
+		Config:      normalizeViewConfig(in.Config),
 		Position:    in.Position,
 		ViewContext: in.ViewContext,
 		CreatedAt:   now,
@@ -214,7 +214,7 @@ func (s *ViewService) UpdateView(ctx context.Context, projectID, id uuid.UUID, i
 			v.ViewType = *in.ViewType
 		}
 		if in.Config != nil {
-			v.Config = *in.Config
+			v.Config = normalizeViewConfig(*in.Config)
 		}
 		if in.Position != nil {
 			v.Position = *in.Position
@@ -428,7 +428,7 @@ func (s *ViewService) SetUserViewConfig(ctx context.Context, projectID, viewID, 
 	if !hasPluginConfig(v.ViewType, &cfg) {
 		return nil, sprintdom.ErrViewPluginConfigRequired
 	}
-	sparse := diffViewConfig(v.Config, cfg)
+	sparse := diffViewConfig(v.Config, normalizeViewConfig(cfg))
 	sharedConfig := v.Config
 	if isZeroViewConfig(sparse) {
 		if err := s.repo.DeleteUserViewConfig(ctx, viewID, accountID); err != nil {
@@ -501,6 +501,17 @@ func (s *ViewService) OverlayUserConfigs(ctx context.Context, accountID uuid.UUI
 	return nil
 }
 
+// normalizeViewConfig clears values outside their allowed set so a typo is not
+// persisted; unknown subtask modes fall back to the default (empty).
+func normalizeViewConfig(cfg sprintdom.ViewConfig) sprintdom.ViewConfig {
+	switch cfg.SubtaskMode {
+	case "", "collapsed", "expanded", "hidden":
+	default:
+		cfg.SubtaskMode = ""
+	}
+	return cfg
+}
+
 // mergeViewConfig returns the effective config for a view: each field of
 // override wins when the user has personally set it; shared's value is used
 // otherwise. PluginID/PluginComponent always come from shared — plugin
@@ -546,6 +557,9 @@ func mergeViewConfig(shared, override sprintdom.ViewConfig) sprintdom.ViewConfig
 	if override.InitialPageSize != 0 {
 		out.InitialPageSize = override.InitialPageSize
 	}
+	if override.SubtaskMode != "" {
+		out.SubtaskMode = override.SubtaskMode
+	}
 	// out.PluginID / out.PluginComponent intentionally left at shared's value.
 	return out
 }
@@ -586,6 +600,9 @@ func diffViewConfig(shared, desired sprintdom.ViewConfig) sprintdom.ViewConfig {
 	}
 	if desired.InitialPageSize != shared.InitialPageSize {
 		out.InitialPageSize = desired.InitialPageSize
+	}
+	if desired.SubtaskMode != shared.SubtaskMode {
+		out.SubtaskMode = desired.SubtaskMode
 	}
 	return out
 }

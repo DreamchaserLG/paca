@@ -1796,6 +1796,19 @@
 		"backlog": {
 			"title": "产品待办列表",
 			"description": "所有未分配到冲刺的工作项。"
+		},
+		"subtasks": {
+			"expand": "展开 {{n}} 个子任务",
+			"collapse": "收起 {{n}} 个子任务",
+			"progress": "{{n}} 个子任务中已完成 {{done}} 个",
+			"loading": "正在加载子任务",
+			"loadError": "无法加载子任务。",
+			"retry": "重试",
+			"matching": "{{total}} 个子任务中有 {{n}} 个符合当前筛选条件",
+			"noMatch": "没有符合当前筛选条件的子任务",
+			"loadMore": "加载更多子任务",
+			"add": "添加子任务",
+			"addPlaceholder": "子任务标题"
 		}
 	},
 	"conversationsPage": {
@@ -1938,7 +1951,11 @@
 			"tagsFilter": {
 				"addTag": "添加标签",
 				"addTagPlaceholder": "添加标签..."
-			}
+			},
+			"subtasksLabel": "子任务",
+			"subtasksCollapsed": "嵌套，已折叠",
+			"subtasksExpanded": "嵌套，已展开",
+			"subtasksHidden": "隐藏（平铺列表）"
 		},
 		"roadmap": {
 			"taskColumnLabel": "任务",

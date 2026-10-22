@@ -1796,6 +1796,19 @@
 		"backlog": {
 			"title": "Product Backlog",
 			"description": "All work items not assigned to a sprint."
+		},
+		"subtasks": {
+			"expand": "Expand {{n}} subtasks",
+			"collapse": "Collapse {{n}} subtasks",
+			"progress": "{{done}} of {{n}} subtasks done",
+			"loading": "Loading subtasks",
+			"loadError": "Couldn't load subtasks.",
+			"retry": "Retry",
+			"matching": "{{n}} of {{total}} subtasks match the current filters",
+			"noMatch": "No subtasks match the current filters",
+			"loadMore": "Load more subtasks",
+			"add": "Add subtask",
+			"addPlaceholder": "Subtask title"
 		}
 	},
 	"conversationsPage": {
@@ -1938,7 +1951,11 @@
 			"tagsFilter": {
 				"addTag": "Add tag",
 				"addTagPlaceholder": "Add tag..."
-			}
+			},
+			"subtasksLabel": "Subtasks",
+			"subtasksCollapsed": "Nested, collapsed",
+			"subtasksExpanded": "Nested, expanded",
+			"subtasksHidden": "Hidden (flat list)"
 		},
 		"roadmap": {
 			"taskColumnLabel": "Task",

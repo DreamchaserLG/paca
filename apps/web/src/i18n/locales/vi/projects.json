@@ -1796,6 +1796,19 @@
 		"backlog": {
 			"title": "Product Backlog",
 			"description": "Tất cả công việc chưa được gán vào sprint nào."
+		},
+		"subtasks": {
+			"expand": "Mở rộng {{n}} công việc con",
+			"collapse": "Thu gọn {{n}} công việc con",
+			"progress": "Hoàn thành {{done}}/{{n}} công việc con",
+			"loading": "Đang tải công việc con",
+			"loadError": "Không thể tải công việc con.",
+			"retry": "Thử lại",
+			"matching": "{{n}}/{{total}} công việc con khớp với bộ lọc hiện tại",
+			"noMatch": "Không có công việc con nào khớp với bộ lọc hiện tại",
+			"loadMore": "Tải thêm công việc con",
+			"add": "Thêm công việc con",
+			"addPlaceholder": "Tiêu đề công việc con"
 		}
 	},
 	"conversationsPage": {
@@ -1938,7 +1951,11 @@
 			"tagsFilter": {
 				"addTag": "Thêm thẻ",
 				"addTagPlaceholder": "Thêm thẻ..."
-			}
+			},
+			"subtasksLabel": "Công việc con",
+			"subtasksCollapsed": "Lồng nhau, thu gọn",
+			"subtasksExpanded": "Lồng nhau, mở rộng",
+			"subtasksHidden": "Ẩn (danh sách phẳng)"
 		},
 		"roadmap": {
 			"taskColumnLabel": "Nhiệm vụ",

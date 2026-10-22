@@ -1479,6 +1479,34 @@ export function ViewSettingsPanel({
 								/>
 							</SettingRow>
 
+							{(view?.layout === "Table" || view?.layout === "Roadmap") && (
+								<SettingRow label={t("layout.viewSettings.subtasksLabel")}>
+									<DynamicSelect
+										value={draft.subtask_mode ?? "collapsed"}
+										options={[
+											{
+												key: "collapsed",
+												label: t("layout.viewSettings.subtasksCollapsed"),
+											},
+											{
+												key: "expanded",
+												label: t("layout.viewSettings.subtasksExpanded"),
+											},
+											{
+												key: "hidden",
+												label: t("layout.viewSettings.subtasksHidden"),
+											},
+										]}
+										onChange={(v) =>
+											update({
+												subtask_mode:
+													v === "expanded" || v === "hidden" ? v : undefined,
+											})
+										}
+									/>
+								</SettingRow>
+							)}
+
 							<SettingRow label={t("layout.viewSettings.fieldSumLabel")}>
 								<DynamicSelect
 									value={draft.field_sum ?? "count"}

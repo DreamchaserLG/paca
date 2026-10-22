@@ -601,3 +601,105 @@ func TestTaskRepository_DeleteRefusesTheDefault(t *testing.T) {
 		})
 	}
 }
+
+func TestAttachSubtaskCounts(t *testing.T) {
+	db := openTaskRepoTestDB(t)
+	ctx := context.Background()
+	for _, stmt := range []string{
+		`ALTER TABLE tasks ADD COLUMN parent_task_id TEXT`,
+		`ALTER TABLE tasks ADD COLUMN status_id TEXT`,
+		`CREATE TABLE task_statuses (id TEXT PRIMARY KEY, category TEXT NOT NULL)`,
+		`INSERT INTO task_statuses VALUES ('s-todo', 'todo'), ('s-done', 'done')`,
+		`INSERT INTO tasks (id, project_id, parent_task_id, status_id, deleted_at) VALUES
+			('parent', 'p', NULL, NULL, NULL),
+			('lone', 'p', NULL, NULL, NULL),
+			('c1', 'p', 'parent', 's-done', NULL),
+			('c2', 'p', 'parent', 's-todo', NULL),
+			('c3', 'p', 'parent', NULL, NULL),
+			('gone', 'p', 'parent', 's-done', CURRENT_TIMESTAMP)`,
+	} {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			t.Fatalf("setup %q: %v", stmt, err)
+		}
+	}
+
+	parent := &taskdom.Task{ID: uuid.MustParse("00000000-0000-0000-0000-000000000001")}
+	lone := &taskdom.Task{ID: uuid.MustParse("00000000-0000-0000-0000-000000000002")}
+	// Re-key the fixtures to the UUIDs the repo will query.
+	for old, id := range map[string]uuid.UUID{"parent": parent.ID, "lone": lone.ID} {
+		if _, err := db.ExecContext(ctx, `UPDATE tasks SET id = ? WHERE id = ?`, id.String(), old); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(ctx, `UPDATE tasks SET parent_task_id = ? WHERE parent_task_id = ?`, id.String(), old); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	repo := &TaskRepository{db: db}
+	if err := repo.attachSubtaskCounts(ctx, []*taskdom.Task{parent, lone}); err != nil {
+		t.Fatalf("attachSubtaskCounts: %v", err)
+	}
+	if parent.SubtaskCount != 3 || parent.SubtaskDoneCount != 1 {
+		t.Errorf("parent counts = %d/%d, want 1/3 (deleted child excluded)", parent.SubtaskDoneCount, parent.SubtaskCount)
+	}
+	if lone.SubtaskCount != 0 || lone.SubtaskDoneCount != 0 {
+		t.Errorf("lone counts = %d/%d, want 0/0", lone.SubtaskDoneCount, lone.SubtaskCount)
+	}
+}
+
+func TestTaskRepository_CountTasks_ExcludeSubtasks(t *testing.T) {
+	db := openTaskRepoTestDB(t)
+	repo := NewTaskRepository(db)
+	ctx := context.Background()
+	projectID := uuid.New().String()
+	for _, stmt := range []string{
+		`ALTER TABLE tasks ADD COLUMN parent_task_id TEXT`,
+		`ALTER TABLE tasks ADD COLUMN task_type_id TEXT`,
+		`CREATE TABLE task_types (id TEXT PRIMARY KEY, name TEXT NOT NULL, is_system BOOLEAN NOT NULL)`,
+		`INSERT INTO task_types VALUES ('epic', 'Epic', 1), ('story', 'Story', 0)`,
+	} {
+		db.MustExec(stmt)
+	}
+	for _, row := range []struct {
+		id, typ, parent string
+		deleted         bool
+	}{
+		{"epic-1", "epic", "", false},
+		{"parent", "story", "", false},
+		{"in-epic", "story", "epic-1", false}, // belongs to an Epic: stays
+		{"child", "story", "parent", false},   // subtask of a story: hidden
+		{"untyped-parent", "", "", false},
+		{"child-untyped", "story", "untyped-parent", false}, // parent without a type is not an Epic: hidden
+		{"gone-parent", "story", "", true},
+		{"orphan", "story", "gone-parent", false}, // parent deleted: stays
+	} {
+		var typ, parent, deleted any
+		if row.typ != "" {
+			typ = row.typ
+		}
+		if row.parent != "" {
+			parent = row.parent
+		}
+		if row.deleted {
+			deleted = "2026-01-01 00:00:00"
+		}
+		db.MustExec(`INSERT INTO tasks (id, project_id, task_type_id, parent_task_id, deleted_at) VALUES ($1, $2, $3, $4, $5)`,
+			row.id, projectID, typ, parent, deleted)
+	}
+
+	pid := uuid.MustParse(projectID)
+	all, err := repo.CountTasks(ctx, pid, taskdom.TaskFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if all != 7 {
+		t.Fatalf("without the filter want 7 live tasks, got %d", all)
+	}
+	got, err := repo.CountTasks(ctx, pid, taskdom.TaskFilter{ExcludeSubtasks: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != 5 {
+		t.Fatalf("ExcludeSubtasks want 5 (epic, parent, in-epic, untyped-parent, orphan), got %d", got)
+	}
+}

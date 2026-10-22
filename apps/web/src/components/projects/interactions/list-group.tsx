@@ -1,8 +1,10 @@
 import { ChevronDown, ChevronRight, Play, Plus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { Sprint, Task } from "@/lib/interaction-api";
+import { useIsMobile } from "@/hooks/use-mobile";
+
+import type { ChildTaskFilters, Sprint, Task } from "@/lib/interaction-api";
 import type {
 	CustomFieldDefinition,
 	ProjectMember,
@@ -15,6 +17,7 @@ import { AddTaskRow } from "./add-task-row";
 import type { SprintFormPayload } from "./sprint-form-modal";
 import { SprintStatusBadge } from "./sprint-status-badge";
 import { StartSprintModal } from "./start-sprint-modal";
+import { SubtaskRows } from "./subtask-rows";
 import { TaskContextMenu } from "./task-context-menu";
 import { getRowColConfig, TaskRow } from "./task-row";
 import {
@@ -90,6 +93,16 @@ export interface ListGroupProps {
 	totalCount?: number;
 	/** Field sum from the API, used in place of the front-end computed sum in the header badge */
 	apiFieldSum?: number;
+	/** Set when the view nests subtasks under their parents. */
+	nesting?: SubtaskNesting;
+}
+
+export interface SubtaskNesting {
+	isExpanded: (taskId: string) => boolean;
+	onToggle: (taskId: string) => void;
+	/** The view's filters/sort, applied to each parent's children. */
+	filters: ChildTaskFilters;
+	filtersActive: boolean;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -134,8 +147,10 @@ export function ListGroup({
 	groupPagination,
 	totalCount,
 	apiFieldSum,
+	nesting,
 }: ListGroupProps) {
 	const { t } = useTranslation("projects");
+	const isMobile = useIsMobile();
 	const [collapsed, setCollapsed] = useState(defaultCollapsed ?? false);
 	const [draggingId, setDraggingId] = useState<string | null>(null);
 	const [dragOverId, setDragOverId] = useState<string | null>(null);
@@ -281,9 +296,9 @@ export function ListGroup({
 	// ── Column-header row ─────────────────────────────────────────────────────
 
 	const columnHeaders = (
-		<div className="flex items-center gap-3 px-4 py-1.5 bg-muted/20 border-b border-border/25">
-			{isDraggable && <div className="w-3 shrink-0" />}
-			<div className="w-20 shrink-0 text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground/60">
+		<div className="flex items-center gap-2 px-4 py-1.5 bg-muted/20 border-b border-border/25 sm:gap-3">
+			{isDraggable && !isMobile && <div className="w-3 shrink-0" />}
+			<div className="w-14 shrink-0 sm:w-20 text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground/60">
 				{t("board.listGroup.columnHeaders.id")}
 			</div>
 			<div className="flex-1 text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground/60">
@@ -309,7 +324,7 @@ export function ListGroup({
 
 	// ── Task row renderer ─────────────────────────────────────────────────────
 
-	const renderTaskRow = (
+	const renderTaskRowInner = (
 		task: Task,
 		index: number,
 		groupKey: string,
@@ -452,7 +467,7 @@ export function ListGroup({
 					customFields={customFields}
 					visibleFields={visibleFields}
 					onClick={() => onTaskClick(task)}
-					showDragHandle={isDraggable}
+					showDragHandle={isDraggable && !isMobile}
 					isDragging={draggingId === task.id}
 					canEdit={canEdit}
 					onUpdateTaskField={onUpdateTaskField}
@@ -467,9 +482,55 @@ export function ListGroup({
 							? () => moveTaskToGroupDef(task, nextGroupDef)
 							: undefined
 					}
+					subtasks={
+						nesting
+							? {
+									expanded: nesting.isExpanded(task.id),
+									onToggle: () => nesting.onToggle(task.id),
+								}
+							: undefined
+					}
 				/>
 			</TaskContextMenu>
 		</div>
+	);
+
+	const renderTaskRow = (
+		task: Task,
+		index: number,
+		groupKey: string,
+		swimKey?: string,
+	) => (
+		<Fragment key={task.id}>
+			{renderTaskRowInner(task, index, groupKey, swimKey)}
+			{nesting?.isExpanded(task.id) && (task.subtask_count ?? 0) > 0 && (
+				<SubtaskRows
+					projectId={projectId}
+					parent={task}
+					depth={1}
+					filters={nesting.filters}
+					filtersActive={nesting.filtersActive}
+					rowProps={{
+						taskIdPrefix,
+						statuses,
+						taskTypes,
+						epics,
+						epicsPagination,
+						customFields,
+						visibleFields,
+						canEdit,
+						onUpdateTaskField,
+						onDelete: canEdit ? onDeleteTask : undefined,
+					}}
+					statuses={statuses}
+					creatableTypes={taskTypes}
+					canCreate={canCreate}
+					isExpanded={nesting.isExpanded}
+					onToggle={nesting.onToggle}
+					onTaskClick={onTaskClick}
+				/>
+			)}
+		</Fragment>
 	);
 
 	const showAddTask =

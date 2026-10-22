@@ -546,6 +546,9 @@ func mergeViewConfig(shared, override sprintdom.ViewConfig) sprintdom.ViewConfig
 	if override.InitialPageSize != 0 {
 		out.InitialPageSize = override.InitialPageSize
 	}
+	if override.SubtaskMode != "" {
+		out.SubtaskMode = override.SubtaskMode
+	}
 	// out.PluginID / out.PluginComponent intentionally left at shared's value.
 	return out
 }
@@ -586,6 +589,9 @@ func diffViewConfig(shared, desired sprintdom.ViewConfig) sprintdom.ViewConfig {
 	}
 	if desired.InitialPageSize != shared.InitialPageSize {
 		out.InitialPageSize = desired.InitialPageSize
+	}
+	if desired.SubtaskMode != shared.SubtaskMode {
+		out.SubtaskMode = desired.SubtaskMode
 	}
 	return out
 }

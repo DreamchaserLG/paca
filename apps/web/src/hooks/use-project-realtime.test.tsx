@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => {
 		onProjectNamespaces: vi.fn(),
 		unsubscribeNamespaces: vi.fn(),
 		invalidateQueries: vi.fn(),
+		resetQueries: vi.fn(),
 		setQueryData: vi.fn(),
 	};
 });
@@ -39,6 +40,7 @@ vi.mock("@tanstack/react-query", async () => {
 		...actual,
 		useQueryClient: () => ({
 			invalidateQueries: mocks.invalidateQueries,
+			resetQueries: mocks.resetQueries,
 			setQueryData: mocks.setQueryData,
 		}),
 	};
@@ -367,6 +369,7 @@ describe("useProjectRealtime", () => {
 					projectId: string;
 					namespaces: string[];
 					removed: string[];
+					added: string[];
 				}) => void,
 			];
 			return listener;
@@ -380,6 +383,7 @@ describe("useProjectRealtime", () => {
 				projectId: "proj-abc",
 				namespaces: ["tasks", "docs"],
 				removed: [],
+				added: [],
 			});
 
 			const keys = mocks.invalidateQueries.mock.calls.map(
@@ -391,19 +395,160 @@ describe("useProjectRealtime", () => {
 			]);
 		});
 
-		it("refetches everything cached for the project when a kind of data was lost", () => {
+		// The predicate resetQueries was called with, for a given loss.
+		function lostPredicate(
+			removed: string[],
+			namespaces: string[] = ["tasks"],
+		) {
+			renderHook(() => useProjectRealtime("proj-abc"));
+			mocks.resetQueries.mockClear();
+			namespaceListener()({
+				projectId: "proj-abc",
+				namespaces,
+				removed,
+				added: [],
+			});
+			expect(mocks.resetQueries).toHaveBeenCalledTimes(1);
+			const [arg] = mocks.resetQueries.mock.calls[0] as [
+				{ predicate: (q: { queryKey: unknown[] }) => boolean },
+			];
+			return (...key: unknown[]) => arg.predicate({ queryKey: key });
+		}
+
+		it("resets only the data of the namespace that was lost, so refused data does not stay on screen", () => {
+			const lost = lostPredicate(["docs"]);
+			expect(lost("projects", "proj-abc", "docs", "list")).toBe(true);
+			expect(lost("projects", "proj-abc", "agentActivities")).toBe(true);
+			// What the member still has is left alone.
+			expect(lost("projects", "proj-abc", "tasks", "list")).toBe(false);
+			expect(lost("projects", "proj-abc", "sprints", "s1")).toBe(false);
+			expect(lost("projects", "proj-abc", "environments")).toBe(false);
+		});
+
+		it("never resets the permission queries, which were just invalidated", () => {
+			const lost = lostPredicate(["tasks", "docs"]);
+			expect(lost("projects", "proj-abc", "members", "me", "permissions")).toBe(
+				false,
+			);
+			expect(lost("auth", "me", "permissions")).toBe(false);
+		});
+
+		it("resets the task data cached under sprints and views when tasks are lost", () => {
+			const lost = lostPredicate(["tasks"], ["docs"]);
+			expect(lost("projects", "proj-abc", "tasks", "t1")).toBe(true);
+			expect(lost("projects", "proj-abc", "sprints", "s1", "tasks")).toBe(true);
+			expect(
+				lost("projects", "proj-abc", "views", "v1", "task-positions"),
+			).toBe(true);
+			// A sprint or a view itself is not task data.
+			expect(lost("projects", "proj-abc", "sprints", "s1")).toBe(false);
+			expect(lost("projects", "proj-abc", "views", "v1", "config")).toBe(false);
+		});
+
+		it("covers every namespace's own data, and several lost at once", () => {
+			const lost = lostPredicate([
+				"workflows",
+				"environments",
+				"conversations",
+			]);
+			expect(lost("projects", "proj-abc", "automations")).toBe(true);
+			expect(lost("projects", "proj-abc", "automation-dependency-map")).toBe(
+				true,
+			);
+			expect(lost("projects", "proj-abc", "environments", "e1")).toBe(true);
+			expect(lost("projects", "proj-abc", "conversations", "c1")).toBe(true);
+			expect(lost("projects", "proj-abc", "docs")).toBe(false);
+		});
+
+		it("leaves project queries outside the lost namespace's roots alone", () => {
+			const lost = lostPredicate(["tasks"], ["docs"]);
+			expect(lost("projects", "proj-abc", "settings")).toBe(false);
+			expect(lost("projects", "proj-abc", "labels")).toBe(false);
+			expect(lost("projects", "proj-abc")).toBe(false);
+		});
+
+		it("matches the keys the real query options build, so a renamed key fails here", async () => {
+			const { viewTaskPositionsQueryOptions } = await import(
+				"@/lib/interaction-api"
+			);
+			const lost = lostPredicate(["tasks"], ["docs"]);
+			const { queryKey } = viewTaskPositionsQueryOptions("proj-abc", "v1");
+			expect(lost(...queryKey)).toBe(true);
+		});
+
+		it("does not touch another project's queries", () => {
+			const lost = lostPredicate(["tasks"], ["docs"]);
+			expect(lost("projects", "other", "tasks", "t1")).toBe(false);
+		});
+
+		it("errs towards safety for a namespace it does not know, still sparing the permissions", () => {
+			const lost = lostPredicate(["somethingNew"]);
+			expect(lost("projects", "proj-abc", "tasks", "t1")).toBe(true);
+			expect(lost("projects", "proj-abc", "docs")).toBe(true);
+			expect(lost("projects", "proj-abc", "members", "me", "permissions")).toBe(
+				false,
+			);
+		});
+
+		it("refetches a gained namespace's data, which may be sitting in the error state, and nothing else", () => {
+			renderHook(() => useProjectRealtime("proj-abc"));
+			mocks.invalidateQueries.mockClear();
+			mocks.resetQueries.mockClear();
+
+			namespaceListener()({
+				projectId: "proj-abc",
+				namespaces: ["tasks", "docs"],
+				removed: [],
+				added: ["tasks"],
+			});
+
+			expect(mocks.resetQueries).not.toHaveBeenCalled();
+			const withPredicate = mocks.invalidateQueries.mock.calls
+				.map(([arg]) => arg)
+				.find((arg) => typeof arg.predicate === "function");
+			expect(withPredicate).toBeDefined();
+			const gained = (...key: unknown[]) =>
+				withPredicate.predicate({ queryKey: key });
+			expect(gained("projects", "proj-abc", "tasks", "t1")).toBe(true);
+			expect(gained("projects", "proj-abc", "sprints", "s1", "tasks")).toBe(
+				true,
+			);
+			expect(gained("projects", "proj-abc", "docs")).toBe(false);
+			expect(
+				gained("projects", "proj-abc", "members", "me", "permissions"),
+			).toBe(false);
+		});
+
+		it("does not refetch data when nothing was gained or lost", () => {
 			renderHook(() => useProjectRealtime("proj-abc"));
 			mocks.invalidateQueries.mockClear();
 
 			namespaceListener()({
 				projectId: "proj-abc",
 				namespaces: ["tasks"],
-				removed: ["docs"],
+				removed: [],
+				added: [],
 			});
 
-			expect(mocks.invalidateQueries).toHaveBeenCalledWith({
-				queryKey: ["projects", "proj-abc"],
+			expect(
+				mocks.invalidateQueries.mock.calls.filter(
+					([arg]) => typeof arg.predicate === "function",
+				),
+			).toEqual([]);
+		});
+
+		it("only invalidates, never resets, when nothing was lost", () => {
+			renderHook(() => useProjectRealtime("proj-abc"));
+			mocks.resetQueries.mockClear();
+
+			namespaceListener()({
+				projectId: "proj-abc",
+				namespaces: ["tasks", "docs"],
+				removed: [],
+				added: [],
 			});
+
+			expect(mocks.resetQueries).not.toHaveBeenCalled();
 		});
 
 		it("ignores a report about another project", () => {
@@ -414,6 +559,7 @@ describe("useProjectRealtime", () => {
 				projectId: "other",
 				namespaces: [],
 				removed: ["tasks"],
+				added: [],
 			});
 
 			expect(mocks.invalidateQueries).not.toHaveBeenCalled();
@@ -437,9 +583,10 @@ describe("useProjectRealtime", () => {
 					projectId: string;
 					namespaces: string[];
 					removed: string[];
+					added: string[];
 				}) => void,
 			];
-			listener({ projectId, namespaces: ["tasks"], removed: [] });
+			listener({ projectId, namespaces: ["tasks"], removed: [], added: [] });
 		}
 		const projectRefetches = () =>
 			mocks.invalidateQueries.mock.calls.filter(

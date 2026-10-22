@@ -177,6 +177,11 @@ export interface NamespacesChange extends NamespacesMessage {
 	/** Namespaces the socket was in before and no longer is: the account lost
 	 *  access to that kind of data, so what the client cached may be stale. */
 	removed: string[];
+	/** Namespaces the socket was not in before and now is: the account gained
+	 *  access to that kind of data, which the client may hold only as a refused
+	 *  (errored) fetch. Empty on the first report for a project, where the
+	 *  initial load already fetches everything. */
+	added: string[];
 }
 
 // The server acks a join with the namespaces it granted. No ack within
@@ -239,8 +244,9 @@ function recordNamespaces({ projectId, namespaces }: NamespacesMessage): void {
 	const before = projectNamespaces.get(projectId);
 	projectNamespaces.set(projectId, namespaces);
 	const removed = (before ?? []).filter((ns) => !namespaces.includes(ns));
+	const added = before ? namespaces.filter((ns) => !before.includes(ns)) : [];
 	for (const listener of namespaceListeners) {
-		listener({ projectId, namespaces, removed });
+		listener({ projectId, namespaces, removed, added });
 	}
 }
 

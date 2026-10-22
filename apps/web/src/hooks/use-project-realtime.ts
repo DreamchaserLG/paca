@@ -17,8 +17,8 @@
 //   2. Listens for "event" messages and maps event types to query
 //      invalidations using the same query key prefixes as the API helpers.
 //   3. Refetches the caller's permissions when the server reports that IAM
-//      changed ("permissions:changed"), and everything cached for the project
-//      when a kind of data the caller could see is no longer theirs.
+//      changed ("permissions:changed"), and resets what is cached for a kind of
+//      data the caller could see and no longer can.
 //   4. Leaves the project rooms and removes the listeners on unmount.
 //
 // Query invalidation strategy
@@ -84,6 +84,48 @@ import {
 	rejoinProject,
 } from "@/lib/socket-client";
 import { invalidateSprintDirectory } from "@/lib/sprint-directory";
+
+// The first key segment (after ["projects", projectId]) of the queries that
+// hold each realtime namespace's data. When the account loses a namespace the
+// cached data under these roots must not stay on screen.
+const NAMESPACE_QUERY_ROOTS: Record<string, readonly string[]> = {
+	tasks: ["tasks", "agentActivities"],
+	docs: ["docs", "agentActivities"],
+	sprints: ["sprints"],
+	views: ["views"],
+	workflows: ["workflows", "automations", "automation-dependency-map"],
+	environments: ["environments"],
+	conversations: ["conversations"],
+};
+
+// The project's own permission queries live under "members": never reset
+// with the data, they are what tells the UI what is still allowed.
+const PERMISSION_QUERY_ROOT = "members";
+
+// holdsDataOf reports whether a cached query holds data of any of the given
+// namespaces. A namespace this table does not know errs towards safety:
+// every project query except the permissions is treated as holding it.
+function holdsDataOf(
+	queryKey: readonly unknown[],
+	projectId: string,
+	namespaces: readonly string[],
+): boolean {
+	if (queryKey[0] !== "projects" || queryKey[1] !== projectId) return false;
+	const root = queryKey[2];
+	if (root === PERMISSION_QUERY_ROOT) return false;
+	return namespaces.some((namespace) => {
+		const roots = NAMESPACE_QUERY_ROOTS[namespace];
+		if (!roots) return true;
+		if (typeof root === "string" && roots.includes(root)) return true;
+		// Task data is also cached under the sprints and views prefixes: a
+		// sprint's task list and a view's task positions.
+		return (
+			namespace === "tasks" &&
+			((root === "sprints" && queryKey[4] === "tasks") ||
+				(root === "views" && queryKey[4] === "task-positions"))
+		);
+	});
+}
 
 // projectId may be undefined for a component that's reused at both project
 // and global scope (e.g. the Conversations page) — the hook is a no-op in
@@ -340,10 +382,10 @@ export function useProjectRealtime(projectId: string | undefined): void {
 		// whenever IAM changes (a role edit, a detached role, a removed
 		// member). The caller's permissions may have changed, so refetch them:
 		// that re-renders everything gated on useEffectiveActions. When a kind
-		// of data is no longer visible to the caller, what is cached for the
-		// project may be stale or now refused, so refetch all of it; otherwise
-		// the data stays as it is, since the server announces this to every
-		// connected client on any role change.
+		// of data is no longer visible to the caller, what is cached for that
+		// kind of data may be stale or now refused, so reset it (the rest of
+		// the project's cache is deliberately left alone); a gained kind is
+		// invalidated, since its queries may be sitting in the error state.
 		const unsubscribeNamespaces = onProjectNamespaces((change) => {
 			if (change.projectId !== currentProjectId) return;
 			if (refetchAfterRejoin) {
@@ -368,8 +410,24 @@ export function useProjectRealtime(projectId: string | undefined): void {
 				queryKey: ["auth", "me", "permissions"],
 			});
 			if (change.removed.length > 0) {
+				// Reset, not just invalidate: a refetch the server now refuses
+				// (403) would leave the previous data on screen, still showing
+				// what the account may no longer see. Only what belongs to the
+				// lost namespaces is reset: the rest of the project's data is
+				// still the member's, and the permission queries invalidated
+				// above are being refetched, not emptied.
+				void queryClient.resetQueries({
+					predicate: (query) =>
+						holdsDataOf(query.queryKey, currentProjectId, change.removed),
+				});
+			}
+			if (change.added.length > 0) {
+				// A gained namespace's queries may be sitting in the error state
+				// from when it was refused; an errored query does not refetch by
+				// itself, so ask for it.
 				void queryClient.invalidateQueries({
-					queryKey: ["projects", currentProjectId],
+					predicate: (query) =>
+						holdsDataOf(query.queryKey, currentProjectId, change.added),
 				});
 			}
 		});

@@ -249,7 +249,12 @@ describe("socket-client", () => {
 
 			expect(getProjectNamespaces("proj-1")).toEqual(["tasks", "docs"]);
 			expect(changes).toEqual([
-				{ projectId: "proj-1", namespaces: ["tasks", "docs"], removed: [] },
+				{
+					projectId: "proj-1",
+					namespaces: ["tasks", "docs"],
+					removed: [],
+					added: [],
+				},
 			]);
 			off();
 		});
@@ -312,7 +317,7 @@ describe("socket-client", () => {
 	describe("permissions:changed", () => {
 		it("reports the namespaces the socket lost", () => {
 			connectSocket();
-			const changes: Array<{ removed: string[] }> = [];
+			const changes: Array<{ removed: string[]; added: string[] }> = [];
 			const off = onProjectNamespaces((c) => changes.push(c));
 			joinProject("proj-1");
 			lastJoinAck()(null, {
@@ -327,6 +332,35 @@ describe("socket-client", () => {
 
 			expect(getProjectNamespaces("proj-1")).toEqual(["tasks"]);
 			expect(changes.at(-1)?.removed).toEqual(["docs"]);
+			off();
+		});
+
+		it("reports the namespaces the socket gained, but not on the first report", () => {
+			connectSocket();
+			const changes: Array<{ removed: string[]; added: string[] }> = [];
+			const off = onProjectNamespaces((c) => changes.push(c));
+			joinProject("proj-1");
+			lastJoinAck()(null, { projectId: "proj-1", namespaces: ["tasks"] });
+			// The first report is the initial load: nothing to refetch.
+			expect(changes.at(-1)?.added).toEqual([]);
+
+			handlerFor("permissions:changed")({
+				projectId: "proj-1",
+				namespaces: ["tasks", "docs"],
+			});
+			expect(changes.at(-1)?.added).toEqual(["docs"]);
+			expect(changes.at(-1)?.removed).toEqual([]);
+
+			// Losing and regaining: the regain is reported as gained.
+			handlerFor("permissions:changed")({
+				projectId: "proj-1",
+				namespaces: ["docs"],
+			});
+			handlerFor("permissions:changed")({
+				projectId: "proj-1",
+				namespaces: ["docs", "tasks"],
+			});
+			expect(changes.at(-1)?.added).toEqual(["tasks"]);
 			off();
 		});
 

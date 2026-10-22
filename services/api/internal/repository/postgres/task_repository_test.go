@@ -639,7 +639,7 @@ func TestAttachSubtaskCounts(t *testing.T) {
 		}
 	}
 
-	// An Epic's children stay in the flat list, so the Epic reports no subtasks.
+	// An Epic reports its children too: the Timeline nests them under it.
 	db.MustExec(`INSERT INTO tasks (id, project_id, task_type_id) VALUES ('00000000-0000-0000-0000-000000000003', 'p', 'epic')`)
 	db.MustExec(`INSERT INTO tasks (id, project_id, parent_task_id) VALUES ('epic-child', 'p', '00000000-0000-0000-0000-000000000003')`)
 	epic := &taskdom.Task{ID: uuid.MustParse("00000000-0000-0000-0000-000000000003")}
@@ -651,8 +651,8 @@ func TestAttachSubtaskCounts(t *testing.T) {
 	if parent.SubtaskCount != 3 || parent.SubtaskDoneCount != 1 {
 		t.Errorf("parent counts = %d/%d, want 1/3 (deleted and other-project children excluded)", parent.SubtaskDoneCount, parent.SubtaskCount)
 	}
-	if epic.SubtaskCount != 0 {
-		t.Errorf("epic subtask count = %d, want 0", epic.SubtaskCount)
+	if epic.SubtaskCount != 1 {
+		t.Errorf("epic subtask count = %d, want 1", epic.SubtaskCount)
 	}
 	if lone.SubtaskCount != 0 || lone.SubtaskDoneCount != 0 {
 		t.Errorf("lone counts = %d/%d, want 0/0", lone.SubtaskDoneCount, lone.SubtaskCount)

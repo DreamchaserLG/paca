@@ -1267,7 +1267,7 @@ Query parameters:
 | `assignee_id` | – | Filter to tasks assigned to a specific user |
 | `view_id` | – | UUID of a view; enriches each task with its manual position in that view |
 | `include` | – | `assignees`, `reporter` or both (comma-separated): embed the people behind `assignee_ids` / `reporter_id` in each task as `assignees` / `reporter` |
-| `exclude_subtasks` | `false` | When `true`, omit tasks whose parent is a live, non-Epic task in the same sprint (or both in the backlog); they are listed under that parent instead. Tasks that only belong to an Epic, or whose parent is in another sprint, stay. Ignored when `parent_task_id` is set; Epics report no `subtask_count` |
+| `exclude_subtasks` | `false` | When `true`, omit tasks whose parent is a live, non-Epic task in the same sprint (or both in the backlog); they are listed under that parent instead. Tasks that only belong to an Epic, or whose parent is in another sprint, stay. Ignored when `parent_task_id` is set |
 | `exclude_system_types` | `false` | When `true`, omit tasks whose type has `is_system = true` (Epic, Subtask) |
 
 Success response data (without `view_id`):

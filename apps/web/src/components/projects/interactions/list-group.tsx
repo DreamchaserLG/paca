@@ -5,11 +5,12 @@ import { useTranslation } from "react-i18next";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 import type { ChildTaskFilters, Sprint, Task } from "@/lib/interaction-api";
-import type {
-	CustomFieldDefinition,
-	ProjectMember,
-	TaskStatus,
-	TaskType,
+import {
+	type CustomFieldDefinition,
+	findEpicType,
+	type ProjectMember,
+	type TaskStatus,
+	type TaskType,
 } from "@/lib/project-api";
 import { cn } from "@/lib/utils";
 
@@ -495,43 +496,52 @@ export function ListGroup({
 		</div>
 	);
 
+	const epicTypeId = findEpicType(taskTypes)?.id;
 	const renderTaskRow = (
-		task: Task,
+		listed: Task,
 		index: number,
 		groupKey: string,
 		swimKey?: string,
-	) => (
-		<Fragment key={task.id}>
-			{renderTaskRowInner(task, index, groupKey, swimKey)}
-			{nesting?.isExpanded(task.id) && (task.subtask_count ?? 0) > 0 && (
-				<SubtaskRows
-					projectId={projectId}
-					parent={task}
-					depth={1}
-					filters={nesting.filters}
-					filtersActive={nesting.filtersActive}
-					rowProps={{
-						taskIdPrefix,
-						statuses,
-						taskTypes,
-						epics,
-						epicsPagination,
-						customFields,
-						visibleFields,
-						canEdit,
-						onUpdateTaskField,
-						onDelete: canEdit ? onDeleteTask : undefined,
-					}}
-					statuses={statuses}
-					creatableTypes={taskTypes}
-					canCreate={canCreate}
-					isExpanded={nesting.isExpanded}
-					onToggle={nesting.onToggle}
-					onTaskClick={onTaskClick}
-				/>
-			)}
-		</Fragment>
-	);
+	) => {
+		// An Epic's children are also listed flat here, so the Table doesn't
+		// nest them (only the Timeline does).
+		const task =
+			epicTypeId && listed.task_type_id === epicTypeId
+				? { ...listed, subtask_count: 0, subtask_done_count: 0 }
+				: listed;
+		return (
+			<Fragment key={task.id}>
+				{renderTaskRowInner(task, index, groupKey, swimKey)}
+				{nesting?.isExpanded(task.id) && (task.subtask_count ?? 0) > 0 && (
+					<SubtaskRows
+						projectId={projectId}
+						parent={task}
+						depth={1}
+						filters={nesting.filters}
+						filtersActive={nesting.filtersActive}
+						rowProps={{
+							taskIdPrefix,
+							statuses,
+							taskTypes,
+							epics,
+							epicsPagination,
+							customFields,
+							visibleFields,
+							canEdit,
+							onUpdateTaskField,
+							onDelete: canEdit ? onDeleteTask : undefined,
+						}}
+						statuses={statuses}
+						creatableTypes={taskTypes}
+						canCreate={canCreate}
+						isExpanded={nesting.isExpanded}
+						onToggle={nesting.onToggle}
+						onTaskClick={onTaskClick}
+					/>
+				)}
+			</Fragment>
+		);
+	};
 
 	const showAddTask =
 		canCreate &&

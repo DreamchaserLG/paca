@@ -608,6 +608,9 @@ func TestAttachSubtaskCounts(t *testing.T) {
 	for _, stmt := range []string{
 		`ALTER TABLE tasks ADD COLUMN parent_task_id TEXT`,
 		`ALTER TABLE tasks ADD COLUMN status_id TEXT`,
+		`ALTER TABLE tasks ADD COLUMN task_type_id TEXT`,
+		`CREATE TABLE task_types (id TEXT PRIMARY KEY, name TEXT NOT NULL, is_system BOOLEAN NOT NULL)`,
+		`INSERT INTO task_types VALUES ('epic', 'Epic', 1)`,
 		`CREATE TABLE task_statuses (id TEXT PRIMARY KEY, category TEXT NOT NULL)`,
 		`INSERT INTO task_statuses VALUES ('s-todo', 'todo'), ('s-done', 'done')`,
 		`INSERT INTO tasks (id, project_id, parent_task_id, status_id, deleted_at) VALUES
@@ -636,12 +639,20 @@ func TestAttachSubtaskCounts(t *testing.T) {
 		}
 	}
 
+	// An Epic's children stay in the flat list, so the Epic reports no subtasks.
+	db.MustExec(`INSERT INTO tasks (id, project_id, task_type_id) VALUES ('00000000-0000-0000-0000-000000000003', 'p', 'epic')`)
+	db.MustExec(`INSERT INTO tasks (id, project_id, parent_task_id) VALUES ('epic-child', 'p', '00000000-0000-0000-0000-000000000003')`)
+	epic := &taskdom.Task{ID: uuid.MustParse("00000000-0000-0000-0000-000000000003")}
+
 	repo := &TaskRepository{db: db}
-	if err := repo.attachSubtaskCounts(ctx, []*taskdom.Task{parent, lone}); err != nil {
+	if err := repo.attachSubtaskCounts(ctx, []*taskdom.Task{parent, lone, epic}); err != nil {
 		t.Fatalf("attachSubtaskCounts: %v", err)
 	}
 	if parent.SubtaskCount != 3 || parent.SubtaskDoneCount != 1 {
 		t.Errorf("parent counts = %d/%d, want 1/3 (deleted and other-project children excluded)", parent.SubtaskDoneCount, parent.SubtaskCount)
+	}
+	if epic.SubtaskCount != 0 {
+		t.Errorf("epic subtask count = %d, want 0", epic.SubtaskCount)
 	}
 	if lone.SubtaskCount != 0 || lone.SubtaskDoneCount != 0 {
 		t.Errorf("lone counts = %d/%d, want 0/0", lone.SubtaskDoneCount, lone.SubtaskCount)
@@ -656,6 +667,7 @@ func TestTaskRepository_CountTasks_ExcludeSubtasks(t *testing.T) {
 	for _, stmt := range []string{
 		`ALTER TABLE tasks ADD COLUMN parent_task_id TEXT`,
 		`ALTER TABLE tasks ADD COLUMN task_type_id TEXT`,
+		`ALTER TABLE tasks ADD COLUMN sprint_id TEXT`,
 		`CREATE TABLE task_types (id TEXT PRIMARY KEY, name TEXT NOT NULL, is_system BOOLEAN NOT NULL)`,
 		`INSERT INTO task_types VALUES ('epic', 'Epic', 1), ('story', 'Story', 0)`,
 	} {
@@ -673,8 +685,9 @@ func TestTaskRepository_CountTasks_ExcludeSubtasks(t *testing.T) {
 		{"untyped-parent", "", "", false},
 		{"child-untyped", "story", "untyped-parent", false}, // parent without a type is not an Epic: hidden
 		{"gone-parent", "story", "", true},
-		{"orphan", "story", "gone-parent", false},   // parent deleted: stays
-		{"cross", "story", "foreign-parent", false}, // parent is in another project: stays
+		{"orphan", "story", "gone-parent", false},    // parent deleted: stays
+		{"cross", "story", "foreign-parent", false},  // parent is in another project: stays
+		{"sprinted-child", "story", "parent", false}, // parent is in another sprint: stays
 	} {
 		var typ, parent, deleted any
 		if row.typ != "" {
@@ -686,8 +699,12 @@ func TestTaskRepository_CountTasks_ExcludeSubtasks(t *testing.T) {
 		if row.deleted {
 			deleted = "2026-01-01 00:00:00"
 		}
-		db.MustExec(`INSERT INTO tasks (id, project_id, task_type_id, parent_task_id, deleted_at) VALUES ($1, $2, $3, $4, $5)`,
-			row.id, projectID, typ, parent, deleted)
+		var sprint any
+		if row.id == "sprinted-child" {
+			sprint = "sprint-1"
+		}
+		db.MustExec(`INSERT INTO tasks (id, project_id, task_type_id, parent_task_id, deleted_at, sprint_id) VALUES ($1, $2, $3, $4, $5, $6)`,
+			row.id, projectID, typ, parent, deleted, sprint)
 	}
 
 	pid := uuid.MustParse(projectID)
@@ -695,14 +712,14 @@ func TestTaskRepository_CountTasks_ExcludeSubtasks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if all != 8 {
-		t.Fatalf("without the filter want 8 live tasks, got %d", all)
+	if all != 9 {
+		t.Fatalf("without the filter want 9 live tasks, got %d", all)
 	}
 	got, err := repo.CountTasks(ctx, pid, taskdom.TaskFilter{ExcludeSubtasks: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != 6 {
-		t.Fatalf("ExcludeSubtasks want 6 (epic, parent, in-epic, untyped-parent, orphan, cross), got %d", got)
+	if got != 7 {
+		t.Fatalf("ExcludeSubtasks want 7 (epic, parent, in-epic, untyped-parent, orphan, cross, sprinted-child), got %d", got)
 	}
 }

@@ -88,10 +88,13 @@ export function useSubtaskExpansion(
 	const toggle = useCallback(
 		(taskId: string) => {
 			const current = getState(scope);
-			setState(scope, {
-				...current,
-				[taskId]: !(current[taskId] ?? defaultExpanded),
-			});
+			const next = !(current[taskId] ?? defaultExpanded);
+			// Back at the default: drop the entry so the record doesn't grow.
+			const { [taskId]: _dropped, ...rest } = current;
+			setState(
+				scope,
+				next === defaultExpanded ? rest : { ...rest, [taskId]: next },
+			);
 		},
 		[scope, defaultExpanded],
 	);

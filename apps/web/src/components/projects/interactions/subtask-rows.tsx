@@ -71,6 +71,7 @@ export function SubtaskRows({
 			task_type_id: typeId,
 			status_id: todo?.id ?? null,
 			parent_task_id: parent.id,
+			sprint_id: parent.sprint_id ?? null,
 		});
 		await qc.invalidateQueries({ queryKey: ["projects", projectId, "tasks"] });
 	};

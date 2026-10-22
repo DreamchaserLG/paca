@@ -535,6 +535,7 @@ func applyTaskFilter(b *queryBuilder, filter taskdom.TaskFilter) {
 		b.whereClauses = append(b.whereClauses, `NOT EXISTS (
 			SELECT 1 FROM tasks sp
 			WHERE sp.id = tasks.parent_task_id AND sp.project_id = tasks.project_id AND sp.deleted_at IS NULL
+			AND sp.sprint_id IS NOT DISTINCT FROM tasks.sprint_id
 			AND (sp.task_type_id IS NULL OR NOT EXISTS (
 				SELECT 1 FROM task_types spt
 				WHERE spt.id = sp.task_type_id AND spt.is_system AND spt.name = 'Epic')))`)
@@ -1737,7 +1738,9 @@ func (r *TaskRepository) attachAssigneeIDs(ctx context.Context, tasks []*taskdom
 }
 
 // attachSubtaskCounts batch-loads the direct-child count and the done-child
-// count (children whose status category is "done") for each task.
+// count (children whose status category is "done") for each task. Epics are
+// skipped: their children stay in the flat list, so nesting them would show
+// each child twice.
 func (r *TaskRepository) attachSubtaskCounts(ctx context.Context, tasks []*taskdom.Task) error {
 	if len(tasks) == 0 {
 		return nil
@@ -1763,7 +1766,11 @@ func (r *TaskRepository) attachSubtaskCounts(ctx context.Context, tasks []*taskd
 		FROM tasks c
 		JOIN tasks p ON p.id = c.parent_task_id AND p.project_id = c.project_id
 		LEFT JOIN task_statuses s ON s.id = c.status_id
-		WHERE c.deleted_at IS NULL AND c.parent_task_id IN (` + strings.Join(placeholders, ",") + `)
+		WHERE c.deleted_at IS NULL
+		AND (p.task_type_id IS NULL OR NOT EXISTS (
+			SELECT 1 FROM task_types pt
+			WHERE pt.id = p.task_type_id AND pt.is_system AND pt.name = 'Epic'))
+		AND c.parent_task_id IN (` + strings.Join(placeholders, ",") + `)
 		GROUP BY c.parent_task_id`
 	if err := r.db.SelectContext(ctx, &rows, query, args...); err != nil {
 		return fmt.Errorf("task repo: attach subtask counts: %w", err)

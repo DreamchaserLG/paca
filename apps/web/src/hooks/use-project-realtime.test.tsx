@@ -460,6 +460,22 @@ describe("useProjectRealtime", () => {
 			expect(lost("projects", "proj-abc", "docs")).toBe(false);
 		});
 
+		it("leaves project queries outside the lost namespace's roots alone", () => {
+			const lost = lostPredicate(["tasks"], ["docs"]);
+			expect(lost("projects", "proj-abc", "settings")).toBe(false);
+			expect(lost("projects", "proj-abc", "labels")).toBe(false);
+			expect(lost("projects", "proj-abc")).toBe(false);
+		});
+
+		it("matches the keys the real query options build, so a renamed key fails here", async () => {
+			const { viewTaskPositionsQueryOptions } = await import(
+				"@/lib/interaction-api"
+			);
+			const lost = lostPredicate(["tasks"], ["docs"]);
+			const { queryKey } = viewTaskPositionsQueryOptions("proj-abc", "v1");
+			expect(lost(...queryKey)).toBe(true);
+		});
+
 		it("does not touch another project's queries", () => {
 			const lost = lostPredicate(["tasks"], ["docs"]);
 			expect(lost("projects", "other", "tasks", "t1")).toBe(false);

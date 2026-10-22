@@ -382,10 +382,10 @@ export function useProjectRealtime(projectId: string | undefined): void {
 		// whenever IAM changes (a role edit, a detached role, a removed
 		// member). The caller's permissions may have changed, so refetch them:
 		// that re-renders everything gated on useEffectiveActions. When a kind
-		// of data is no longer visible to the caller, what is cached for the
-		// project may be stale or now refused, so refetch all of it; otherwise
-		// the data stays as it is, since the server announces this to every
-		// connected client on any role change.
+		// of data is no longer visible to the caller, what is cached for that
+		// kind of data may be stale or now refused, so reset it (the rest of
+		// the project's cache is deliberately left alone); a gained kind is
+		// invalidated, since its queries may be sitting in the error state.
 		const unsubscribeNamespaces = onProjectNamespaces((change) => {
 			if (change.projectId !== currentProjectId) return;
 			if (refetchAfterRejoin) {

@@ -20,6 +20,20 @@ export const JWT_SECRET =
 	process.env.E2E_JWT_SECRET ?? "e2e-jwt-secret-not-for-production";
 
 /**
+ * The minted-token specs only make sense against the isolated e2e stack, whose
+ * secret is known. Refuse to run them against anything but a local base URL
+ * unless E2E_JWT_SECRET was set on purpose.
+ */
+export function assertE2eStack(): void {
+	const local = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/|$)/;
+	if (!local.test(BASE_URL) && !process.env.E2E_JWT_SECRET) {
+		throw new Error(
+			`refusing to mint tokens against ${BASE_URL}: set E2E_JWT_SECRET for a non-local stack`,
+		);
+	}
+}
+
+/**
  * How long a spec waits before it calls something "not delivered". Delivery is
  * asynchronous (a per-event access check), so a negative assertion needs a
  * quiet window; a positive one polls and returns as soon as the event arrives.
@@ -139,10 +153,14 @@ export class Probe {
 		this.socket.emit("leave", { projectId });
 	}
 
-	/** Events received since `since`, optionally only those mentioning `id`. */
+	/**
+	 * Events received since `since` that mention `id` as a whole JSON string
+	 * value (not as a substring of another value).
+	 */
 	eventsAbout(id: string, since = 0): ReceivedEvent[] {
+		const needle = JSON.stringify(id);
 		return this.events.filter(
-			(e) => e.at >= since && JSON.stringify(e.payload).includes(id),
+			(e) => e.at >= since && JSON.stringify(e.payload).includes(needle),
 		);
 	}
 
@@ -155,7 +173,11 @@ export class Probe {
 		return this.changes.filter((c) => c.at >= since).at(-1);
 	}
 
-	/** Resolves with the first event at or after `since` that satisfies `match`. */
+	/**
+	 * Resolves with the first event at or after `since` (a `Date.now()` mark,
+	 * millisecond resolution: take it before the action under test, and treat a
+	 * same-millisecond event as after it) that satisfies `match`.
+	 */
 	async waitForEvent(
 		match: (e: ReceivedEvent) => boolean,
 		since = 0,
@@ -186,15 +208,17 @@ export function track<T extends { close(): unknown }>(thing: T): T {
 	return thing;
 }
 
-/** Closes every tracked socket. Call it from `afterEach`. */
-export function closeAll(): void {
-	for (const thing of open.splice(0)) {
-		try {
-			thing.close();
-		} catch {
-			// already closed
-		}
-	}
+/** Closes every tracked socket and context. Await it from `afterEach`. */
+export async function closeAll(): Promise<void> {
+	await Promise.allSettled(
+		open.splice(0).map(async (thing) => {
+			try {
+				await thing.close();
+			} catch {
+				// already closed
+			}
+		}),
+	);
 }
 
 // ─── Sessions and tokens ─────────────────────────────────────────────────────
@@ -228,6 +252,7 @@ export function mintToken(
 	patch: Record<string, unknown> = {},
 	secret = JWT_SECRET,
 ): string {
+	assertE2eStack();
 	const claims = JSON.parse(
 		Buffer.from(realToken.split(".")[1] as string, "base64url").toString(),
 	) as Record<string, unknown>;

@@ -71,7 +71,7 @@ test.beforeEach(async ({ request, context }) => {
 });
 
 test.afterEach(async ({ request }) => {
-	closeAll();
+	await closeAll();
 	await authRequest(request);
 	await cleanup(request);
 });

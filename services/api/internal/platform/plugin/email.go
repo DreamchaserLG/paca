@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"mime"
 	"net"
@@ -186,11 +187,10 @@ func dialAndSendSMTP(ctx context.Context, req smtpSendRequest) error {
 	}
 
 	if req.Username != "" {
-		// Negotiate from what the server advertises instead of assuming
-		// PLAIN: net/smtp's PlainAuth refuses to send against a server that
-		// offers only LOGIN (Azure Communication Services and some Exchange
-		// relays are exactly that), which surfaced as
-		// "504 5.7.4 Unrecognized authentication type".
+		// Negotiate from what the server advertises. net/smtp's PlainAuth
+		// sends AUTH PLAIN unconditionally, so a server that accepts only
+		// LOGIN (Azure Communication Services, some Exchange relays) rejects
+		// the handshake with "504 5.7.4 Unrecognized authentication type".
 		auth, err := smtpAuthFor(advertisedMechanisms(client), req.Username, req.Password, req.Host)
 		if err != nil {
 			return fmt.Errorf("send_email: auth: %w", err)
@@ -232,17 +232,21 @@ func advertisedMechanisms(client *smtp.Client) []string {
 	return strings.Fields(strings.ToUpper(params))
 }
 
-// smtpAuthFor picks an smtp.Auth the server actually supports. PLAIN is
-// preferred when offered; LOGIN is the fallback because it is the only
-// mechanism Azure Communication Services (and some Exchange relays) accept.
+// smtpAuthFor picks an smtp.Auth the server actually supports, trying PLAIN
+// before LOGIN regardless of advertisement order. LOGIN is needed because it
+// is the only mechanism Azure Communication Services (and some Exchange
+// relays) accept.
 // Returns an error naming the advertised set rather than letting net/smtp
 // fail later with a bare "unrecognized authentication type".
 func smtpAuthFor(mechanisms []string, username, password, host string) (smtp.Auth, error) {
-	for _, mech := range mechanisms {
-		switch mech {
-		case "PLAIN":
-			return smtp.PlainAuth("", username, password, host), nil
-		case "LOGIN":
+	for _, want := range []string{"PLAIN", "LOGIN"} {
+		for _, mech := range mechanisms {
+			if mech != want {
+				continue
+			}
+			if want == "PLAIN" {
+				return smtp.PlainAuth("", username, password, host), nil
+			}
 			return &loginAuth{username: username, password: password}, nil
 		}
 	}
@@ -261,8 +265,21 @@ type loginAuth struct {
 	password string
 }
 
-func (a *loginAuth) Start(*smtp.ServerInfo) (string, []byte, error) {
+func (a *loginAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
+	// Mirror smtp.PlainAuth: never put credentials on a link that was never
+	// encrypted. STARTTLS is opportunistic in dialAndSendSMTP, so a server
+	// that does not advertise it would otherwise receive the password in the
+	// clear.
+	if !server.TLS && !isLocalhost(server.Name) {
+		return "", nil, errors.New("unencrypted connection")
+	}
 	return "LOGIN", nil, nil
+}
+
+// isLocalhost mirrors net/smtp's unexported helper: loopback needs no TLS
+// because the traffic never leaves the host.
+func isLocalhost(name string) bool {
+	return name == "localhost" || name == "127.0.0.1" || name == "::1"
 }
 
 func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {

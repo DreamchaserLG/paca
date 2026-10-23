@@ -104,6 +104,12 @@ func TestLoginAuth_AnswersChallengesInOrder(t *testing.T) {
 	if _, err := auth.Next(nil, false); err != nil {
 		t.Fatalf("final call should be a no-op, got %v", err)
 	}
+	if _, _, err := auth.Start(&smtp.ServerInfo{Name: "smtp.example.com"}); err == nil {
+		t.Fatalf("credentials must not be offered on an unencrypted connection")
+	}
+	if _, _, err := auth.Start(&smtp.ServerInfo{Name: "localhost"}); err != nil {
+		t.Fatalf("loopback needs no TLS, got %v", err)
+	}
 	if answer, err := auth.Next([]byte("Password again:"), true); err == nil {
 		t.Fatalf("unexpected challenge answered with %q; want an error", answer)
 	}

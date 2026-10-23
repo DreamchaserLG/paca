@@ -29,6 +29,7 @@ import { Route as AuthenticatedAdminGlobalRolesIndexRouteImport } from './routes
 import { Route as AuthenticatedAdminChangelogIndexRouteImport } from './routes/_authenticated/admin/changelog/index'
 import { Route as AuthenticatedAdminAgentsIndexRouteImport } from './routes/_authenticated/admin/agents/index'
 import { Route as AuthenticatedProjectsProjectIdConversationsRouteImport } from './routes/_authenticated/projects/$projectId/conversations'
+import { Route as AuthenticatedPluginPagesPluginIdSlugRouteImport } from './routes/_authenticated/plugin-pages/$pluginId/$slug'
 import { Route as AuthenticatedProjectsProjectIdTeamIndexRouteImport } from './routes/_authenticated/projects/$projectId/team/index'
 import { Route as AuthenticatedProjectsProjectIdSettingsIndexRouteImport } from './routes/_authenticated/projects/$projectId/settings/index'
 import { Route as AuthenticatedProjectsProjectIdEnvironmentsIndexRouteImport } from './routes/_authenticated/projects/$projectId/environments/index'
@@ -168,6 +169,12 @@ const AuthenticatedProjectsProjectIdConversationsRoute =
     id: '/conversations',
     path: '/conversations',
     getParentRoute: () => AuthenticatedProjectsProjectIdRoute,
+  } as any)
+const AuthenticatedPluginPagesPluginIdSlugRoute =
+  AuthenticatedPluginPagesPluginIdSlugRouteImport.update({
+    id: '/plugin-pages/$pluginId/$slug',
+    path: '/plugin-pages/$pluginId/$slug',
+    getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedProjectsProjectIdTeamIndexRoute =
   AuthenticatedProjectsProjectIdTeamIndexRouteImport.update({
@@ -341,6 +348,7 @@ export interface FileRoutesByFullPath {
   '/conversations/': typeof AuthenticatedConversationsIndexRoute
   '/home/': typeof AuthenticatedHomeIndexRoute
   '/profile/': typeof AuthenticatedProfileIndexRoute
+  '/plugin-pages/$pluginId/$slug': typeof AuthenticatedPluginPagesPluginIdSlugRoute
   '/projects/$projectId/conversations': typeof AuthenticatedProjectsProjectIdConversationsRouteWithChildren
   '/admin/agents/': typeof AuthenticatedAdminAgentsIndexRoute
   '/admin/changelog/': typeof AuthenticatedAdminChangelogIndexRoute
@@ -385,6 +393,7 @@ export interface FileRoutesByTo {
   '/conversations': typeof AuthenticatedConversationsIndexRoute
   '/home': typeof AuthenticatedHomeIndexRoute
   '/profile': typeof AuthenticatedProfileIndexRoute
+  '/plugin-pages/$pluginId/$slug': typeof AuthenticatedPluginPagesPluginIdSlugRoute
   '/admin/agents': typeof AuthenticatedAdminAgentsIndexRoute
   '/admin/changelog': typeof AuthenticatedAdminChangelogIndexRoute
   '/admin/global-roles': typeof AuthenticatedAdminGlobalRolesIndexRoute
@@ -432,6 +441,7 @@ export interface FileRoutesById {
   '/_authenticated/conversations/': typeof AuthenticatedConversationsIndexRoute
   '/_authenticated/home/': typeof AuthenticatedHomeIndexRoute
   '/_authenticated/profile/': typeof AuthenticatedProfileIndexRoute
+  '/_authenticated/plugin-pages/$pluginId/$slug': typeof AuthenticatedPluginPagesPluginIdSlugRoute
   '/_authenticated/projects/$projectId/conversations': typeof AuthenticatedProjectsProjectIdConversationsRouteWithChildren
   '/_authenticated/admin/agents/': typeof AuthenticatedAdminAgentsIndexRoute
   '/_authenticated/admin/changelog/': typeof AuthenticatedAdminChangelogIndexRoute
@@ -480,6 +490,7 @@ export interface FileRouteTypes {
     | '/conversations/'
     | '/home/'
     | '/profile/'
+    | '/plugin-pages/$pluginId/$slug'
     | '/projects/$projectId/conversations'
     | '/admin/agents/'
     | '/admin/changelog/'
@@ -524,6 +535,7 @@ export interface FileRouteTypes {
     | '/conversations'
     | '/home'
     | '/profile'
+    | '/plugin-pages/$pluginId/$slug'
     | '/admin/agents'
     | '/admin/changelog'
     | '/admin/global-roles'
@@ -570,6 +582,7 @@ export interface FileRouteTypes {
     | '/_authenticated/conversations/'
     | '/_authenticated/home/'
     | '/_authenticated/profile/'
+    | '/_authenticated/plugin-pages/$pluginId/$slug'
     | '/_authenticated/projects/$projectId/conversations'
     | '/_authenticated/admin/agents/'
     | '/_authenticated/admin/changelog/'
@@ -754,6 +767,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/projects/$projectId/conversations'
       preLoaderRoute: typeof AuthenticatedProjectsProjectIdConversationsRouteImport
       parentRoute: typeof AuthenticatedProjectsProjectIdRoute
+    }
+    '/_authenticated/plugin-pages/$pluginId/$slug': {
+      id: '/_authenticated/plugin-pages/$pluginId/$slug'
+      path: '/plugin-pages/$pluginId/$slug'
+      fullPath: '/plugin-pages/$pluginId/$slug'
+      preLoaderRoute: typeof AuthenticatedPluginPagesPluginIdSlugRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/projects/$projectId/team/': {
       id: '/_authenticated/projects/$projectId/team/'
@@ -1052,6 +1072,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedProjectsProjectIdRoute: typeof AuthenticatedProjectsProjectIdRouteWithChildren
   AuthenticatedHomeIndexRoute: typeof AuthenticatedHomeIndexRoute
   AuthenticatedProfileIndexRoute: typeof AuthenticatedProfileIndexRoute
+  AuthenticatedPluginPagesPluginIdSlugRoute: typeof AuthenticatedPluginPagesPluginIdSlugRoute
   AuthenticatedAdminAgentsIndexRoute: typeof AuthenticatedAdminAgentsIndexRoute
   AuthenticatedAdminChangelogIndexRoute: typeof AuthenticatedAdminChangelogIndexRoute
   AuthenticatedAdminGlobalRolesIndexRoute: typeof AuthenticatedAdminGlobalRolesIndexRoute
@@ -1071,6 +1092,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
     AuthenticatedProjectsProjectIdRouteWithChildren,
   AuthenticatedHomeIndexRoute: AuthenticatedHomeIndexRoute,
   AuthenticatedProfileIndexRoute: AuthenticatedProfileIndexRoute,
+  AuthenticatedPluginPagesPluginIdSlugRoute:
+    AuthenticatedPluginPagesPluginIdSlugRoute,
   AuthenticatedAdminAgentsIndexRoute: AuthenticatedAdminAgentsIndexRoute,
   AuthenticatedAdminChangelogIndexRoute: AuthenticatedAdminChangelogIndexRoute,
   AuthenticatedAdminGlobalRolesIndexRoute:

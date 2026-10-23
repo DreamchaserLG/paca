@@ -427,37 +427,41 @@ type FrontendManifest struct {
 	// ExtensionPoints is the list of extension points the plugin registers into.
 	ExtensionPoints []ExtensionPointRegistration `json:"extensionPoints,omitempty"`
 	// NavItems is the list of sidebar nav items the plugin registers. Each nav
-	// item routes to a full-page component registered at the "project.page" or
-	// "admin.page" extension point (see NavItem.Point).
+	// item routes to a full-page component registered at the "project.page",
+	// "admin.page" or "app.page" extension point (see NavItem.Scope).
 	NavItems []NavItem `json:"navItems,omitempty"`
 }
 
 // NavItem describes a sidebar navigation entry contributed by the plugin. It
 // routes to a full-page plugin component instead of an embedded fragment.
 type NavItem struct {
-	// Scope determines which sidebar section the item appears in:
-	// "project" (per-project sidebar) or "admin" (admin sidebar).
+	// Scope determines where the page lives: "project" (per-project sidebar),
+	// "admin" (admin sidebar) or "app" — a top-level page at
+	// /plugin-pages/:pluginId/:slug that no sidebar lists, reached by URL (for
+	// example as the return address of an external service's callback).
 	Scope string `json:"scope"`
 	// Slug is the URL segment identifying this page, unique per plugin+scope,
 	// e.g. "time-tracking". Combined with the plugin ID to form the route:
-	// /projects/:projectId/plugins/:pluginId/:slug or
-	// /admin/plugins/:pluginId/:slug.
+	// /projects/:projectId/plugins/:pluginId/:slug,
+	// /admin/plugins/:pluginId/:slug or /plugin-pages/:pluginId/:slug.
 	Slug string `json:"slug"`
 	// Label is the human-readable sidebar link text.
 	Label string `json:"label"`
 	// Icon is a lucide-react icon name (PascalCase), e.g. "Clock".
 	Icon string `json:"icon,omitempty"`
 	// Component is the exported React component name from the remote entry,
-	// registered at the "project.page" or "admin.page" extension point.
+	// registered at the "project.page", "admin.page" or "app.page" extension
+	// point.
 	Component string `json:"component"`
 	// Order is the default display order within the sidebar section.
 	Order int `json:"order,omitempty"`
 	// RequiredPermission is the IAM action (built-in or one from this
 	// plugin's own CustomPermissions) the caller must hold to see and access
 	// this nav item's page, checked against the caller's effective actions
-	// for Scope "admin" (platform) or "project" (the project). If
+	// for Scope "admin" or "app" (platform) or "project" (the project). If
 	// omitted, the page is reachable by anyone who can already reach the
-	// enclosing sidebar section (all project members, or all admins).
+	// enclosing section (all project members, all admins, or — for "app" —
+	// any signed-in user, so an "app" page should declare one).
 	RequiredPermission string `json:"requiredPermission,omitempty"`
 }
 

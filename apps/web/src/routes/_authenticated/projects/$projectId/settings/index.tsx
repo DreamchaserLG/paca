@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useRouterState } from "@tanstack/react-router";
 import {
 	AlertTriangle,
 	Download,
@@ -10,7 +10,7 @@ import {
 	Sparkles,
 	Tag,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CustomFieldsSettings } from "@/components/projects/settings/CustomFieldsSettings";
 import { DangerZone } from "@/components/projects/settings/DangerZone";
@@ -26,6 +26,10 @@ import { useProjectPermissions } from "@/hooks/use-project-permissions";
 import { RemoteComponent } from "@/lib/plugins/loader";
 import { usePluginRegistry } from "@/lib/plugins/registry";
 import { projectQueryOptions } from "@/lib/project-api";
+import {
+	pluginSectionId,
+	resolveSectionFromHash,
+} from "@/lib/settings-sections";
 
 export const Route = createFileRoute(
 	"/_authenticated/projects/$projectId/settings/",
@@ -158,6 +162,27 @@ function SettingsPage() {
 		| string
 	>("general");
 
+	// The open tab lives in the URL hash (see lib/settings-sections.ts), so a
+	// tab can be linked to and returned to. Followed whenever the hash changes
+	// — and again when the plugin tabs finish loading, since a plugin tab can't
+	// be resolved before then. Only tabs this member can see are candidates.
+	const navigate = Route.useNavigate();
+	const hash = useRouterState({ select: (s) => s.location.hash });
+	const hashSection = resolveSectionFromHash(
+		hash,
+		visibleNavItems.map((i) => i.id),
+		pluginTabs,
+	);
+	useEffect(() => {
+		if (hashSection) setActiveSection(hashSection);
+	}, [hashSection]);
+
+	const selectSection = (id: string) => {
+		setActiveSection(id);
+		// Mirror the choice into the URL (no new history entry per click).
+		void navigate({ hash: id, replace: true });
+	};
+
 	return (
 		<div className="flex flex-col min-h-0 flex-1">
 			{/* Header */}
@@ -197,7 +222,7 @@ function SettingsPage() {
 							<button
 								key={id}
 								type="button"
-								onClick={() => setActiveSection(id)}
+								onClick={() => selectSection(id)}
 								className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors text-left ${
 									activeSection === id
 										? "bg-accent text-foreground"
@@ -217,9 +242,7 @@ function SettingsPage() {
 							<button
 								key={`${reg.pluginId}:${reg.component}`}
 								type="button"
-								onClick={() =>
-									setActiveSection(`plugin:${reg.pluginId}:${reg.component}`)
-								}
+								onClick={() => selectSection(pluginSectionId(reg))}
 								className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors text-left ${
 									activeSection === `plugin:${reg.pluginId}:${reg.component}`
 										? "bg-accent text-foreground"
@@ -239,7 +262,7 @@ function SettingsPage() {
 								<button
 									key={id}
 									type="button"
-									onClick={() => setActiveSection(id)}
+									onClick={() => selectSection(id)}
 									className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
 										activeSection === id
 											? "bg-accent text-foreground"
@@ -254,9 +277,7 @@ function SettingsPage() {
 								<button
 									key={`${reg.pluginId}:${reg.component}`}
 									type="button"
-									onClick={() =>
-										setActiveSection(`plugin:${reg.pluginId}:${reg.component}`)
-									}
+									onClick={() => selectSection(pluginSectionId(reg))}
 									className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
 										activeSection === `plugin:${reg.pluginId}:${reg.component}`
 											? "bg-accent text-foreground"

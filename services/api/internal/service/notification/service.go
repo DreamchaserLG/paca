@@ -205,6 +205,12 @@ func (s *Svc) NotifyAssigned(ctx context.Context, in notificationdom.NotifyAssig
 		return nil
 	}
 
+	// Agents and service accounts have no inbox, and NotifyMentioned skips
+	// them too, so only human assignees are notified.
+	if assigneeMember.MemberType == "agent" || assigneeMember.MemberType == "service_account" {
+		return nil
+	}
+
 	// Skip self-assignment (actor is the same user as the new assignee).
 	if assigneeMember.AccountID == in.ActorID {
 		return nil

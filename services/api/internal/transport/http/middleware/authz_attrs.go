@@ -199,9 +199,10 @@ func (l MemberRepoLookup) MemberPrincipalID(ctx context.Context, memberID uuid.U
 }
 
 // MemberPrincipalLookup maps a project member id to the id of the account
-// (user, agent or service account) behind it (what a policy's principal.id and task.assignee_id hold). An
-// unknown member is an error: the request names someone who does not exist, and
-// the handler would reject it too.
+// (user, agent or service account) behind it, which is what a policy's
+// principal.id and task.assignee_id hold. An unknown member is an error: the
+// request names someone who does not exist, and the handler would reject it
+// too.
 type MemberPrincipalLookup interface {
 	MemberPrincipalID(ctx context.Context, memberID uuid.UUID) (string, error)
 }

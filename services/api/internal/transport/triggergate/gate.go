@@ -80,6 +80,10 @@ func (g *Gate) allow(ctx context.Context, projectID, agentID uuid.UUID, memberID
 	if member.ProjectID != projectID {
 		return errForbidden
 	}
+	if member.AccountID == uuid.Nil {
+		// No account to judge: fail closed rather than check a nil-UUID principal.
+		return errForbidden
+	}
 	principal := principalOf(member)
 	project := iam.ProjectResource(projectID.String())
 	ok, err := iam.AllowedAll(ctx, g.authz, principal, project+"/agent/"+agentID.String(), iam.ActionConversationsWrite)

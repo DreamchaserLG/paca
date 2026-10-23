@@ -429,6 +429,31 @@ func TestNotifyAssigned_AgentActor_ResolvesAgentMember(t *testing.T) {
 	}
 }
 
+func TestNotifyAssigned_BotAssigneeSkipped(t *testing.T) {
+	for _, memberType := range []string{"agent", "service_account"} {
+		t.Run(memberType, func(t *testing.T) {
+			repo := newFakeNotificationRepo()
+			members := newFakeMemberRepo()
+			svc := New(repo, members, nil)
+
+			projectID, accountID, memberID := uuid.New(), uuid.New(), uuid.New()
+			members.add(&projectdom.ProjectMember{
+				ID: memberID, ProjectID: projectID, AccountID: accountID, MemberType: memberType,
+			})
+
+			err := svc.NotifyAssigned(context.Background(), notificationdom.NotifyAssignedInput{
+				TaskID: uuid.New(), ProjectID: projectID, NewAssigneeMemberID: memberID, ActorID: uuid.New(),
+			})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got := countNotifications(repo, accountID) + countNotifications(repo, uuid.Nil); got != 0 {
+				t.Fatalf("expected no notification for a %s assignee, got %d", memberType, got)
+			}
+		})
+	}
+}
+
 func TestNotifyAssigned_SelfAssignmentSuppressed(t *testing.T) {
 	ctx := context.Background()
 	repo := newFakeNotificationRepo()

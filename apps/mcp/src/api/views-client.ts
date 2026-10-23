@@ -3,7 +3,6 @@ import type {
 	CreateCustomFieldInput,
 	CreateViewInput,
 	CustomFieldDefinition,
-	MoveTaskPositionItem,
 	PacaConfig,
 	ReorderViewsInput,
 	SuccessEnvelope,

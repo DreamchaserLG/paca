@@ -557,17 +557,17 @@ export interface ReorderViewsInput {
 	view_ids: string[];
 }
 
-export interface BulkMoveTasksInput {
-	task_id: string;
-	target_view_id: string;
-	target_status_id: string | null;
-	target_position?: number;
+export interface MoveTaskPositionInput {
+	position: number;
+	group_key?: string | null;
 }
 
-export interface MoveTaskInput {
-	target_view_id: string;
-	target_status_id: string | null;
-	target_position?: number;
+export interface BulkMoveTasksInput {
+	items: Array<{
+		task_id: string;
+		position: number;
+		group_key?: string | null;
+	}>;
 }
 
 // ==================== Custom Fields ====================

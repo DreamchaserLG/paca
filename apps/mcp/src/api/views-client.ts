@@ -1,6 +1,7 @@
 import type {
 	Attachment,
 	BulkMoveTasksInput,
+	MoveTaskPositionInput,
 	CreateCustomFieldInput,
 	CreateViewInput,
 	CustomFieldDefinition,
@@ -201,18 +202,26 @@ export class PacaAPIViewsClient {
 		);
 	}
 
+	async moveTaskPosition(
+		projectId: string,
+		viewId: string,
+		taskId: string,
+		input: MoveTaskPositionInput,
+	): Promise<void> {
+		await this.put(
+			`/api/v1/projects/${projectId}/views/${viewId}/task-positions/${taskId}`,
+			{ position: input.position, group_key: input.group_key ?? null },
+		);
+	}
+
 	async bulkMoveTasks(
 		projectId: string,
 		viewId: string,
 		input: BulkMoveTasksInput,
 	): Promise<void> {
 		await this.put(
-			`/api/v1/projects/${projectId}/views/${viewId}/task-positions/${input.task_id}`,
-			{
-				target_view_id: input.target_view_id,
-				target_status_id: input.target_status_id,
-				target_position: input.target_position,
-			},
+			`/api/v1/projects/${projectId}/views/${viewId}/task-positions`,
+			{ items: input.items },
 		);
 	}
 

@@ -237,6 +237,14 @@ describe("PacaAPIViewsClient", () => {
 			const body = JSON.parse(fetchMock.mock.calls[0][1].body);
 			expect(body).toEqual({ position: 0 });
 		});
+
+		it("sends an explicit null group_key to clear the grouping", async () => {
+			const client = new PacaAPIViewsClient(CONFIG);
+			fetchMock.mockResolvedValue(okEnvelope(null));
+			await client.moveTaskPosition("p1", "v1", "t1", 1, null);
+			const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+			expect(body).toEqual({ position: 1, group_key: null });
+		});
 	});
 
 	// ---------------------------------------------------------------------------

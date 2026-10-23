@@ -141,6 +141,9 @@ func (r *fakeMemberRepo) add(m *projectdom.ProjectMember) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	cp := *m
+	if cp.AccountID == uuid.Nil {
+		cp.AccountID = cp.UserID // a human member's account is its user
+	}
 	r.byID[m.ID] = &cp
 	r.byProj[m.ProjectID] = append(r.byProj[m.ProjectID], &cp)
 	if m.AgentID != nil {
@@ -423,6 +426,31 @@ func TestNotifyAssigned_AgentActor_ResolvesAgentMember(t *testing.T) {
 	}
 	if n.ActorMemberID == nil || *n.ActorMemberID != agentMemberID {
 		t.Errorf("expected ActorMemberID=%s (the agent's member record), got %v", agentMemberID, n.ActorMemberID)
+	}
+}
+
+func TestNotifyAssigned_BotAssigneeSkipped(t *testing.T) {
+	for _, memberType := range []string{"agent", "service_account"} {
+		t.Run(memberType, func(t *testing.T) {
+			repo := newFakeNotificationRepo()
+			members := newFakeMemberRepo()
+			svc := New(repo, members, nil)
+
+			projectID, accountID, memberID := uuid.New(), uuid.New(), uuid.New()
+			members.add(&projectdom.ProjectMember{
+				ID: memberID, ProjectID: projectID, AccountID: accountID, MemberType: memberType,
+			})
+
+			err := svc.NotifyAssigned(context.Background(), notificationdom.NotifyAssignedInput{
+				TaskID: uuid.New(), ProjectID: projectID, NewAssigneeMemberID: memberID, ActorID: uuid.New(),
+			})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got := countNotifications(repo, accountID) + countNotifications(repo, uuid.Nil); got != 0 {
+				t.Fatalf("expected no notification for a %s assignee, got %d", memberType, got)
+			}
+		})
 	}
 }
 

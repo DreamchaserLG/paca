@@ -206,7 +206,7 @@ func (s *Svc) NotifyAssigned(ctx context.Context, in notificationdom.NotifyAssig
 	}
 
 	// Skip self-assignment (actor is the same user as the new assignee).
-	if assigneeMember.UserID == in.ActorID {
+	if assigneeMember.AccountID == in.ActorID {
 		return nil
 	}
 
@@ -221,7 +221,7 @@ func (s *Svc) NotifyAssigned(ctx context.Context, in notificationdom.NotifyAssig
 
 	n := &notificationdom.Notification{
 		ID:                 uuid.New(),
-		RecipientAccountID: assigneeMember.UserID,
+		RecipientAccountID: assigneeMember.AccountID,
 		Type:               notificationdom.NotificationTypeAssigned,
 		ProjectID:          in.ProjectID,
 		CreatedAt:          time.Now(),
@@ -236,13 +236,13 @@ func (s *Svc) NotifyAssigned(ctx context.Context, in notificationdom.NotifyAssig
 	if err := s.repo.Create(ctx, n); err != nil {
 		return err
 	}
-	s.publishCreated(ctx, n, assigneeMember.UserID)
+	s.publishCreated(ctx, n, assigneeMember.AccountID)
 
 	actorName := ""
 	if actorMember != nil {
 		actorName = actorMember.FullName
 	}
-	s.publishNotificationEvent(ctx, events.TopicNotificationAssigned, assigneeMember.UserID, actorName, s.taskURL(in.ProjectID, taskID), s.taskTitle(ctx, taskID))
+	s.publishNotificationEvent(ctx, events.TopicNotificationAssigned, assigneeMember.AccountID, actorName, s.taskURL(in.ProjectID, taskID), s.taskTitle(ctx, taskID))
 	return nil
 }
 

@@ -141,6 +141,9 @@ func (r *fakeMemberRepo) add(m *projectdom.ProjectMember) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	cp := *m
+	if cp.AccountID == uuid.Nil {
+		cp.AccountID = cp.UserID // a human member's account is its user
+	}
 	r.byID[m.ID] = &cp
 	r.byProj[m.ProjectID] = append(r.byProj[m.ProjectID], &cp)
 	if m.AgentID != nil {

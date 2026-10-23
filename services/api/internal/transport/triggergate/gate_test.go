@@ -74,13 +74,14 @@ func deny(action, resource string) iam.Statement {
 
 func TestGate(t *testing.T) {
 	project, agent, env := uuid.New(), uuid.New(), uuid.New()
-	userMember, agentMember := uuid.New(), uuid.New()
-	user, bot := uuid.New(), uuid.New()
-	u, a := iam.User(user.String()), iam.Agent(bot.String())
+	userMember, agentMember, saMember := uuid.New(), uuid.New(), uuid.New()
+	user, bot, sa := uuid.New(), uuid.New(), uuid.New()
+	u, a, s := iam.User(user.String()), iam.Agent(bot.String()), iam.Principal{Type: iam.PrincipalServiceAccount, ID: sa.String()}
 	p := "project/" + project.String()
 	roster := members{
-		userMember:  {ID: userMember, ProjectID: project, UserID: user, MemberType: "human"},
-		agentMember: {ID: agentMember, ProjectID: project, MemberType: "agent", AgentID: &bot},
+		userMember:  {ID: userMember, ProjectID: project, AccountID: user, UserID: user, MemberType: "human"},
+		agentMember: {ID: agentMember, ProjectID: project, AccountID: bot, MemberType: "agent", AgentID: &bot},
+		saMember:    {ID: saMember, ProjectID: project, AccountID: sa, MemberType: "service_account"},
 	}
 
 	type tc struct {
@@ -100,6 +101,8 @@ func TestGate(t *testing.T) {
 		{name: "Deny on the environment is irrelevant when the agent has no environment", grants: map[iam.Principal][]iam.Grant{u: {grant(project, allowUse(project), deny("environments:read", p+"/environment/"+env.String()+"/*"))}}, env: nil, member: userMember, wantRun: true},
 		{name: "agent member judged by its own grants", grants: map[iam.Principal][]iam.Grant{u: {grant(project, allowUse(project))}}, env: &env, member: agentMember, wantForbd: true},
 		{name: "agent member with its own grant proceeds", grants: map[iam.Principal][]iam.Grant{a: {grant(project, allowUse(project))}}, env: &env, member: agentMember, wantRun: true},
+		{name: "service account member with its own grant proceeds", grants: map[iam.Principal][]iam.Grant{s: {grant(project, allowUse(project))}}, env: &env, member: saMember, wantRun: true},
+		{name: "service account member without a grant is denied", grants: map[iam.Principal][]iam.Grant{u: {grant(project, allowUse(project))}}, env: &env, member: saMember, wantForbd: true},
 		{name: "authorizer error denies", err: errors.New("db down"), env: &env, member: userMember},
 		{name: "unknown member denies", grants: map[iam.Principal][]iam.Grant{u: {grant(project, allowUse(project))}}, env: &env, member: uuid.New()},
 		{name: "no actor is not checked (even with a failing authorizer)", err: errors.New("never consulted"), env: &env, member: uuid.Nil, wantRun: true},

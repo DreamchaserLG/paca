@@ -80,10 +80,7 @@ func (g *Gate) allow(ctx context.Context, projectID, agentID uuid.UUID, memberID
 	if member.ProjectID != projectID {
 		return errForbidden
 	}
-	principal := iam.User(member.UserID.String())
-	if member.MemberType == "agent" && member.AgentID != nil {
-		principal = iam.Agent(member.AgentID.String())
-	}
+	principal := principalOf(member)
 	project := iam.ProjectResource(projectID.String())
 	ok, err := iam.AllowedAll(ctx, g.authz, principal, project+"/agent/"+agentID.String(), iam.ActionConversationsWrite)
 	if err != nil {
@@ -107,6 +104,20 @@ func (g *Gate) allow(ctx context.Context, projectID, agentID uuid.UUID, memberID
 		return errForbidden
 	}
 	return nil
+}
+
+// principalOf is the member's account as an IAM principal. Grants are keyed
+// by account id for every kind (user, agent, service account); member.UserID
+// is only set for human members, so it must not be used here.
+func principalOf(m *projectdom.ProjectMember) iam.Principal {
+	kind := iam.PrincipalUser
+	switch m.MemberType {
+	case "agent":
+		kind = iam.PrincipalAgent
+	case "service_account":
+		kind = iam.PrincipalServiceAccount
+	}
+	return iam.Principal{Type: kind, ID: m.AccountID.String()}
 }
 
 func memberOrNil(id *uuid.UUID) uuid.UUID {

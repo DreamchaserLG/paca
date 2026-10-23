@@ -219,10 +219,7 @@ export class PacaAPIViewsClient {
 		viewId: string,
 		input: BulkMoveTasksInput,
 	): Promise<void> {
-		await this.put(
-			`/api/v1/projects/${projectId}/views/${viewId}/task-positions`,
-			{ items: input.items },
-		);
+		await this.bulkMoveViewTaskPositions(projectId, viewId, input.items);
 	}
 
 	// ==================== Custom Fields ====================

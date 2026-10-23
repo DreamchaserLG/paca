@@ -72,8 +72,8 @@ This document lists all MCP tools implemented for the Paca API server.
 - `update_view` - Update an existing view
 - `delete_view` - Delete a view
 - `list_task_positions` - List task positions in a view
-- `bulk_move_tasks` - Bulk move tasks in a view
-- `move_task` - Move a task within a view
+- `bulk_move_tasks` - Set several tasks' positions within a view
+- `move_task` - Set a task's position within a view
 
 ### 10. Custom Fields (5 tools)
 - `list_custom_fields` - List all custom field definitions in a project

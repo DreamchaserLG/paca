@@ -219,18 +219,23 @@ describe("PacaAPIViewsClient", () => {
 		});
 	});
 
-	describe("bulkMoveTasks", () => {
-		it("calls PUT /api/v1/projects/:id/views/:viewId/task-positions/:taskId", async () => {
+	describe("moveTaskPosition", () => {
+		it("calls PUT /api/v1/projects/:id/views/:viewId/task-positions/:taskId with position and group_key", async () => {
 			const client = new PacaAPIViewsClient(CONFIG);
 			fetchMock.mockResolvedValue(okEnvelope(null));
-			await client.bulkMoveTasks("p1", "v1", {
-				task_id: "t1",
-				target_view_id: "v2",
-				target_status_id: null,
-				target_position: 0,
-			});
+			await client.moveTaskPosition("p1", "v1", "t1", 3, "group-1");
 			expect(fetchMock.mock.calls[0][0]).toContain("/task-positions/t1");
 			expect(fetchMock.mock.calls[0][1].method).toBe("PUT");
+			const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+			expect(body).toEqual({ position: 3, group_key: "group-1" });
+		});
+
+		it("omits group_key when not provided", async () => {
+			const client = new PacaAPIViewsClient(CONFIG);
+			fetchMock.mockResolvedValue(okEnvelope(null));
+			await client.moveTaskPosition("p1", "v1", "t1", 0);
+			const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+			expect(body).toEqual({ position: 0 });
 		});
 	});
 

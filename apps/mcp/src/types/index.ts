@@ -557,17 +557,14 @@ export interface ReorderViewsInput {
 	view_ids: string[];
 }
 
-export interface BulkMoveTasksInput {
+// Matches the backend's BulkMoveTaskItem DTO: a task's manual order within a
+// single view. Moving a task across views/sprints/statuses is an update_task
+// concern, not a task-positions one (see the API's MoveTaskRequest and
+// BulkMoveTasksRequest).
+export interface MoveTaskPositionItem {
 	task_id: string;
-	target_view_id: string;
-	target_status_id: string | null;
-	target_position?: number;
-}
-
-export interface MoveTaskInput {
-	target_view_id: string;
-	target_status_id: string | null;
-	target_position?: number;
+	position: number;
+	group_key?: string | null;
 }
 
 // ==================== Custom Fields ====================

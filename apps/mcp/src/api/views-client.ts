@@ -1,9 +1,9 @@
 import type {
 	Attachment,
-	BulkMoveTasksInput,
 	CreateCustomFieldInput,
 	CreateViewInput,
 	CustomFieldDefinition,
+	MoveTaskPositionItem,
 	PacaConfig,
 	ReorderViewsInput,
 	SuccessEnvelope,
@@ -201,18 +201,23 @@ export class PacaAPIViewsClient {
 		);
 	}
 
-	async bulkMoveTasks(
+	async moveTaskPosition(
 		projectId: string,
 		viewId: string,
-		input: BulkMoveTasksInput,
+		taskId: string,
+		position: number,
+		groupKey?: string | null,
 	): Promise<void> {
+		// The API's MoveTaskRequest is an upsert of the task's order within this
+		// view only: it accepts { position, group_key? } and never moves a task
+		// across views, sprints, or statuses.
+		const body: { position: number; group_key?: string | null } = { position };
+		if (groupKey !== undefined) {
+			body.group_key = groupKey;
+		}
 		await this.put(
-			`/api/v1/projects/${projectId}/views/${viewId}/task-positions/${input.task_id}`,
-			{
-				target_view_id: input.target_view_id,
-				target_status_id: input.target_status_id,
-				target_position: input.target_position,
-			},
+			`/api/v1/projects/${projectId}/views/${viewId}/task-positions/${taskId}`,
+			body,
 		);
 	}
 

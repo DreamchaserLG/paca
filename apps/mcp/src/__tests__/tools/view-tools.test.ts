@@ -45,7 +45,8 @@ function makeClient(overrides: Record<string, any> = {}) {
 		listTaskPositions: vi
 			.fn()
 			.mockResolvedValue([{ task_id: "t1", position: 0 }]),
-		bulkMoveTasks: vi.fn().mockResolvedValue(undefined),
+		moveTaskPosition: vi.fn().mockResolvedValue(undefined),
+		bulkMoveViewTaskPositions: vi.fn().mockResolvedValue(undefined),
 		listCustomFieldDefinitions: vi.fn().mockResolvedValue([customField]),
 		createCustomFieldDefinition: vi.fn().mockResolvedValue(customField),
 		getCustomFieldDefinition: vi.fn().mockResolvedValue(customField),
@@ -485,28 +486,49 @@ describe("handleViewTool – list_task_positions", () => {
 // ---------------------------------------------------------------------------
 
 describe("handleViewTool – bulk_move_tasks", () => {
-	it("calls client.bulkMoveTasks with mapped input", async () => {
+	it("calls client.bulkMoveViewTaskPositions with mapped items", async () => {
 		const client = makeClient();
 		await handleViewTool(
 			"bulk_move_tasks",
-			{ projectId: "p1", viewId: "v1", taskId: "t1", targetViewId: "v2" },
+			{
+				projectId: "p1",
+				viewId: "v1",
+				items: [
+					{ taskId: "t1", position: 0 },
+					{ taskId: "t2", position: 1, groupKey: "group-1" },
+				],
+			},
 			client,
 		);
-		expect(client.bulkMoveTasks).toHaveBeenCalledWith("p1", "v1", {
-			task_id: "t1",
-			target_view_id: "v2",
-			target_status_id: null,
-			target_position: undefined,
-		});
+		expect(client.bulkMoveViewTaskPositions).toHaveBeenCalledWith("p1", "v1", [
+			{ task_id: "t1", position: 0, group_key: undefined },
+			{ task_id: "t2", position: 1, group_key: "group-1" },
+		]);
 	});
 
-	it("includes 'moved successfully' in response", async () => {
+	it("rejects an empty items array", async () => {
+		const client = makeClient();
+		await expect(
+			handleViewTool(
+				"bulk_move_tasks",
+				{ projectId: "p1", viewId: "v1", items: [] },
+				client,
+			),
+		).rejects.toThrow();
+		expect(client.bulkMoveViewTaskPositions).not.toHaveBeenCalled();
+	});
+
+	it("reports how many positions were updated", async () => {
 		const result = await handleViewTool(
 			"bulk_move_tasks",
-			{ projectId: "p1", viewId: "v1", taskId: "t1", targetViewId: "v2" },
+			{
+				projectId: "p1",
+				viewId: "v1",
+				items: [{ taskId: "t1", position: 0 }],
+			},
 			makeClient(),
 		);
-		expect(result.content[0].text).toContain("moved successfully");
+		expect(result.content[0].text).toContain("1 task position updated");
 	});
 });
 
@@ -515,7 +537,7 @@ describe("handleViewTool – bulk_move_tasks", () => {
 // ---------------------------------------------------------------------------
 
 describe("handleViewTool – move_task", () => {
-	it("calls client.bulkMoveTasks (same underlying method as bulk_move_tasks)", async () => {
+	it("calls client.moveTaskPosition with view, task, position, and group key", async () => {
 		const client = makeClient();
 		await handleViewTool(
 			"move_task",
@@ -523,26 +545,56 @@ describe("handleViewTool – move_task", () => {
 				projectId: "p1",
 				viewId: "v1",
 				taskId: "t1",
-				targetViewId: "v2",
-				targetPosition: 3,
+				position: 3,
+				groupKey: "group-1",
 			},
 			client,
 		);
-		expect(client.bulkMoveTasks).toHaveBeenCalledWith("p1", "v1", {
-			task_id: "t1",
-			target_view_id: "v2",
-			target_status_id: null,
-			target_position: 3,
-		});
+		expect(client.moveTaskPosition).toHaveBeenCalledWith(
+			"p1",
+			"v1",
+			"t1",
+			3,
+			"group-1",
+		);
 	});
 
-	it("includes 'moved successfully' in response", async () => {
+	it("omits the group key argument when not provided", async () => {
+		const client = makeClient();
+		await handleViewTool(
+			"move_task",
+			{ projectId: "p1", viewId: "v1", taskId: "t1", position: 2 },
+			client,
+		);
+		expect(client.moveTaskPosition).toHaveBeenCalledWith(
+			"p1",
+			"v1",
+			"t1",
+			2,
+			undefined,
+		);
+	});
+
+	it("rejects a missing position", async () => {
+		const client = makeClient();
+		await expect(
+			handleViewTool(
+				"move_task",
+				{ projectId: "p1", viewId: "v1", taskId: "t1" },
+				client,
+			),
+		).rejects.toThrow();
+		expect(client.moveTaskPosition).not.toHaveBeenCalled();
+	});
+
+	it("reports the new position and that no cross-view move happened", async () => {
 		const result = await handleViewTool(
 			"move_task",
-			{ projectId: "p1", viewId: "v1", taskId: "t1", targetViewId: "v2" },
+			{ projectId: "p1", viewId: "v1", taskId: "t1", position: 3 },
 			makeClient(),
 		);
-		expect(result.content[0].text).toContain("moved successfully");
+		expect(result.content[0].text).toContain("position set to 3");
+		expect(result.content[0].text).toContain("reorder only");
 	});
 });
 

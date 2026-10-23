@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/mail"
 	"net/smtp"
+	"strings"
 	"time"
 
 	"github.com/tetratelabs/wazero"
@@ -185,7 +186,16 @@ func dialAndSendSMTP(ctx context.Context, req smtpSendRequest) error {
 	}
 
 	if req.Username != "" {
-		if err := client.Auth(smtp.PlainAuth("", req.Username, req.Password, req.Host)); err != nil {
+		// Negotiate from what the server advertises instead of assuming
+		// PLAIN: net/smtp's PlainAuth refuses to send against a server that
+		// offers only LOGIN (Azure Communication Services and some Exchange
+		// relays are exactly that), which surfaced as
+		// "504 5.7.4 Unrecognized authentication type".
+		auth, err := smtpAuthFor(advertisedMechanisms(client), req.Username, req.Password, req.Host)
+		if err != nil {
+			return fmt.Errorf("send_email: auth: %w", err)
+		}
+		if err := client.Auth(auth); err != nil {
 			return fmt.Errorf("send_email: auth: %w", err)
 		}
 	}
@@ -210,6 +220,65 @@ func dialAndSendSMTP(ctx context.Context, req smtpSendRequest) error {
 	}
 
 	return client.Quit()
+}
+
+// advertisedMechanisms returns the AUTH mechanisms the server listed in its
+// EHLO response, upper-cased (net/smtp exposes the raw EHLO parameter line).
+func advertisedMechanisms(client *smtp.Client) []string {
+	ok, params := client.Extension("AUTH")
+	if !ok {
+		return nil
+	}
+	return strings.Fields(strings.ToUpper(params))
+}
+
+// smtpAuthFor picks an smtp.Auth the server actually supports. PLAIN is
+// preferred when offered; LOGIN is the fallback because it is the only
+// mechanism Azure Communication Services (and some Exchange relays) accept.
+// Returns an error naming the advertised set rather than letting net/smtp
+// fail later with a bare "unrecognized authentication type".
+func smtpAuthFor(mechanisms []string, username, password, host string) (smtp.Auth, error) {
+	for _, mech := range mechanisms {
+		switch mech {
+		case "PLAIN":
+			return smtp.PlainAuth("", username, password, host), nil
+		case "LOGIN":
+			return &loginAuth{username: username, password: password}, nil
+		}
+	}
+	if len(mechanisms) == 0 {
+		return nil, fmt.Errorf("server advertises no AUTH mechanism")
+	}
+	return nil, fmt.Errorf("no supported AUTH mechanism (server offers %s)", strings.Join(mechanisms, ", "))
+}
+
+// loginAuth implements the AUTH LOGIN handshake net/smtp does not ship: the
+// server prompts for the username, then the password, each as a base64
+// challenge. Start returns "LOGIN" so net/smtp issues AUTH LOGIN without an
+// initial response.
+type loginAuth struct {
+	username string
+	password string
+}
+
+func (a *loginAuth) Start(*smtp.ServerInfo) (string, []byte, error) {
+	return "LOGIN", nil, nil
+}
+
+func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
+	if !more {
+		return nil, nil
+	}
+	switch strings.ToLower(strings.TrimSpace(string(fromServer))) {
+	case "username:", "user name:":
+		return []byte(a.username), nil
+	case "password:":
+		return []byte(a.password), nil
+	default:
+		// Never echo the challenge: a misbehaving server could ask for the
+		// password twice and the answer would leak into logs.
+		return nil, fmt.Errorf("unexpected AUTH LOGIN challenge")
+	}
 }
 
 // buildMIMEMessage renders a minimal RFC 5322 message with a

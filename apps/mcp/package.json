@@ -1,63 +1,64 @@
 {
-  "name": "@paca-ai/paca-mcp",
-  "version": "0.1.0",
-  "description": "Paca MCP server - Complete API access for AI-powered project management",
-  "type": "module",
-  "publishConfig": {
-    "registry": "https://registry.npmjs.org",
-    "access": "public"
-  },
-  "bin": {
-    "paca": "./build/index.js"
-  },
-  "files": [
-    "build"
-  ],
-  "scripts": {
-    "build": "tsc && mkdir -p build/git && cp src/git/credential-helper.mjs build/git/credential-helper.mjs && node -e \"const fs=require('fs');fs.chmodSync('build/index.js','755');const p=JSON.parse(fs.readFileSync('package.json','utf8'));delete p.scripts;delete p.devDependencies;delete p.files;p.bin={paca:'./index.js'};fs.writeFileSync('build/package.json',JSON.stringify(p,null,2)+'\\n')\"",
-    "prepare": "npm run build",
-    "watch": "tsc --watch",
-    "inspector": "npx @modelcontextprotocol/inspector build/index.js",
-    "lint": "biome lint .",
-    "format": "biome format --write .",
-    "check": "biome check --write .",
-    "test": "vitest run",
-    "test:watch": "vitest"
-  },
-  "dependencies": {
-    "@blocknote/core": "^0.48.1",
-    "@modelcontextprotocol/sdk": "1.32.0",
-    "jsdom": "^29.0.2",
-    "rehype-stringify": "^10.0.1",
-    "remark-parse": "^11.0.0",
-    "remark-rehype": "^11.1.2",
-    "unified": "^11.0.5"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.4.12",
-    "@types/jsdom": "^28.0.1",
-    "@types/node": "^25.6.0",
-    "@vitest/coverage-v8": "^4.1.12",
-    "typescript": "^5.9.3",
-    "vite": "^8.3.5",
-    "vitest": "^4.1.12"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/Paca-AI/paca.git",
-    "directory": "apps/mcp"
-  },
-  "bugs": {
-    "url": "https://github.com/Paca-AI/paca/issues"
-  },
-  "license": "Apache-2.0",
-  "keywords": [
-    "mcp",
-    "model-context-protocol",
-    "paca",
-    "project-management",
-    "ai",
-    "scrum",
-    "agile"
-  ]
+	"name": "@paca-ai/paca-mcp",
+	"packageManager": "bun@1.2.23",
+	"version": "0.1.0",
+	"description": "Paca MCP server - Complete API access for AI-powered project management",
+	"type": "module",
+	"publishConfig": {
+		"registry": "https://registry.npmjs.org",
+		"access": "public"
+	},
+	"bin": {
+		"paca": "./build/index.js"
+	},
+	"files": [
+		"build"
+	],
+	"scripts": {
+		"build": "tsc && mkdir -p build/git && cp src/git/credential-helper.mjs build/git/credential-helper.mjs && node -e \"const fs=require('fs');fs.chmodSync('build/index.js','755');const p=JSON.parse(fs.readFileSync('package.json','utf8'));delete p.scripts;delete p.devDependencies;delete p.files;p.bin={paca:'./index.js'};fs.writeFileSync('build/package.json',JSON.stringify(p,null,2)+'\\n')\"",
+		"prepare": "npm run build",
+		"watch": "tsc --watch",
+		"inspector": "npx @modelcontextprotocol/inspector build/index.js",
+		"lint": "biome lint .",
+		"format": "biome format --write .",
+		"check": "biome check --write .",
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"dependencies": {
+		"@blocknote/core": "^0.48.1",
+		"@modelcontextprotocol/sdk": "1.32.0",
+		"jsdom": "^29.0.2",
+		"rehype-stringify": "^10.0.1",
+		"remark-parse": "^11.0.0",
+		"remark-rehype": "^11.1.2",
+		"unified": "^11.0.5"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.12",
+		"@types/jsdom": "^28.0.1",
+		"@types/node": "^25.6.0",
+		"@vitest/coverage-v8": "^4.1.12",
+		"typescript": "^5.9.3",
+		"vite": "^8.3.5",
+		"vitest": "^4.1.12"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/Paca-AI/paca.git",
+		"directory": "apps/mcp"
+	},
+	"bugs": {
+		"url": "https://github.com/Paca-AI/paca/issues"
+	},
+	"license": "Apache-2.0",
+	"keywords": [
+		"mcp",
+		"model-context-protocol",
+		"paca",
+		"project-management",
+		"ai",
+		"scrum",
+		"agile"
+	]
 }

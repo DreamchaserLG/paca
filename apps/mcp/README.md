@@ -12,6 +12,16 @@ Connect your AI assistant (Claude, Cursor, VS Code Copilot, etc.) to your Paca w
 - A running Paca instance (local or deployed)
 - A Paca API key (generate one in your Paca user settings)
 
+## Development
+
+This package is developed and tested with [Bun](https://bun.sh) 1.2.23 (declared in `packageManager` and locked in `bun.lock`). There is no `package-lock.json` on purpose — installing with `npm` resolves drifted dependency versions and breaks the build: `npm install` pulls zod 4.x while `bun.lock` pins zod 3.x, and zod v4's two-argument `z.record()` signature fails `tsc --noEmit` on `src/tools/member-tools.ts`. Contributing? Use:
+
+```bash
+cd apps/mcp
+bun install --frozen-lockfile
+bun run lint && bun run build && bun run test
+```
+
 ## Setup
 
 No installation or build step required. Configure your AI agent client to use the MCP server directly via `npx`.

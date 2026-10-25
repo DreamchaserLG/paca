@@ -463,27 +463,14 @@ func TestRouter_CIFailureRunsAreCapped(t *testing.T) {
 	}
 }
 
-func TestRouter_LabelsNameAnAgent(t *testing.T) {
+func TestRouter_LabelsDoNotStartRuns(t *testing.T) {
 	fx := newRouterFx(t)
 	issue := &gitprovider.EventSubject{Kind: gitprovider.SubjectIssue, Number: "5"}
-	label := func(l string) gitprovider.Event {
-		return gitprovider.Event{Kind: gitprovider.EventLabel, Action: "labeled", Actor: human("alice"), Label: l, Subject: issue}
-	}
-	fx.feed(label("paca:reviewer"))
-	fx.tick()
-	if fx.starter.calls[len(fx.starter.calls)-1].agent != fx.reviewer.ID || fx.rs.runs[len(fx.rs.runs)-1].Trigger != gitdom.TriggerLabel {
-		t.Fatal("paca:<handle> must start that agent")
-	}
-	fx.feed(label("paca"))
-	fx.tick()
-	if fx.starter.calls[len(fx.starter.calls)-1].agent != fx.dev.ID {
-		t.Fatal("plain paca must start the default responder")
-	}
 	n := len(fx.starter.calls)
-	other := fx.feed(label("bug"))
+	in := fx.feed(gitprovider.Event{Kind: gitprovider.EventLabel, Action: "labeled", Actor: human("alice"), Label: "paca", Subject: issue})
 	fx.tick()
-	if st, _ := fx.status(other); st != gitdom.InboxIgnored || len(fx.starter.calls) != n {
-		t.Fatalf("an unrelated label: %s", st)
+	if st, _ := fx.status(in); st != gitdom.InboxIgnored || len(fx.starter.calls) != n {
+		t.Fatalf("a label must not start an agent: %s", st)
 	}
 }
 

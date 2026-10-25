@@ -646,12 +646,6 @@ function HowToUse({ bot, agentHandle }: { bot: string; agentHandle: string }) {
 			description: t("project.git.usage.pick.description"),
 			example: `${bot} agent:${agentHandle} fix the failing test`,
 		},
-		{
-			id: "label",
-			title: t("project.git.usage.label.title"),
-			description: t("project.git.usage.label.description"),
-			example: "paca",
-		},
 	];
 	return (
 		<details className="group rounded-xl border border-border/60 px-4 py-3">

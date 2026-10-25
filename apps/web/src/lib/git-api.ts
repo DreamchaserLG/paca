@@ -601,7 +601,6 @@ export type GitTriggerKind =
 	| "ci_failure"
 	| "review_request"
 	| "assignment"
-	| "label"
 	| "auto_review";
 
 /** Filters of the auto_review trigger; an empty list matches everything. */

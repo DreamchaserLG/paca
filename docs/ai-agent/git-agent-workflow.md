@@ -35,7 +35,7 @@ Related: [overview.md](overview.md), [environment-management.md](environment-man
 | 3 | **Linked repositories are the event boundary.** For every repository a project links, Paca receives the change-request, branch, comment, review and check events through the provider and routes them to that project. Events for unlinked repositories are ignored. |
 | 4 | **Agents without their own identity act through the shared identity.** Attribution to the specific agent is carried by a footer and a core-side comment index (§7.3). |
 | 5 | **An agent may have its own identity** (own bot name, avatar and handle), created from the agent's page. |
-| 6 | **Triggers behave like bot products:** mention, label, review request or assignment where the platform allows it, plus opt-in rules (auto-review new change requests; address review feedback and fix CI on the agent's own). Which are available is declared by provider *capabilities* (§4.3), never assumed. |
+| 6 | **Triggers behave like bot products:** mention, review request or assignment where the platform allows it, plus opt-in rules (auto-review new change requests; address review feedback and fix CI on the agent's own). Which are available is declared by provider *capabilities* (§4.3), never assumed. |
 | 7 | **Git and platform actions are core MCP tools with neutral names** (`change_request_*`, `review_*`, `workspace_*`, …). The same prompt works on any platform; a provider never contributes agent tools. Policy is enforced in core, once. |
 | 8 | **The agent decides about the workspace.** Paca does not clone for it: the agent inspects the working folder, decides whether the repository is there, and fetches, checks out and pulls the branch it needs (§9). |
 | 9 | **Credentials never reach the sandbox.** They are short-lived and minted per use, and handed to git per command through a credential helper; remotes never contain a token (§5.3). |
@@ -174,7 +174,7 @@ Declared in `Describe()`. Core's UI, tools and router read them instead of hard-
 | `multiple_identities` | bool | Whether more than one identity per host can exist; per-agent identities are offered only then. |
 | `credential_model` | `ephemeral`, `static` | Whether credentials are minted per use or are a stored secret that never leaves core (§5.3). |
 | `webhook_scope` | `app`, `group`, `repo` | Whether core asks the provider to `EnsureWebhook` per linked repository. |
-| `triggers` | subset of `mention, label, review_request, assignment, ci_failure, own_cr_feedback, auto_review` | Which trigger switches are offered on an agent. |
+| `triggers` | subset of `mention, review_request, assignment, ci_failure, own_cr_feedback, auto_review` | Which trigger switches are offered on an agent. |
 | `status_kind` | `check_run`, `commit_status`, `comment` | How run status is shown. |
 | `branches`, `resolve_threads`, `file_read`, `code_search`, `labels`, `reviewer_requests`, `assignees`, `merge`, `rerun_checks`, `reactions`, `webhook_management`, `identity_deletion`, `access_grants` | bool | The matching optional operation exists; tools and screens that need it appear only then. |
 | `batch_review`, `idempotent_writes`, `hidden_markers`, `fork_change_requests`, `draft_change_requests`, `nested_paths` | bool | Behaviour of required operations. |
@@ -248,9 +248,8 @@ The synchronous part is cheap; routing happens off the request, so a slow agent 
 | **Mention** | `addressed[].via = mention` on a comment, review body or subject body | on | `triggers ∋ mention` |
 | **Own-CR feedback** | a human review or comment on a CR an agent opened through Paca (no mention needed) | on | `own_cr_feedback` |
 | **Own-CR CI failure** | a failing check on the head commit of an agent's open CR | on | `ci_failure` |
-| **Review requested** | `addressed[].via = review_request` | on | `review_request`. Not available on GitHub for ordinary Apps: the reviewer API accepts users and teams, not App bots. |
-| **Assigned** | `addressed[].via = assignment` | on | `assignment`. Not available on GitHub for ordinary Apps. |
-| **Label** | label `paca` (the project's responder) or `paca:<agent-handle>` | on | `label` — the portable stand-in for "assign to bot". |
+| **Review requested** | `kind = review_request` addressed to the identity | on | `review_request` |
+| **Assigned** | `kind = assignment` addressed to the identity | on | `assignment` |
 | **Auto-review** | a CR opened, marked ready or updated | **off** | `auto_review`. Filters: target branches and authors. |
 
 Triggers are configured **per agent** (`git_agent_triggers`); an agent without a row has the trigger's default. The agent's Git tab lists only triggers some installed provider declares.
@@ -262,7 +261,7 @@ A worker claims inbox events at least ten seconds old (`FOR UPDATE SKIP LOCKED`;
 * **Mention, review request, assignment:** the *responder* (below).
 * **Own-CR feedback:** the agent that opened the CR. Edited comments and reviews with an empty body (their inline comments arrive as separate events) start nothing.
 * **CI failure:** the CR's owner, if the CR is open and the failing check ran on its current head. At most three CI-failure runs per CR and agent. The `Paca / <agent>` status Paca itself shows for a run is not CI and never triggers anything.
-* **Label:** `paca` → the responder; `paca:<handle>` → that agent.
+* Events of kind `label` (and `via = label`) are part of the SPI but never start a run.
 * **Auto-review:** each agent with the trigger on whose filters match. Drafts, the agent's own CRs and bot authors not listed in the filter are skipped; a CR from a fork needs an actor with enough repository permission.
 
 **Responder** for something addressed to the shared bot, in order: the agent that owns the receiving identity; an `agent:<handle>` hint in the text (handles of that project's agents only); the agent that last spoke on the subject (comment index); the project's default responder. If several projects linked one repository, each routes the event independently under its own responder and settings.
@@ -298,7 +297,7 @@ A worker claims inbox events at least ten seconds old (`FOR UPDATE SKIP LOCKED`;
  core (conversation finished | failed | stopped): update the check run in place, finish the run
 ```
 
-The **event prompt** is a structured statement of what happened: repository, subject, head and base, the actor and their permission, location, the failing check or label, the platform's text inside a fence, what to do for the trigger, and the rules (never push to the default branch, answer where asked, say so when unable). Everything a person wrote is fenced (§12.4); logins, branches, paths and check names that appear outside the fence are reduced to one inert line.
+The **event prompt** is a structured statement of what happened: repository, subject, head and base, the actor and their permission, location, the failing check, the platform's text inside a fence, what to do for the trigger, and the rules (never push to the default branch, answer where asked, say so when unable). Everything a person wrote is fenced (§12.4); logins, branches, paths and check names that appear outside the fence are reduced to one inert line.
 
 ### 7.2 Visible state
 
@@ -438,8 +437,8 @@ The verdict of a review comes from the route (`reviews` accepts `comment` and `r
 Each Git screen explains itself when nothing is set up: it says what the feature does, lists the steps still to do with the next one highlighted and a button for it, and shows the exact text to type in a comment (with a copy button).
 
 * **Admin → Git** (`/admin/git`, for `git.identities:manage`): a short "How it works" (connect, link, mention) and, per provider host, a card that is either *Not connected* (what connecting does, how long it takes, a **Set up** button) or *Connected* (the bot's `@handle` to mention, a note that every identity-less project and agent shares it, what to do next, **Remove**). While nothing is connected the page also lists what agents can do with Git (review, fix CI, implement tasks, answer questions); with no provider installed it links to the plugin page. `/git/setup/callback` completes a leg of an identity setup or an access grant from the raw query string, exactly once per URL, and then continues or returns to the sanitized same-origin return URL.
-* **Project → Settings → Git** (`git:read`; changes need `git:write`): a **Get started** checklist (connect a platform, link a repository, choose who answers, try it) until the project is ready; **Repositories** (link by path or URL — the form is open while there are none — unlink, install the identity on the owner when needed; each repository shows the bot's `@handle` to mention); **Automation**: the default responder agent (with a warning when none is set), the minimum repository permission to start an agent and a pause switch, held back until a repository is linked; and **Using it**, with the mention, `agent:<handle>` and label forms.
-* **Agent → Git** (project agents): **Identity**, per provider, whether the agent uses the shared bot or its own (with its `@handle`), what an own identity gives, **Create identity** (with the administrator hint when the user cannot), **Remove**, and a collapsed **Install on another account or organization**; then **Git triggers** grouped as *Respond to requests* (mention, label, review request, assignment), *Follow up on its own pull requests* (feedback, CI failure) and *Act on its own* (auto review, with target-branch and author filters). Triggers no installed provider can deliver stay visible, switched off, and say so. A closing note states that the agent's Git access follows its project role.
+* **Project → Settings → Git** (`git:read`; changes need `git:write`): a **Get started** checklist (connect a platform, link a repository, choose who answers, try it) until the project is ready; **Repositories** (link by path or URL — the form is open while there are none — unlink, install the identity on the owner when needed; each repository shows the bot's `@handle` to mention); **Automation**: the default responder agent (with a warning when none is set), the minimum repository permission to start an agent and a pause switch, held back until a repository is linked; and **Using it**, with the mention, `agent:<handle>` forms.
+* **Agent → Git** (project agents): **Identity**, per provider, whether the agent uses the shared bot or its own (with its `@handle`), what an own identity gives, **Create identity** (with the administrator hint when the user cannot), **Remove**, and a collapsed **Install on another account or organization**; then **Git triggers** grouped as *Respond to requests* (mention, review request, assignment), *Follow up on its own pull requests* (feedback, CI failure) and *Act on its own* (auto review, with target-branch and author filters). Triggers no installed provider can deliver stay visible, switched off, and say so. A closing note states that the agent's Git access follows its project role.
 * **Task detail:** **Branches** and **Pull requests** sections, shown once the project has a linked repository. Pull requests show state, repository, head → base, author, a link, and the CI state of open ones (passing, failing, running, with check counts and failing names in a tooltip). Branches show the repository and a copy-checkout-command button. Both can be linked by name or pasted link and unlinked; a new branch can be created on the platform when the provider supports it and the user has `git:write`, or created locally with a command. A CR or branch is also linked automatically when its branch or title names the task key.
 * **Roles:** the project role editor lists `git:read`, `git:write`, `git:approve` and `git:merge`; the workspace role editor lists `git.identities:manage`.
 
@@ -528,11 +527,11 @@ A run's conversation is an automation-message conversation; its first message is
 | Identity | A GitHub App created through the manifest flow, one per instance and optionally one per agent. The App's key material is stored encrypted. A *public* App can be installed on other accounts; a private one only on the owner's account. |
 | Access | Installed per repository owner when a repository is linked (and right after an agent's App is created). Installations are discovered lazily from GitHub; a revoked token is refreshed; an installation GitHub no longer has is forgotten and replaced on reinstall. A repository resolves only if a credential can actually be minted for it. |
 | Credentials | Installation tokens narrowed to one repository and to `contents: read` or `write`. They last an hour; a requested lifetime is reported as the expiry. |
-| Webhooks | One App-level webhook per identity. Comments, reviews, review comments, pull requests (with their page URL), issues, labels, check runs and pushes are normalized. The App's own mentions (`@slug` or `@slug[bot]`) are decided in the provider. |
+| Webhooks | One App-level webhook per identity. Comments, reviews, review comments, pull requests (with their page URL), issues, check runs and pushes are normalized. A review request or assignment is reported only when it names the App's own bot (`<slug>[bot]`); requests and assignments for people or teams are dropped. The App's own mentions (`@slug` or `@slug[bot]`) are decided in the provider. |
 | Status | A check run named `Paca / <agent>`, created on the head commit and updated in place. |
 | Reviews | Batch review (pending review submitted once, with inline comments). |
-| Not available | Requesting the App as a reviewer or assigning it: GitHub accepts users and teams, not App bots. Use a mention or the `paca` label instead. |
-| Triggers declared | `mention`, `label`, `ci_failure`, `own_cr_feedback`, `auto_review`. |
+| Reviewer and assignee | The triggers fire when GitHub delivers a request or assignment naming the App's bot. GitHub's reviewer and assignee pickers list people and teams, so for an ordinary App a mention is the dependable way to ask. |
+| Triggers declared | `mention`, `review_request`, `assignment`, `ci_failure`, `own_cr_feedback`, `auto_review`. |
 | CI config globs | `.github/workflows/**`, `.github/actions/**`. |
 
 ---

@@ -88,10 +88,6 @@
 					"label": "Assignation",
 					"description": "Le bot est assigné à un ticket ou une pull request, lorsque la plateforme le permet."
 				},
-				"label": {
-					"label": "Étiquette",
-					"description": "L'étiquette « paca » (ou « paca:<identifiant de l'agent> ») est ajoutée à un ticket ou une pull request."
-				},
 				"auto_review": {
 					"label": "Relire chaque pull request",
 					"description": "Relit automatiquement chaque nouvelle pull request. Désactivé tant que vous ne l'activez pas ; les brouillons et les pull requests de l'agent lui-même sont ignorés."
@@ -133,7 +129,7 @@
 			},
 			"usage": {
 				"title": "Utilisation",
-				"description": "Trois façons de démarrer un agent depuis votre plateforme Git.",
+				"description": "Deux façons de démarrer un agent depuis votre plateforme Git.",
 				"mention": {
 					"title": "Mentionnez le bot",
 					"description": "Commentez une issue ou une pull request. Le répondant par défaut répond."
@@ -141,10 +137,6 @@
 				"pick": {
 					"title": "Choisissez un agent",
 					"description": "Ajoutez agent:<handle> à la mention pour choisir l'agent qui répond."
-				},
-				"label": {
-					"title": "Ajoutez un label",
-					"description": "Ajoutez le label « paca » à une issue ou une pull request."
 				},
 				"automatic": "Les agents peuvent aussi démarrer seuls, par exemple pour suivre leurs pull requests ou relire chaque nouvelle. Activez cela dans l'onglet Git de chaque agent."
 			}

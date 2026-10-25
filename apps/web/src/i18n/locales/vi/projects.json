@@ -88,10 +88,6 @@
 					"label": "Được giao việc",
 					"description": "Bot được giao một issue hoặc pull request, khi nền tảng cho phép."
 				},
-				"label": {
-					"label": "Nhãn",
-					"description": "Nhãn \"paca\" (hoặc \"paca:<handle của tác nhân>\") được thêm vào issue hoặc pull request."
-				},
 				"auto_review": {
 					"label": "Review mọi pull request",
 					"description": "Tự động review mỗi pull request mới. Tắt cho đến khi bạn bật; bỏ qua bản nháp và pull request do chính tác nhân mở."
@@ -133,7 +129,7 @@
 			},
 			"usage": {
 				"title": "Cách sử dụng",
-				"description": "Ba cách khởi động tác nhân từ nền tảng Git của bạn.",
+				"description": "Hai cách khởi động tác nhân từ nền tảng Git của bạn.",
 				"mention": {
 					"title": "Nhắc đến bot",
 					"description": "Bình luận trong issue hoặc pull request. Tác nhân mặc định sẽ trả lời."
@@ -141,10 +137,6 @@
 				"pick": {
 					"title": "Chọn tác nhân",
 					"description": "Thêm agent:<handle> vào lượt nhắc để chọn tác nhân trả lời."
-				},
-				"label": {
-					"title": "Thêm nhãn",
-					"description": "Thêm nhãn \"paca\" vào issue hoặc pull request."
 				},
 				"automatic": "Tác nhân cũng có thể tự khởi động, ví dụ để theo dõi pull request của mình hoặc đánh giá mọi pull request mới. Bật trong thẻ Git của từng tác nhân."
 			}

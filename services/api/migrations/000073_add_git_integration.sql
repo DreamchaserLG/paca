@@ -232,7 +232,7 @@ CREATE TABLE IF NOT EXISTS git_project_settings (
 CREATE TABLE IF NOT EXISTS git_agent_triggers (
     agent_id UUID    NOT NULL REFERENCES agents (id) ON DELETE CASCADE,
     kind     TEXT    NOT NULL CHECK (kind IN
-             ('mention', 'own_cr_feedback', 'ci_failure', 'review_request', 'assignment', 'label', 'auto_review')),
+             ('mention', 'own_cr_feedback', 'ci_failure', 'review_request', 'assignment', 'auto_review')),
     enabled  BOOLEAN NOT NULL DEFAULT TRUE,
     -- auto_review filters: {"branches": [...], "paths": [...], "authors": [...]}
     config   JSONB   NOT NULL DEFAULT '{}'::jsonb,

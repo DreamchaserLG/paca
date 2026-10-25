@@ -88,10 +88,6 @@
 					"label": "Asignación",
 					"description": "Se asigna al bot a una incidencia o pull request, si la plataforma lo permite."
 				},
-				"label": {
-					"label": "Etiqueta",
-					"description": "Se añade la etiqueta \"paca\" (o \"paca:<identificador del agente>\") a una incidencia o pull request."
-				},
 				"auto_review": {
 					"label": "Revisar todos los pull requests",
 					"description": "Revisa automáticamente cada pull request nuevo. Desactivado hasta que lo actives; se omiten los borradores y los pull requests del propio agente."
@@ -133,7 +129,7 @@
 			},
 			"usage": {
 				"title": "Cómo usarlo",
-				"description": "Tres formas de iniciar un agente desde tu plataforma Git.",
+				"description": "Dos formas de iniciar un agente desde tu plataforma Git.",
 				"mention": {
 					"title": "Menciona al bot",
 					"description": "Comenta en un issue o pull request. Responde el respondedor predeterminado."
@@ -141,10 +137,6 @@
 				"pick": {
 					"title": "Elige un agente",
 					"description": "Añade agent:<handle> a la mención para elegir qué agente responde."
-				},
-				"label": {
-					"title": "Añade una etiqueta",
-					"description": "Añade la etiqueta «paca» a un issue o pull request."
 				},
 				"automatic": "Los agentes también pueden iniciarse por sí solos, por ejemplo para dar seguimiento a sus pull requests o revisar cada uno nuevo. Actívalo en la pestaña Git de cada agente."
 			}

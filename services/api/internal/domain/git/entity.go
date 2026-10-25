@@ -198,14 +198,13 @@ const (
 	TriggerCIFailure     TriggerKind = "ci_failure"
 	TriggerReviewRequest TriggerKind = "review_request"
 	TriggerAssignment    TriggerKind = "assignment"
-	TriggerLabel         TriggerKind = "label"
 	TriggerAutoReview    TriggerKind = "auto_review"
 )
 
 // TriggerKinds lists every trigger, in display order.
 var TriggerKinds = []TriggerKind{
 	TriggerMention, TriggerOwnCRFeedback, TriggerCIFailure, TriggerReviewRequest,
-	TriggerAssignment, TriggerLabel, TriggerAutoReview,
+	TriggerAssignment, TriggerAutoReview,
 }
 
 // Valid reports whether k is a defined trigger.

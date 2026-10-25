@@ -639,13 +639,11 @@
 		"description": "エージェントが Git プラットフォーム上でクローン、プッシュ、プルリクエスト／マージリクエストの作成を行うためのボット ID です。ホストごとに共有 ID が 1 つあり、エージェントは自分の設定で専用の ID を持つこともできます。",
 		"noProviders": {
 			"title": "Git プロバイダーがインストールされていません",
-			"description": "GitHub Integration などの Git プロバイダープラグインをインストールして、ボット ID を設定してください。"
+			"description": "GitHub Integration などの Git プロバイダープラグインをインストールして、ボット ID を設定してください。",
+			"action": "プラグインを管理"
 		},
 		"cancel": "キャンセル",
-		"identity": {
-			"shared": "共有",
-			"none": "ID はまだ設定されていません"
-		},
+		"identity": {},
 		"setup": {
 			"button": "設定",
 			"dialogTitle": "{{host}} で {{provider}} を設定",
@@ -679,6 +677,30 @@
 			"providerUnavailable": "Git プロバイダープラグインを利用できません。インストールされ、有効になっているか確認してください。",
 			"providerRejected": "プラットフォームがリクエストを拒否しました。使用したアカウントの権限を確認してください。",
 			"notFound": "見つかりません。"
+		},
+		"copy": "コピー",
+		"copied": "コピーしました",
+		"stepStatus": {
+			"done": "完了",
+			"current": "次のステップ",
+			"todo": "未着手"
+		},
+		"status": {
+			"connected": "接続済み",
+			"notConnected": "未接続"
+		},
+		"platforms": {
+			"title": "Git プラットフォーム",
+			"description": "各プラットフォームに共有ボット ID が 1 つ必要です。"
+		},
+		"connect": {
+			"title": "{{provider}} を接続",
+			"description": "Paca は {{host}} 上にボットアカウントを作成します。エージェントはこれを使ってコードの読み取り、ブランチのプッシュ、プルリクエストの作成、コメントを行います。",
+			"time": "所要時間は約 1 分です。プラットフォームで承認すると、ここに戻ります。"
+		},
+		"connected": {
+			"sharedNote": "専用 ID を持たないすべてのプロジェクトとエージェントで共有されます。",
+			"mention": "コメントでメンション:"
 		}
 	}
 }

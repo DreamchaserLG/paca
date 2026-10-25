@@ -28,13 +28,15 @@ type GitRepositoryResponse struct {
 	DefaultBranch string     `json:"default_branch"`
 	CloneURL      string     `json:"clone_url"`
 	IdentityID    *uuid.UUID `json:"identity_id"`
-	CreatedAt     time.Time  `json:"created_at"`
+	// IdentityHandle is what to @mention to reach the bot serving the repository.
+	IdentityHandle string    `json:"identity_handle"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 // GitRepositoryFromEntity maps a linked repository to its response.
 func GitRepositoryFromEntity(r *gitdom.Repository) GitRepositoryResponse {
 	return GitRepositoryResponse{ID: r.ID, ProviderID: r.ProviderID, Host: r.Host, FullPath: r.FullPath,
-		DefaultBranch: r.DefaultBranch, CloneURL: r.CloneURL, IdentityID: r.IdentityID, CreatedAt: r.CreatedAt}
+		DefaultBranch: r.DefaultBranch, CloneURL: r.CloneURL, IdentityID: r.IdentityID, IdentityHandle: r.IdentityHandle, CreatedAt: r.CreatedAt}
 }
 
 // GitCredentialResponse is a short-lived credential for ONE git operation. It

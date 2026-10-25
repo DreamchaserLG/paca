@@ -354,7 +354,27 @@ func (s *GitRepository) selectRepos(ctx context.Context, where string, args ...a
 
 // ListProjectRepositories lists a project's linked repositories.
 func (s *GitRepository) ListProjectRepositories(ctx context.Context, projectID uuid.UUID) ([]*gitdom.Repository, error) {
-	return s.selectRepos(ctx, `project_id = $1 ORDER BY created_at`, projectID.String())
+	repos, err := s.selectRepos(ctx, `project_id = $1 ORDER BY created_at`, projectID.String())
+	if err != nil {
+		return nil, err
+	}
+	// The handle of the bot serving each repository, so the UI can say what to @mention.
+	var handles []struct {
+		ID     string `db:"id"`
+		Handle string `db:"handle"`
+	}
+	if err := s.db.SelectContext(ctx, &handles, `SELECT r.id, i.handle FROM git_repositories r
+		JOIN git_identities i ON i.id = r.identity_id WHERE r.project_id = $1`, projectID.String()); err != nil {
+		return nil, fmt.Errorf("git repo: list repository handles: %w", err)
+	}
+	byID := make(map[string]string, len(handles))
+	for _, h := range handles {
+		byID[h.ID] = h.Handle
+	}
+	for _, r := range repos {
+		r.IdentityHandle = byID[r.ID.String()]
+	}
+	return repos, nil
 }
 
 // DeleteRepository unlinks a repository from its project.

@@ -7,13 +7,30 @@ const h = vi.hoisted(() => ({
 	get: vi.fn(),
 	post: vi.fn(),
 	del: vi.fn(),
+	put: vi.fn(),
 	follow: vi.fn(),
 }));
+
+vi.mock("@tanstack/react-router", async () => {
+	const React = await import("react");
+	return {
+		Link: ({
+			to,
+			children,
+			...rest
+		}: {
+			to: string;
+			children?: React.ReactNode;
+		}) => React.createElement("a", { href: to, ...rest }, children),
+	};
+});
 
 // The query options inside git-api call its own helpers, which a module mock
 // cannot replace, so the HTTP client is mocked instead.
 vi.mock("@/lib/api-client", () => ({
-	apiClient: { instance: { get: h.get, post: h.post, delete: h.del } },
+	apiClient: {
+		instance: { get: h.get, post: h.post, delete: h.del, put: h.put },
+	},
 }));
 vi.mock("@/lib/git-api", async (orig) => ({
 	...(await orig<typeof import("@/lib/git-api")>()),
@@ -48,6 +65,11 @@ const repo = {
 
 let providers: unknown[] = [github];
 let repos: unknown[] = [];
+let settings: Record<string, unknown> = {};
+const agents = [
+	{ id: "a1", name: "Dev", handle: "dev" },
+	{ id: "a2", name: "Reviewer", handle: "reviewer" },
+];
 
 function apiFail(code: string) {
 	return Promise.reject({
@@ -72,23 +94,22 @@ describe("GitSettings", () => {
 		window.sessionStorage.clear();
 		providers = [github];
 		repos = [];
+		settings = {
+			default_responder_agent_id: null,
+			paused: false,
+			min_actor_permission: "write",
+		};
+		h.put.mockImplementation(async (_url: string, body: unknown) => ({
+			data: { data: body },
+		}));
 		h.follow.mockReturnValue(true);
 		h.get.mockImplementation(async (url: string) => {
 			if (url.endsWith("/git/providers")) return { data: { data: providers } };
 			if (url.endsWith("/git/repositories")) return { data: { data: repos } };
-			if (url.endsWith("/git/settings"))
-				return {
-					data: {
-						data: {
-							default_responder_agent_id: null,
-							paused: false,
-							min_actor_permission: "write",
-						},
-					},
-				};
+			if (url.endsWith("/git/settings")) return { data: { data: settings } };
 			if (url.endsWith("/agents"))
 				return {
-					data: { data: { items: [], page_size: 50, next_cursor: null } },
+					data: { data: { items: agents, page_size: 50, next_cursor: null } },
 				};
 			throw new Error(`unexpected GET ${url}`);
 		});
@@ -252,5 +273,90 @@ describe("GitSettings", () => {
 		expect(
 			await screen.findByText(/No Git provider is installed/i),
 		).toBeInTheDocument();
+	});
+
+	it("shows only the next step to a project with nothing set up", async () => {
+		renderPanel();
+		expect(
+			await screen.findByText("No repositories linked"),
+		).toBeInTheDocument();
+		expect(screen.getByLabelText("Repository")).toBeInTheDocument();
+		expect(screen.queryByText("Get started")).toBeNull();
+		expect(screen.queryByText("Using it")).toBeNull();
+	});
+
+	it("offers the platform page when no provider is installed", async () => {
+		providers = [];
+		renderPanel();
+		expect(
+			await screen.findByRole("link", { name: "Open Git integration" }),
+		).toBeInTheDocument();
+	});
+
+	it("shows the bot to mention and how to use it once a repository is linked", async () => {
+		repos = [{ ...repo, identity_handle: "paca-bot" }];
+		settings = { ...settings, default_responder_agent_id: "a1" };
+		renderPanel();
+		expect((await screen.findAllByText("@paca-bot")).length).toBeGreaterThan(0);
+		expect(screen.getByText("Using it")).toBeInTheDocument();
+	});
+
+	it("saves a changed responder, access bar and pause switch", async () => {
+		const user = userEvent.setup();
+		repos = [repo];
+		renderPanel();
+		const responder = await screen.findByLabelText(/default responder/i);
+		await screen.findByRole("option", { name: "Reviewer" });
+		const save = screen.getByRole("button", { name: /^save$/i });
+		expect(save).toBeDisabled();
+
+		await user.selectOptions(responder, "a2");
+		await user.selectOptions(
+			screen.getByLabelText(/minimum access/i),
+			"triage",
+		);
+		await user.click(screen.getByRole("switch", { name: /pause automation/i }));
+		expect(save).toBeEnabled();
+		await user.click(save);
+
+		await waitFor(() =>
+			expect(h.put).toHaveBeenCalledWith(`/projects/${PROJECT}/git/settings`, {
+				default_responder_agent_id: "a2",
+				paused: true,
+				min_actor_permission: "triage",
+			}),
+		);
+		expect(await screen.findByText("Saved.")).toBeInTheDocument();
+	});
+
+	it("explains a refusal when saving the automation", async () => {
+		h.put.mockRejectedValue({
+			response: { status: 404, data: { error_code: "GIT_NOT_FOUND" } },
+		});
+		const user = userEvent.setup();
+		repos = [repo];
+		renderPanel();
+		await screen.findByRole("option", { name: "Dev" });
+		await user.selectOptions(screen.getByLabelText(/default responder/i), "a1");
+		await user.click(screen.getByRole("button", { name: /^save$/i }));
+		expect(await screen.findByRole("alert")).toBeInTheDocument();
+	});
+
+	it("holds the automation back until a repository is linked", async () => {
+		renderPanel();
+		expect(
+			await screen.findByText(/Link a repository first/i),
+		).toBeInTheDocument();
+		expect(await screen.findByLabelText(/default responder/i)).toBeDisabled();
+	});
+
+	it("shows the automation but cannot change it without git:write", async () => {
+		repos = [repo];
+		renderPanel(false);
+		expect(await screen.findByLabelText(/default responder/i)).toBeDisabled();
+		expect(screen.getByLabelText(/minimum access/i)).toBeDisabled();
+		expect(
+			screen.getByRole("switch", { name: /pause automation/i }),
+		).toHaveAttribute("aria-disabled", "true");
 	});
 });

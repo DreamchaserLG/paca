@@ -26,14 +26,21 @@
 		"git": {
 			"title": "Dépôts Git",
 			"description": "Dépôts sur lesquels les agents de ce projet peuvent travailler, via l'identité Git partagée de l'espace de travail.",
-			"empty": "Aucun dépôt lié pour le moment.",
+			"empty": {
+				"title": "Aucun dépôt lié",
+				"description": "Liez un dépôt pour que les agents de ce projet puissent lire son code, ouvrir des pull requests et répondre aux mentions.",
+				"readOnly": "Vous avez besoin de l'accès en écriture Git sur ce projet pour lier des dépôts."
+			},
 			"noProviders": "Aucun fournisseur Git n'est installé. Demandez à un administrateur d'en installer un.",
 			"link": {
-				"title": "Lier un dépôt",
 				"platform": "Plateforme",
 				"repository": "Dépôt",
 				"placeholder": "propriétaire/nom ou URL du dépôt",
-				"button": "Lier"
+				"button": "Lier",
+				"open": "Lier un dépôt",
+				"cancel": "Annuler",
+				"help": "Collez l'URL du dépôt ou saisissez propriétaire/nom.",
+				"connectAction": "Ouvrir l'intégration Git"
 			},
 			"unlink": {
 				"button": "Délier",
@@ -59,32 +66,6 @@
 				"accessNotGranted": "L'identité partagée ne voit pas ce dépôt.",
 				"noIdentity": "Aucune identité Git partagée n'est configurée pour cette plateforme. Un administrateur de l'espace de travail la configure dans Administration → Git.",
 				"alreadyLinked": "Ce dépôt est déjà lié au projet."
-			},
-			"workflow": {
-				"title": "Automatisation des agents",
-				"description": "Comment l'activité Git déclenche vos agents : qui répond à une mention qui ne nomme aucun agent, quel accès il faut pour lancer une exécution, et les exécutions lancées jusqu'ici. Les événements qui déclenchent chaque agent se règlent dans l'onglet Git de l'agent.",
-				"responder": {
-					"label": "Répondant par défaut",
-					"none": "Aucun répondant par défaut",
-					"help": "Répond aux mentions, étiquettes et demandes de relecture qui ne nomment aucun agent. Ajoutez « agent:handle » à un commentaire pour en choisir un autre."
-				},
-				"minPermission": {
-					"label": "Accès minimal pour lancer un agent",
-					"help": "Une personne ayant moins d'accès au dépôt peut commenter, mais l'agent ne démarrera pas. Les bots ne lancent jamais d'agent."
-				},
-				"permission": {
-					"read": "Lecture",
-					"triage": "Tri",
-					"write": "Écriture",
-					"maintain": "Maintenance",
-					"admin": "Administration"
-				},
-				"paused": {
-					"label": "Mettre l'automatisation en pause",
-					"help": "En pause, aucune activité Git ne lance d'agent. Les exécutions en cours se poursuivent."
-				},
-				"save": "Enregistrer",
-				"saved": "Enregistré."
 			},
 			"triggerKinds": {
 				"mention": {
@@ -115,6 +96,57 @@
 					"label": "Relire chaque pull request",
 					"description": "Relit automatiquement chaque nouvelle pull request. Désactivé tant que vous ne l'activez pas ; les brouillons et les pull requests de l'agent lui-même sont ignorés."
 				}
+			},
+			"repositories": {
+				"title": "Dépôts",
+				"description": "Les agents de ce projet peuvent travailler sur ces dépôts.",
+				"mention": "Mentionner dans les commentaires :"
+			},
+			"automation": {
+				"title": "Automatisation",
+				"description": "Décidez comment l'activité Git démarre vos agents.",
+				"locked": "Liez d'abord un dépôt. Ces réglages s'appliquent aux dépôts liés à ce projet.",
+				"responder": {
+					"label": "Répondant par défaut",
+					"none": "Aucun répondant par défaut",
+					"help": "Répond aux mentions, labels et demandes de revue qui ne nomment aucun agent. Ajoutez « agent:<handle> » à une mention pour choisir un autre agent.",
+					"warning": "Sans répondant par défaut, les mentions qui ne nomment aucun agent sont ignorées."
+				},
+				"minPermission": {
+					"label": "Accès minimal pour démarrer un agent",
+					"help": "Une personne avec moins d'accès au dépôt peut commenter, mais l'agent ne s'exécutera pas."
+				},
+				"permission": {
+					"read": "Lecture",
+					"triage": "Triage",
+					"write": "Écriture",
+					"maintain": "Maintenance",
+					"admin": "Administrateur"
+				},
+				"paused": {
+					"label": "Mettre l'automatisation en pause",
+					"help": "En pause, aucune activité Git ne démarre d'agent. Les exécutions en cours se terminent."
+				},
+				"save": "Enregistrer",
+				"saved": "Enregistré.",
+				"advanced": "Avancé"
+			},
+			"usage": {
+				"title": "Utilisation",
+				"description": "Trois façons de démarrer un agent depuis votre plateforme Git.",
+				"mention": {
+					"title": "Mentionnez le bot",
+					"description": "Commentez une issue ou une pull request. Le répondant par défaut répond."
+				},
+				"pick": {
+					"title": "Choisissez un agent",
+					"description": "Ajoutez agent:<handle> à la mention pour choisir l'agent qui répond."
+				},
+				"label": {
+					"title": "Ajoutez un label",
+					"description": "Ajoutez le label « paca » à une issue ou une pull request."
+				},
+				"automatic": "Les agents peuvent aussi démarrer seuls, par exemple pour suivre leurs pull requests ou relire chaque nouvelle. Activez cela dans l'onglet Git de chaque agent."
 			}
 		}
 	},
@@ -477,18 +509,26 @@
 				"title": "Identité Git",
 				"description": "Par défaut, cet agent agit via l'identité Git partagée de l'espace de travail. Donnez-lui sa propre identité pour que ses commits, pull requests et commentaires apparaissent sous un bot distinct, et installez-la sur les comptes et organisations dont il utilise les dépôts.",
 				"providersUnavailable": "Impossible de charger les fournisseurs Git de ce projet.",
-				"noProviders": "Aucun fournisseur Git n'est installé.",
+				"noProviders": {
+					"title": "Aucune plateforme Git disponible",
+					"description": "Demandez à un administrateur d'installer un plugin de fournisseur Git et de le connecter. Les agents pourront ensuite travailler sur des dépôts."
+				},
 				"ownIdentity": "Identité propre",
 				"usesShared": "Utilise l'identité partagée",
 				"singleIdentity": "Cette plateforme n'a qu'une identité par hôte ; l'identité partagée est donc utilisée.",
 				"remove": "Retirer",
-				"create": "Créer l'identité",
+				"create": {
+					"title": "Donnez à cet agent sa propre identité",
+					"description": "Ses commits, pull requests et commentaires apparaîtront sous un bot distinct et on pourra le mentionner par son nom. Vous le validez sur la plateforme et l'installez aussitôt.",
+					"button": "Créer l'identité"
+				},
 				"askAdmin": "Demandez à un administrateur de l'espace de travail d'en créer une.",
 				"install": {
 					"label": "Installer sur un autre compte ou une autre organisation",
 					"placeholder": "compte ou organisation (facultatif)",
 					"button": "Installer",
-					"help": "Ouvre la page d'installation de la plateforme. Laissez le nom vide pour choisir le compte sur place."
+					"help": "Ouvre la page d'installation de la plateforme. Laissez le nom vide pour choisir le compte sur place.",
+					"title": "Installer sur un autre compte ou une autre organisation"
 				},
 				"triggers": {
 					"title": "Déclencheurs Git",
@@ -498,8 +538,35 @@
 						"authors": "Uniquement ces auteurs",
 						"help": "Séparés par des virgules. Laissez vide pour tout inclure. Les auteurs qui sont des bots doivent figurer dans la liste pour être relus.",
 						"save": "Enregistrer les filtres"
+					},
+					"unsupported": "Non pris en charge par les plateformes Git connectées.",
+					"groups": {
+						"requests": {
+							"title": "Répondre aux demandes",
+							"description": "Démarre quand quelqu'un sollicite cet agent."
+						},
+						"followUp": {
+							"title": "Suivre ses propres pull requests",
+							"description": "Démarre quand quelque chose se passe sur une pull request ouverte par cet agent."
+						},
+						"proactive": {
+							"title": "Agir de sa propre initiative",
+							"description": "Démarre sans qu'on le demande. Désactivé par défaut."
+						}
 					}
-				}
+				},
+				"identity": {
+					"title": "Identité",
+					"description": "Le compte que cet agent utilise sur chaque plateforme Git."
+				},
+				"own": {
+					"description": "Cet agent a son propre bot : ses commits, pull requests et commentaires apparaissent sous un nom distinct.",
+					"mention": "Mentionnez-le avec :"
+				},
+				"shared": {
+					"description": "Cet agent agit via le bot partagé de l'espace de travail, comme les autres agents."
+				},
+				"permissions": "Ce que cet agent peut faire sur Git dépend de son rôle dans le projet : l'accès en lecture et en écriture vient des permissions Git du rôle. Approuver et fusionner des pull requests n'est pas accordé par défaut."
 			}
 		},
 		"conversationView": {

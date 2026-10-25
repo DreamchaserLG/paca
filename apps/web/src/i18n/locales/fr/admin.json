@@ -639,13 +639,11 @@
 		"description": "Identités de bot qui permettent aux agents de cloner, pousser et ouvrir des pull requests ou merge requests sur vos plateformes Git. Chaque hôte a une identité partagée ; les agents peuvent aussi avoir la leur dans leurs paramètres.",
 		"noProviders": {
 			"title": "Aucun fournisseur Git installé",
-			"description": "Installez un plugin de fournisseur Git, comme GitHub Integration, pour configurer une identité de bot."
+			"description": "Installez un plugin de fournisseur Git, comme GitHub Integration, pour configurer une identité de bot.",
+			"action": "Gérer les plugins"
 		},
 		"cancel": "Annuler",
-		"identity": {
-			"shared": "Partagée",
-			"none": "Aucune identité configurée pour le moment"
-		},
+		"identity": {},
 		"setup": {
 			"button": "Configurer",
 			"dialogTitle": "Configurer {{provider}} sur {{host}}",
@@ -679,6 +677,30 @@
 			"providerUnavailable": "Le plugin du fournisseur Git est indisponible. Vérifiez qu'il est installé et activé.",
 			"providerRejected": "La plateforme a refusé la demande. Vérifiez les autorisations du compte utilisé.",
 			"notFound": "Introuvable."
+		},
+		"copy": "Copier",
+		"copied": "Copié",
+		"stepStatus": {
+			"done": "terminé",
+			"current": "étape suivante",
+			"todo": "à faire"
+		},
+		"status": {
+			"connected": "Connecté",
+			"notConnected": "Non connecté"
+		},
+		"platforms": {
+			"title": "Plateformes Git",
+			"description": "Chaque plateforme a besoin d'une identité de bot partagée."
+		},
+		"connect": {
+			"title": "Connecter {{provider}}",
+			"description": "Paca crée sur {{host}} un compte de bot que les agents utilisent pour lire le code, pousser des branches, ouvrir des pull requests et commenter.",
+			"time": "Environ une minute. Vous validez sur la plateforme, puis vous revenez ici."
+		},
+		"connected": {
+			"sharedNote": "Partagée par tous les projets et agents sans identité propre.",
+			"mention": "Mentionnez-le dans les commentaires :"
 		}
 	}
 }

@@ -639,13 +639,11 @@
 		"description": "Bot identities that let agents clone, push and open pull requests or merge requests on your Git platforms. Each host has one shared identity; agents can also get their own from their settings.",
 		"noProviders": {
 			"title": "No Git provider installed",
-			"description": "Install a Git provider plugin, such as GitHub Integration, to set up a bot identity."
+			"description": "Install a Git provider plugin, such as GitHub Integration, to set up a bot identity.",
+			"action": "Manage plugins"
 		},
 		"cancel": "Cancel",
-		"identity": {
-			"shared": "Shared",
-			"none": "No identity set up yet"
-		},
+		"identity": {},
 		"setup": {
 			"button": "Set up",
 			"dialogTitle": "Set up {{provider}} on {{host}}",
@@ -679,6 +677,30 @@
 			"providerUnavailable": "The Git provider plugin is unavailable. Check that it is installed and enabled.",
 			"providerRejected": "The platform refused the request. Check the permissions of the account you used.",
 			"notFound": "Not found."
+		},
+		"copy": "Copy",
+		"copied": "Copied",
+		"stepStatus": {
+			"done": "done",
+			"current": "next step",
+			"todo": "not started"
+		},
+		"status": {
+			"connected": "Connected",
+			"notConnected": "Not connected"
+		},
+		"platforms": {
+			"title": "Git platforms",
+			"description": "Each platform needs one shared bot identity."
+		},
+		"connect": {
+			"title": "Connect {{provider}}",
+			"description": "Paca creates a bot account on {{host}} that agents use to read code, push branches, open pull requests and comment.",
+			"time": "Takes about a minute. You approve it on the platform, then come back here."
+		},
+		"connected": {
+			"sharedNote": "Shared by every project and agent that has no identity of its own.",
+			"mention": "Mention it in comments:"
 		}
 	}
 }

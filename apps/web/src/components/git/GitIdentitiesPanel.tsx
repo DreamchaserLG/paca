@@ -1,16 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { GitBranch, Trash2 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { GitBranch, Plug, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	type GitIdentity,
@@ -20,8 +15,13 @@ import {
 } from "@/lib/git-api";
 import { DeleteGitIdentityDialog } from "./DeleteGitIdentityDialog";
 import { GitSetupDialog } from "./GitSetupDialog";
+import { CopyChip, EmptyState, Section } from "./git-ui";
 
-/** Providers and the shared bot identity of each of their hosts. */
+/**
+ * The workspace's Git page. A newcomer sees what the feature does and the three
+ * steps to get it working; each platform card says whether it is connected and
+ * what to do next. A connected platform shows the bot's @handle to mention.
+ */
 export function GitIdentitiesPanel() {
 	const { t } = useTranslation("admin");
 	const providers = useQuery(gitProvidersQueryOptions);
@@ -43,14 +43,18 @@ export function GitIdentitiesPanel() {
 		);
 	}
 	const list = providers.data ?? [];
+
 	if (list.length === 0) {
 		return (
-			<Card>
-				<CardHeader>
-					<CardTitle>{t("git.noProviders.title")}</CardTitle>
-					<CardDescription>{t("git.noProviders.description")}</CardDescription>
-				</CardHeader>
-			</Card>
+			<EmptyState
+				icon={Plug}
+				title={t("git.noProviders.title")}
+				description={t("git.noProviders.description")}
+			>
+				<Button render={<Link to="/admin/plugins" />} size="sm">
+					{t("git.noProviders.action")}
+				</Button>
+			</EmptyState>
 		);
 	}
 
@@ -61,73 +65,59 @@ export function GitIdentitiesPanel() {
 				i.scope === "shared" &&
 				i.host.toLowerCase() === host.toLowerCase(),
 		);
-
 	return (
-		<div className="flex flex-col gap-4">
-			{list.map((provider) => (
-				<Card key={provider.id}>
-					<CardHeader>
-						<CardTitle className="flex items-center gap-2">
-							<GitBranch className="size-4 text-primary" />
-							{provider.display_name}
-						</CardTitle>
-						<CardDescription>{provider.id}</CardDescription>
-					</CardHeader>
-					<CardContent className="flex flex-col divide-y divide-border/60">
-						{provider.hosts.map((host) => {
+		<div className="flex flex-col gap-6">
+			<Section
+				title={t("git.platforms.title")}
+				description={t("git.platforms.description")}
+			>
+				<div className="flex flex-col gap-4">
+					{list.map((provider) =>
+						provider.hosts.map((host) => {
 							const identity = sharedFor(provider.id, host);
 							return (
-								<div
-									key={host}
-									className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
-								>
-									<div className="min-w-0">
-										<p className="truncate text-sm font-medium">{host}</p>
-										{identity ? (
-											<p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-												<span className="truncate">
-													{identity.display_name || identity.handle}
+								<Card key={`${provider.id}/${host}`}>
+									<CardContent className="flex flex-col gap-4">
+										<div className="flex items-start justify-between gap-3">
+											<div className="flex min-w-0 items-center gap-3">
+												<span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+													<GitBranch className="size-5" aria-hidden="true" />
 												</span>
-												<Badge variant="secondary">
-													{t("git.identity.shared")}
-												</Badge>
-												{identity.handle ? (
-													<span className="font-mono text-xs">
-														@{identity.handle}
-													</span>
-												) : null}
-											</p>
+												<div className="min-w-0">
+													<h3 className="truncate text-sm font-semibold">
+														{provider.display_name}
+													</h3>
+													<p className="truncate text-xs text-muted-foreground">
+														{host}
+													</p>
+												</div>
+											</div>
+											<Badge variant={identity ? "default" : "outline"}>
+												{identity
+													? t("git.status.connected")
+													: t("git.status.notConnected")}
+											</Badge>
+										</div>
+
+										{identity ? (
+											<Connected
+												identity={identity}
+												onRemove={() => setRemoving(identity)}
+											/>
 										) : (
-											<p className="text-sm text-muted-foreground">
-												{t("git.identity.none")}
-											</p>
+											<NotConnected
+												provider={provider}
+												host={host}
+												onConnect={() => setSetup({ provider, host })}
+											/>
 										)}
-									</div>
-									{identity ? (
-										<Button
-											type="button"
-											variant="outline"
-											size="sm"
-											onClick={() => setRemoving(identity)}
-										>
-											<Trash2 className="size-4" />
-											{t("git.delete.button")}
-										</Button>
-									) : (
-										<Button
-											type="button"
-											size="sm"
-											onClick={() => setSetup({ provider, host })}
-										>
-											{t("git.setup.button")}
-										</Button>
-									)}
-								</div>
+									</CardContent>
+								</Card>
 							);
-						})}
-					</CardContent>
-				</Card>
-			))}
+						}),
+					)}
+				</div>
+			</Section>
 
 			{setup ? (
 				<GitSetupDialog
@@ -148,6 +138,75 @@ export function GitIdentitiesPanel() {
 					}}
 				/>
 			) : null}
+		</div>
+	);
+}
+
+function NotConnected({
+	provider,
+	host,
+	onConnect,
+}: {
+	provider: GitProvider;
+	host: string;
+	onConnect: () => void;
+}) {
+	const { t } = useTranslation("admin");
+	return (
+		<div className="flex flex-col gap-3 rounded-lg bg-muted/40 p-4">
+			<div>
+				<p className="text-sm font-medium">
+					{t("git.connect.title", { provider: provider.display_name })}
+				</p>
+				<p className="mt-0.5 text-sm text-muted-foreground">
+					{t("git.connect.description", { host })}
+				</p>
+			</div>
+			<div className="flex flex-wrap items-center gap-3">
+				<Button type="button" size="sm" onClick={onConnect}>
+					{t("git.setup.button", { provider: provider.display_name })}
+				</Button>
+				<span className="text-xs text-muted-foreground">
+					{t("git.connect.time")}
+				</span>
+			</div>
+		</div>
+	);
+}
+
+function Connected({
+	identity,
+	onRemove,
+}: {
+	identity: GitIdentity;
+	onRemove: () => void;
+}) {
+	const { t } = useTranslation("admin");
+	const name = identity.display_name || identity.handle;
+	return (
+		<div className="flex flex-col gap-4">
+			<div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted/40 p-4">
+				<div className="min-w-0">
+					<p className="truncate text-sm font-medium">{name}</p>
+					<p className="mt-0.5 text-sm text-muted-foreground">
+						{t("git.connected.sharedNote")}
+					</p>
+				</div>
+				{identity.handle ? (
+					<div className="flex flex-col items-start gap-1">
+						<span className="text-xs text-muted-foreground">
+							{t("git.connected.mention")}
+						</span>
+						<CopyChip value={`@${identity.handle}`} />
+					</div>
+				) : null}
+			</div>
+			<div>
+				<Button type="button" variant="outline" size="sm" onClick={onRemove}>
+					<Trash2 className="size-4" />
+					{t("git.delete.button")}
+				</Button>
+			</div>
 		</div>
 	);
 }

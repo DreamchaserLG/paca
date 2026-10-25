@@ -734,3 +734,32 @@ func TestGitStore_ReviewFixes(t *testing.T) {
 		t.Fatal("after deletion the delivery must be accepted again")
 	}
 }
+
+func TestGitStore_ListedRepositoriesCarryTheirBotsHandle(t *testing.T) {
+	s, fx := newGitFx(t)
+	ctx := t.Context()
+	project := fx.project()
+	ident := sharedIdentity("github.com")
+	if err := s.CreateIdentity(ctx, ident); err != nil {
+		t.Fatal(err)
+	}
+	with := linkRepo(t, s, project, "acme/with", &ident.ID)
+	without := linkRepo(t, s, project, "acme/without", nil)
+
+	list, err := s.ListProjectRepositories(ctx, project)
+	if err != nil || len(list) != 2 {
+		t.Fatalf("list: %v %v", list, err)
+	}
+	for _, r := range list {
+		switch r.ID {
+		case with.ID:
+			if r.IdentityHandle != "paca-bot" {
+				t.Errorf("handle = %q", r.IdentityHandle)
+			}
+		case without.ID:
+			if r.IdentityHandle != "" {
+				t.Errorf("a repository with no identity has no handle: %q", r.IdentityHandle)
+			}
+		}
+	}
+}

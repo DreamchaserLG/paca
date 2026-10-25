@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Section } from "@/components/git/git-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,11 +30,20 @@ const list = (s: string): string[] =>
 		.map((v) => v.trim())
 		.filter(Boolean);
 
+const GROUPS: { id: string; kinds: GitTrigger["kind"][] }[] = [
+	{
+		id: "requests",
+		kinds: ["mention", "label", "review_request", "assignment"],
+	},
+	{ id: "followUp", kinds: ["own_cr_feedback", "ci_failure"] },
+	{ id: "proactive", kinds: ["auto_review"] },
+];
+
 /**
- * Which Git events start this agent: a mention, feedback on a pull request it
- * opened, a CI failure on one, a review request, a label, or every new pull
- * request (auto review, off until switched on). Only triggers some installed
- * provider can deliver are offered.
+ * Which Git events start this agent, grouped by what they are for: answering
+ * requests, following up on its own pull requests, and reviewing on its own.
+ * Triggers no installed provider can deliver stay visible but switched off, so
+ * the user can see what the agent could do and why it is unavailable.
  */
 export function AgentGitTriggers({
 	projectId,
@@ -63,65 +73,100 @@ export function AgentGitTriggers({
 	});
 
 	if (triggers.isLoading) return <Skeleton className="h-32 w-full" />;
-	const offered = (triggers.data ?? []).filter((x) => x.supported);
-	if (triggers.isError || offered.length === 0) return null;
+	const all = triggers.data ?? [];
+	if (triggers.isError || all.length === 0) return null;
+	const byKind = new Map(all.map((x) => [x.kind, x]));
 
 	return (
-		<section className="flex flex-col gap-3 rounded-lg border border-border/60 p-4">
-			<div>
-				<h3 className="text-sm font-semibold">
-					{t("agents.detail.git.triggers.title")}
-				</h3>
-				<p className="text-xs text-muted-foreground">
-					{t("agents.detail.git.triggers.description")}
-				</p>
-			</div>
-			<ul className="flex flex-col divide-y divide-border/60">
-				{offered.map((trigger) => (
-					<li key={trigger.kind} className="flex flex-col gap-2 py-2.5">
-						<div className="flex items-center justify-between gap-3">
-							<div className="min-w-0">
-								<Label htmlFor={`git-trigger-${trigger.kind}`}>
-									{t(`project.git.triggerKinds.${trigger.kind}.label` as never)}
-								</Label>
-								<p className="text-xs text-muted-foreground">
-									{t(
-										`project.git.triggerKinds.${trigger.kind}.description` as never,
-									)}
-								</p>
-							</div>
-							<Switch
-								id={`git-trigger-${trigger.kind}`}
-								checked={trigger.enabled}
-								disabled={!canWrite || set.isPending}
-								onCheckedChange={(enabled) =>
-									set.mutate({
-										kind: trigger.kind,
-										enabled,
-										config: trigger.explicit ? trigger.config : undefined,
-									})
-								}
-							/>
-						</div>
-						{trigger.kind === "auto_review" && trigger.enabled ? (
-							<AutoReviewFilters
-								trigger={trigger}
-								canWrite={canWrite}
-								pending={set.isPending}
-								onSave={(config) =>
-									set.mutate({ kind: trigger.kind, enabled: true, config })
-								}
-							/>
-						) : null}
-					</li>
-				))}
-			</ul>
+		<Section
+			id="git-agent-triggers"
+			title={t("agents.detail.git.triggers.title")}
+			description={t("agents.detail.git.triggers.description")}
+		>
+			{GROUPS.map((group) => {
+				const rows = group.kinds
+					.map((k) => byKind.get(k))
+					.filter((x): x is GitTrigger => Boolean(x));
+				if (rows.length === 0) return null;
+				return (
+					<div
+						key={group.id}
+						className="rounded-lg border border-border/60 p-4"
+					>
+						<h3 className="text-sm font-semibold">
+							{t(
+								`agents.detail.git.triggers.groups.${group.id}.title` as never,
+							)}
+						</h3>
+						<p className="text-xs text-muted-foreground">
+							{t(
+								`agents.detail.git.triggers.groups.${group.id}.description` as never,
+							)}
+						</p>
+						<ul className="mt-2 flex flex-col divide-y divide-border/60">
+							{rows.map((trigger) => (
+								<li key={trigger.kind} className="flex flex-col gap-2 py-2.5">
+									<div className="flex items-center justify-between gap-3">
+										<div className="min-w-0">
+											<Label htmlFor={`git-trigger-${trigger.kind}`}>
+												{t(
+													`project.git.triggerKinds.${trigger.kind}.label` as never,
+												)}
+											</Label>
+											<p className="text-xs text-muted-foreground">
+												{t(
+													`project.git.triggerKinds.${trigger.kind}.description` as never,
+												)}
+											</p>
+											{trigger.supported ? null : (
+												<p className="mt-0.5 text-xs text-amber-600 dark:text-amber-400">
+													{t("agents.detail.git.triggers.unsupported")}
+												</p>
+											)}
+										</div>
+										<Switch
+											id={`git-trigger-${trigger.kind}`}
+											checked={trigger.supported && trigger.enabled}
+											disabled={
+												!canWrite || !trigger.supported || set.isPending
+											}
+											onCheckedChange={(enabled) =>
+												set.mutate({
+													kind: trigger.kind,
+													enabled,
+													config: trigger.explicit ? trigger.config : undefined,
+												})
+											}
+										/>
+									</div>
+									{trigger.kind === "auto_review" &&
+									trigger.supported &&
+									trigger.enabled ? (
+										<AutoReviewFilters
+											trigger={trigger}
+											canWrite={canWrite}
+											pending={set.isPending}
+											onSave={(config) =>
+												set.mutate({
+													kind: trigger.kind,
+													enabled: true,
+													config,
+												})
+											}
+										/>
+									) : null}
+								</li>
+							))}
+						</ul>
+					</div>
+				);
+			})}
 			{errorKey ? (
 				<p role="alert" className="text-sm text-destructive">
 					{t(`project.git.errors.${errorKey}` as never)}
 				</p>
 			) : null}
-		</section>
+		</Section>
 	);
 }
 

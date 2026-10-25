@@ -15,6 +15,20 @@ const { mockProviders, mockIdentities, mockBegin, mockFollow, mockDelete } =
 // The query options inside git-api call its own listGit* functions, which a
 // module mock cannot replace, so the two list endpoints are mocked at the
 // HTTP client instead.
+vi.mock("@tanstack/react-router", async () => {
+	const React = await import("react");
+	return {
+		Link: ({
+			to,
+			children,
+			...rest
+		}: {
+			to: string;
+			children?: React.ReactNode;
+		}) => React.createElement("a", { href: to, ...rest }, children),
+	};
+});
+
 vi.mock("@/lib/api-client", () => ({
 	apiClient: {
 		instance: {

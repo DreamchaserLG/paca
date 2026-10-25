@@ -639,13 +639,11 @@
 		"description": "让智能体能够在你的 Git 平台上克隆、推送并创建拉取请求/合并请求的机器人身份。每个主机有一个共享身份；智能体也可以在自己的设置中拥有专属身份。",
 		"noProviders": {
 			"title": "尚未安装 Git 提供方",
-			"description": "请安装 Git 提供方插件（例如 GitHub Integration）以设置机器人身份。"
+			"description": "请安装 Git 提供方插件（例如 GitHub Integration）以设置机器人身份。",
+			"action": "管理插件"
 		},
 		"cancel": "取消",
-		"identity": {
-			"shared": "共享",
-			"none": "尚未设置身份"
-		},
+		"identity": {},
 		"setup": {
 			"button": "设置",
 			"dialogTitle": "在 {{host}} 上设置 {{provider}}",
@@ -679,6 +677,30 @@
 			"providerUnavailable": "Git 提供方插件不可用。请检查它是否已安装并启用。",
 			"providerRejected": "平台拒绝了该请求。请检查所用账户的权限。",
 			"notFound": "未找到。"
+		},
+		"copy": "复制",
+		"copied": "已复制",
+		"stepStatus": {
+			"done": "已完成",
+			"current": "下一步",
+			"todo": "未开始"
+		},
+		"status": {
+			"connected": "已连接",
+			"notConnected": "未连接"
+		},
+		"platforms": {
+			"title": "Git 平台",
+			"description": "每个平台需要一个共享的机器人身份。"
+		},
+		"connect": {
+			"title": "连接 {{provider}}",
+			"description": "Paca 会在 {{host}} 上创建一个机器人账号，智能体用它读取代码、推送分支、创建拉取请求并发表评论。",
+			"time": "大约需要一分钟。你在平台上批准后会回到这里。"
+		},
+		"connected": {
+			"sharedNote": "由所有没有独立身份的项目和智能体共用。",
+			"mention": "在评论中提及："
 		}
 	}
 }

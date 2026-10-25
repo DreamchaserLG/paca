@@ -26,14 +26,21 @@
 		"git": {
 			"title": "Git 仓库",
 			"description": "此项目的智能体可通过工作区共享的 Git 身份操作的仓库。",
-			"empty": "尚未关联任何仓库。",
+			"empty": {
+				"title": "尚未关联仓库",
+				"description": "关联仓库后，本项目的智能体即可读取代码、创建拉取请求并回复提及。",
+				"readOnly": "需要本项目的 Git 写入权限才能关联仓库。"
+			},
 			"noProviders": "尚未安装 Git 提供方。请联系管理员安装。",
 			"link": {
-				"title": "关联仓库",
 				"platform": "平台",
 				"repository": "仓库",
 				"placeholder": "owner/name 或仓库 URL",
-				"button": "关联"
+				"button": "关联",
+				"open": "关联仓库",
+				"cancel": "取消",
+				"help": "粘贴仓库 URL，或输入 所有者/名称。",
+				"connectAction": "打开 Git 集成"
 			},
 			"unlink": {
 				"button": "取消关联",
@@ -59,32 +66,6 @@
 				"accessNotGranted": "共享身份无法访问此仓库。",
 				"noIdentity": "此平台尚未设置共享 Git 身份。工作区管理员可在“管理 → Git”中设置。",
 				"alreadyLinked": "此仓库已关联到该项目。"
-			},
-			"workflow": {
-				"title": "智能体自动化",
-				"description": "Git 活动如何启动你的智能体:谁来回应未指明智能体的提及、需要多高的访问权限才能启动运行,以及已启动的运行。哪些事件启动哪个智能体,在每个智能体的 Git 标签页中设置。",
-				"responder": {
-					"label": "默认响应者",
-					"none": "没有默认响应者",
-					"help": "回应未指明智能体的提及、标签和评审请求。在评论中加入“agent:handle”可指定其他智能体。"
-				},
-				"minPermission": {
-					"label": "启动智能体所需的最低权限",
-					"help": "对仓库权限更低的人可以评论,但不会启动智能体。机器人永远不会启动智能体。"
-				},
-				"permission": {
-					"read": "读取",
-					"triage": "分类",
-					"write": "写入",
-					"maintain": "维护",
-					"admin": "管理员"
-				},
-				"paused": {
-					"label": "暂停自动化",
-					"help": "暂停期间,Git 活动不会启动任何智能体。已在进行的运行会继续。"
-				},
-				"save": "保存",
-				"saved": "已保存。"
 			},
 			"triggerKinds": {
 				"mention": {
@@ -115,6 +96,57 @@
 					"label": "评审每个拉取请求",
 					"description": "自动评审每个新的拉取请求。开启前默认关闭;草稿和智能体自己的拉取请求会被跳过。"
 				}
+			},
+			"repositories": {
+				"title": "仓库",
+				"description": "本项目的智能体可以处理这些仓库。",
+				"mention": "在评论中提及："
+			},
+			"automation": {
+				"title": "自动化",
+				"description": "设置 Git 活动如何启动你的智能体。",
+				"locked": "请先关联仓库。这些设置适用于本项目已关联的仓库。",
+				"responder": {
+					"label": "默认回复智能体",
+					"none": "无默认回复智能体",
+					"help": "处理未指定智能体的提及、标签和评审请求。在提及中加入“agent:<handle>”可指定其他智能体。",
+					"warning": "没有默认回复智能体时，未指定智能体的提及会被忽略。"
+				},
+				"minPermission": {
+					"label": "启动智能体所需的最低权限",
+					"help": "权限低于此级别的人仍可评论，但不会触发智能体。"
+				},
+				"permission": {
+					"read": "读取",
+					"triage": "分类",
+					"write": "写入",
+					"maintain": "维护",
+					"admin": "管理员"
+				},
+				"paused": {
+					"label": "暂停自动化",
+					"help": "暂停期间，Git 活动不会启动智能体。已在运行的任务会继续完成。"
+				},
+				"save": "保存",
+				"saved": "已保存。",
+				"advanced": "高级"
+			},
+			"usage": {
+				"title": "使用方法",
+				"description": "在 Git 平台上启动智能体的三种方式。",
+				"mention": {
+					"title": "提及机器人",
+					"description": "在 issue 或拉取请求中评论，由默认回复智能体作答。"
+				},
+				"pick": {
+					"title": "指定智能体",
+					"description": "在提及中加入 agent:<handle> 以选择回复的智能体。"
+				},
+				"label": {
+					"title": "添加标签",
+					"description": "为 issue 或拉取请求添加“paca”标签。"
+				},
+				"automatic": "智能体也可以自行启动，例如跟进自己的拉取请求或评审每个新拉取请求。可在各智能体的 Git 标签页中开启。"
 			}
 		}
 	},
@@ -477,18 +509,26 @@
 				"title": "Git 身份",
 				"description": "默认情况下，此智能体使用工作区共享的 Git 身份。为它设置专属身份后，它的提交、拉取请求和评论会以独立机器人的名义显示，并可将该身份安装到它所处理仓库所属的账户和组织。",
 				"providersUnavailable": "无法加载此项目的 Git 提供方。",
-				"noProviders": "尚未安装 Git 提供方。",
+				"noProviders": {
+					"title": "没有可用的 Git 平台",
+					"description": "请让工作区管理员安装并连接 Git 提供方插件，之后智能体即可处理仓库。"
+				},
 				"ownIdentity": "专属身份",
 				"usesShared": "使用共享身份",
 				"singleIdentity": "此平台每个主机只有一个身份，因此使用共享身份。",
 				"remove": "移除",
-				"create": "创建身份",
+				"create": {
+					"title": "为此智能体创建独立身份",
+					"description": "其提交、拉取请求和评论将以独立机器人显示，也可以按名称提及。你在平台上批准后即可立即安装。",
+					"button": "创建身份"
+				},
 				"askAdmin": "请联系工作区管理员创建。",
 				"install": {
 					"label": "安装到其他账户或组织",
 					"placeholder": "账户或组织（可选）",
 					"button": "安装",
-					"help": "将打开平台的安装页面。名称留空则在平台上选择账户。"
+					"help": "将打开平台的安装页面。名称留空则在平台上选择账户。",
+					"title": "安装到其他账号或组织"
 				},
 				"triggers": {
 					"title": "Git 触发器",
@@ -498,8 +538,35 @@
 						"authors": "仅限这些作者",
 						"help": "用逗号分隔。留空表示全部匹配。机器人作者必须列出才会被评审。",
 						"save": "保存过滤条件"
+					},
+					"unsupported": "已连接的 Git 平台不支持。",
+					"groups": {
+						"requests": {
+							"title": "响应请求",
+							"description": "有人请求该智能体时启动。"
+						},
+						"followUp": {
+							"title": "跟进自己的拉取请求",
+							"description": "该智能体创建的拉取请求有动态时启动。"
+						},
+						"proactive": {
+							"title": "自主行动",
+							"description": "无需任何人请求即可启动。默认关闭。"
+						}
 					}
-				}
+				},
+				"identity": {
+					"title": "身份",
+					"description": "此智能体在各 Git 平台上使用的账号。"
+				},
+				"own": {
+					"description": "该智能体有自己的机器人，其提交、拉取请求和评论会以独立的名称显示。",
+					"mention": "提及方式："
+				},
+				"shared": {
+					"description": "该智能体与其他智能体一样，通过工作区共享的机器人工作。"
+				},
+				"permissions": "该智能体在 Git 上能做什么取决于它在项目中的角色：读写权限来自角色的 Git 权限；批准和合并拉取请求默认不授予。"
 			}
 		},
 		"conversationView": {

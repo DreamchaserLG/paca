@@ -639,13 +639,11 @@
 		"description": "Danh tính bot cho phép các agent clone, push và mở pull request hoặc merge request trên các nền tảng Git của bạn. Mỗi host có một danh tính dùng chung; agent cũng có thể có danh tính riêng trong phần cài đặt của mình.",
 		"noProviders": {
 			"title": "Chưa cài nhà cung cấp Git nào",
-			"description": "Hãy cài một plugin nhà cung cấp Git, chẳng hạn GitHub Integration, để thiết lập danh tính bot."
+			"description": "Hãy cài một plugin nhà cung cấp Git, chẳng hạn GitHub Integration, để thiết lập danh tính bot.",
+			"action": "Quản lý plugin"
 		},
 		"cancel": "Hủy",
-		"identity": {
-			"shared": "Dùng chung",
-			"none": "Chưa thiết lập danh tính"
-		},
+		"identity": {},
 		"setup": {
 			"button": "Thiết lập",
 			"dialogTitle": "Thiết lập {{provider}} trên {{host}}",
@@ -679,6 +677,30 @@
 			"providerUnavailable": "Plugin nhà cung cấp Git không khả dụng. Hãy kiểm tra xem đã cài đặt và bật chưa.",
 			"providerRejected": "Nền tảng đã từ chối yêu cầu. Hãy kiểm tra quyền của tài khoản bạn đã dùng.",
 			"notFound": "Không tìm thấy."
+		},
+		"copy": "Sao chép",
+		"copied": "Đã sao chép",
+		"stepStatus": {
+			"done": "đã xong",
+			"current": "bước tiếp theo",
+			"todo": "chưa bắt đầu"
+		},
+		"status": {
+			"connected": "Đã kết nối",
+			"notConnected": "Chưa kết nối"
+		},
+		"platforms": {
+			"title": "Nền tảng Git",
+			"description": "Mỗi nền tảng cần một danh tính bot dùng chung."
+		},
+		"connect": {
+			"title": "Kết nối {{provider}}",
+			"description": "Paca tạo một tài khoản bot trên {{host}} để các tác nhân đọc mã, đẩy nhánh, mở pull request và bình luận.",
+			"time": "Mất khoảng một phút. Bạn phê duyệt trên nền tảng rồi quay lại đây."
+		},
+		"connected": {
+			"sharedNote": "Dùng chung cho mọi dự án và tác nhân chưa có danh tính riêng.",
+			"mention": "Nhắc trong bình luận:"
 		}
 	}
 }

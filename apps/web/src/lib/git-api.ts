@@ -186,6 +186,8 @@ export interface GitRepository {
 	default_branch: string;
 	clone_url: string;
 	identity_id: string | null;
+	/** What to @mention to reach the bot serving the repository; empty when unknown. */
+	identity_handle: string;
 	created_at: string;
 }
 

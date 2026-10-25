@@ -1,9 +1,10 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { GitBranch, Loader2, Trash2 } from "lucide-react";
+import { GitBranch, Loader2, Plug, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DeleteGitIdentityDialog } from "@/components/git/DeleteGitIdentityDialog";
 import { GitSetupDialog } from "@/components/git/GitSetupDialog";
+import { CopyChip, EmptyState, Section } from "@/components/git/git-ui";
 import { AgentGitTriggers } from "@/components/projects/agents/AgentGitTriggers";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -92,44 +93,56 @@ export function AgentGitTab({
 					{t("agents.detail.git.providersUnavailable")}
 				</p>
 			) : list.length === 0 ? (
-				<p className="text-sm text-muted-foreground">
-					{t("agents.detail.git.noProviders")}
-				</p>
+				<EmptyState
+					icon={Plug}
+					title={t("agents.detail.git.noProviders.title")}
+					description={t("agents.detail.git.noProviders.description")}
+				/>
 			) : (
-				list.map((provider) => {
-					const identity = own(provider.id);
-					return (
-						<section
-							key={provider.id}
-							className="flex flex-col gap-4 rounded-lg border border-border/60 p-4"
-						>
-							<div className="flex items-center justify-between gap-3">
-								<div className="min-w-0">
-									<h3 className="truncate text-sm font-semibold">
-										{provider.display_name}
-									</h3>
-									{identity ? (
-										<p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-											<span className="truncate">
-												{identity.display_name || identity.handle}
-											</span>
-											{identity.handle ? (
-												<span className="font-mono text-xs">
-													@{identity.handle}
-												</span>
-											) : null}
-											<Badge variant="secondary">
-												{t("agents.detail.git.ownIdentity")}
+				<Section
+					id="git-agent-identity"
+					title={t("agents.detail.git.identity.title")}
+					description={t("agents.detail.git.identity.description")}
+				>
+					{list.map((provider) => {
+						const identity = own(provider.id);
+						return (
+							<div
+								key={provider.id}
+								className="flex flex-col gap-4 rounded-lg border border-border/60 p-4"
+							>
+								<div className="flex items-start justify-between gap-3">
+									<div className="min-w-0">
+										<div className="flex flex-wrap items-center gap-2">
+											<h3 className="truncate text-sm font-semibold">
+												{provider.display_name}
+											</h3>
+											<Badge variant={identity ? "default" : "secondary"}>
+												{identity
+													? t("agents.detail.git.ownIdentity")
+													: t("agents.detail.git.usesShared")}
 											</Badge>
-										</p>
-									) : (
-										<p className="text-sm text-muted-foreground">
-											{t("agents.detail.git.usesShared")}
-										</p>
-									)}
-								</div>
-								{identity ? (
-									canManage ? (
+										</div>
+										{identity ? (
+											<div className="mt-2 flex flex-col gap-1.5 text-sm text-muted-foreground">
+												<p>{t("agents.detail.git.own.description")}</p>
+												{identity.handle ? (
+													<p className="flex flex-wrap items-center gap-2">
+														{t("agents.detail.git.own.mention")}
+														<CopyChip
+															value={`@${identity.handle}`}
+															label={identity.display_name || identity.handle}
+														/>
+													</p>
+												) : null}
+											</div>
+										) : (
+											<p className="mt-2 text-sm text-muted-foreground">
+												{t("agents.detail.git.shared.description")}
+											</p>
+										)}
+									</div>
+									{identity && canManage ? (
 										<Button
 											type="button"
 											variant="outline"
@@ -139,39 +152,50 @@ export function AgentGitTab({
 											<Trash2 className="size-4" />
 											{t("agents.detail.git.remove")}
 										</Button>
-									) : null
-								) : !provider.capabilities.multiple_identities ? (
-									<span className="text-xs text-muted-foreground">
-										{t("agents.detail.git.singleIdentity")}
-									</span>
-								) : canManage ? (
-									<Button
-										type="button"
-										size="sm"
-										disabled={!canWrite}
-										onClick={() => setCreating(provider)}
-									>
-										{t("agents.detail.git.create")}
-									</Button>
-								) : (
-									<span className="text-xs text-muted-foreground">
-										{t("agents.detail.git.askAdmin")}
-									</span>
-								)}
-							</div>
+									) : null}
+								</div>
 
-							{identity && provider.capabilities.access_grants ? (
+								{identity ? null : !provider.capabilities
+										.multiple_identities ? (
+									<p className="text-xs text-muted-foreground">
+										{t("agents.detail.git.singleIdentity")}
+									</p>
+								) : canManage ? (
+									<div className="flex flex-col items-start gap-1.5 rounded-md bg-muted/40 p-3">
+										<p className="text-sm font-medium">
+											{t("agents.detail.git.create.title")}
+										</p>
+										<p className="text-sm text-muted-foreground">
+											{t("agents.detail.git.create.description")}
+										</p>
+										<Button
+											type="button"
+											size="sm"
+											disabled={!canWrite}
+											onClick={() => setCreating(provider)}
+										>
+											{t("agents.detail.git.create.button")}
+										</Button>
+									</div>
+								) : (
+									<p className="rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">
+										{t("agents.detail.git.askAdmin")}
+									</p>
+								)}
+
+								{identity &&
+								provider.capabilities.access_grants &&
 								canInstall ? (
 									<InstallOnAccount
 										projectId={projectId}
 										agentId={agentId}
 										provider={provider}
 									/>
-								) : null
-							) : null}
-						</section>
-					);
-				})
+								) : null}
+							</div>
+						);
+					})}
+				</Section>
 			)}
 
 			{list.length > 0 ? (
@@ -180,6 +204,12 @@ export function AgentGitTab({
 					agentId={agentId}
 					canWrite={canWrite}
 				/>
+			) : null}
+
+			{list.length > 0 ? (
+				<p className="text-xs text-muted-foreground">
+					{t("agents.detail.git.permissions")}
+				</p>
 			) : null}
 
 			{creating ? (
@@ -256,40 +286,45 @@ function InstallOnAccount({
 	});
 
 	return (
-		<form
-			className="flex flex-col gap-2"
-			onSubmit={(e) => {
-				e.preventDefault();
-				setErrorKey(null);
-				install.mutate();
-			}}
-		>
-			<Label htmlFor={`git-agent-owner-${provider.id}`}>
-				{t("agents.detail.git.install.label")}
-			</Label>
-			<div className="flex gap-2">
-				<Input
-					id={`git-agent-owner-${provider.id}`}
-					value={owner}
-					autoComplete="off"
-					placeholder={t("agents.detail.git.install.placeholder")}
-					onChange={(e) => setOwner(e.target.value)}
-				/>
-				<Button type="submit" variant="outline" disabled={install.isPending}>
-					{install.isPending ? (
-						<Loader2 className="size-4 animate-spin" />
-					) : null}
-					{t("agents.detail.git.install.button")}
-				</Button>
-			</div>
-			<p className="text-xs text-muted-foreground">
-				{t("agents.detail.git.install.help")}
-			</p>
-			{errorKey ? (
-				<p role="alert" className="text-sm text-destructive">
-					{t(`project.git.errors.${errorKey}` as never)}
+		<details className="group rounded-md border border-border/60 p-3">
+			<summary className="cursor-pointer text-sm font-medium">
+				{t("agents.detail.git.install.title")}
+			</summary>
+			<form
+				className="mt-3 flex flex-col gap-2"
+				onSubmit={(e) => {
+					e.preventDefault();
+					setErrorKey(null);
+					install.mutate();
+				}}
+			>
+				<Label htmlFor={`git-agent-owner-${provider.id}`}>
+					{t("agents.detail.git.install.label")}
+				</Label>
+				<div className="flex gap-2">
+					<Input
+						id={`git-agent-owner-${provider.id}`}
+						value={owner}
+						autoComplete="off"
+						placeholder={t("agents.detail.git.install.placeholder")}
+						onChange={(e) => setOwner(e.target.value)}
+					/>
+					<Button type="submit" variant="outline" disabled={install.isPending}>
+						{install.isPending ? (
+							<Loader2 className="size-4 animate-spin" />
+						) : null}
+						{t("agents.detail.git.install.button")}
+					</Button>
+				</div>
+				<p className="text-xs text-muted-foreground">
+					{t("agents.detail.git.install.help")}
 				</p>
-			) : null}
-		</form>
+				{errorKey ? (
+					<p role="alert" className="text-sm text-destructive">
+						{t(`project.git.errors.${errorKey}` as never)}
+					</p>
+				) : null}
+			</form>
+		</details>
 	);
 }

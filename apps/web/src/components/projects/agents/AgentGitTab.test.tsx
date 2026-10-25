@@ -282,7 +282,7 @@ describe("AgentGitTab", () => {
 		providers = [];
 		renderTab();
 		expect(
-			await screen.findByText(/No Git provider is installed/i),
+			await screen.findByText(/No Git platform available/i),
 		).toBeInTheDocument();
 	});
 });

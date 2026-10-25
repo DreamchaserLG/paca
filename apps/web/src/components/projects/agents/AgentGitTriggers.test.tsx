@@ -50,7 +50,7 @@ describe("AgentGitTriggers", () => {
 		h.put.mockImplementation(async () => ({ data: { data: triggers } }));
 	});
 
-	it("offers only the triggers a provider can deliver", async () => {
+	it("groups triggers and shows the ones no provider can deliver as unavailable", async () => {
 		renderTriggers();
 		expect(
 			await screen.findByRole("switch", { name: "Mentioned" }),
@@ -61,7 +61,22 @@ describe("AgentGitTriggers", () => {
 		expect(
 			screen.getByRole("switch", { name: "Review every pull request" }),
 		).not.toBeChecked();
-		expect(screen.queryByRole("switch", { name: /CI failure/ })).toBeNull();
+		expect(
+			screen.getByRole("heading", { name: "Respond to requests" }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("heading", {
+				name: "Follow up on its own pull requests",
+			}),
+		).toBeInTheDocument();
+		const ci = screen.getByRole("switch", {
+			name: "CI failure on its pull request",
+		});
+		expect(ci).toHaveAttribute("aria-disabled", "true");
+		expect(ci).not.toBeChecked();
+		expect(
+			screen.getAllByText(/not supported by the connected git platforms/i),
+		).toHaveLength(1);
 	});
 
 	it("switches a trigger on", async () => {
@@ -119,8 +134,16 @@ describe("AgentGitTriggers", () => {
 		).toHaveAttribute("aria-disabled", "true");
 	});
 
-	it("renders nothing when no provider delivers any trigger", async () => {
+	it("keeps unsupported triggers visible but off", async () => {
 		triggers = [trig("mention", true, { supported: false })];
+		renderTriggers();
+		const sw = await screen.findByRole("switch", { name: "Mentioned" });
+		expect(sw).not.toBeChecked();
+		expect(sw).toHaveAttribute("aria-disabled", "true");
+	});
+
+	it("renders nothing when the triggers could not be loaded", async () => {
+		h.get.mockRejectedValue(new Error("boom"));
 		const { container } = renderTriggers();
 		await waitFor(() => expect(h.get).toHaveBeenCalled());
 		await waitFor(() => expect(container).toBeEmptyDOMElement());

@@ -52,9 +52,12 @@ type Repository struct {
 	IdentityID    *uuid.UUID
 	ProviderRef   json.RawMessage // RepoRef.ProviderRef, opaque
 	WebhookRef    json.RawMessage
-	CreatedBy     *uuid.UUID
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	// IdentityHandle is what users @mention to reach the bot that serves this
+	// repository. Read for listings only; it is not stored on the repository.
+	IdentityHandle string
+	CreatedBy      *uuid.UUID
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 // WebhookEndpoint is where a platform delivers events for one identity.

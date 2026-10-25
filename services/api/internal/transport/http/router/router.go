@@ -479,7 +479,6 @@ func New(deps Deps) http.Handler {
 						// governs the identity itself; git:write alone must not reach
 						// repositories another project's installation exposed.
 						r.With(require.Project(iam.ActionGitWrite), require.Global(iam.ActionGitIdentitiesManage)).Post("/", deps.Git.LinkRepository)
-						r.With(require.Project(iam.ActionGitWrite)).Delete("/{repositoryId}", deps.Git.UnlinkRepository)
 						r.With(require.Project(iam.ActionGitRead)).Post("/{repositoryId}/credential/read", deps.Git.ReadCredential)
 						r.With(require.Project(iam.ActionGitWrite)).Post("/{repositoryId}/credential/write", deps.Git.WriteCredential)
 
@@ -491,6 +490,10 @@ func New(deps Deps) http.Handler {
 						r.Route("/{repositoryId}", func(r chi.Router) {
 							read := require.Project(iam.ActionGitRead)
 							write := require.Project(iam.ActionGitWrite)
+							// Unlinking lives here, not beside the other /{repositoryId}
+							// routes above: mounting this router at "/{repositoryId}" would
+							// replace a Delete registered on the same pattern.
+							r.With(write).Delete("/", deps.Git.UnlinkRepository)
 							r.With(read).Get("/change-requests/{number}", deps.Git.GetChangeRequest)
 							r.With(read).Get("/change-requests/{number}/files", deps.Git.ListChangedFiles)
 							r.With(read).Get("/change-requests/{number}/diff", deps.Git.GetDiff)

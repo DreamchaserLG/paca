@@ -496,11 +496,15 @@ func TestOps_TaskGitFillsInWhatEventsDidNotCarry(t *testing.T) {
 
 type taskGitStore struct {
 	*opsStore
-	links *gitdom.TaskGit
+	links   *gitdom.TaskGit
+	foreign bool // the task belongs to another project
 }
 
 func (s *taskGitStore) ListTaskGit(context.Context, uuid.UUID, uuid.UUID) (*gitdom.TaskGit, error) {
 	return s.links, nil
+}
+func (s *taskGitStore) TaskInProject(context.Context, uuid.UUID, uuid.UUID) (bool, error) {
+	return !s.foreign, nil
 }
 
 func countCalls(calls []string, name string) int {
@@ -511,4 +515,13 @@ func countCalls(calls []string, name string) int {
 		}
 	}
 	return n
+}
+
+func TestOps_TaskGitOfAnotherProjectsTaskIsNotFound(t *testing.T) {
+	fx := newOpsFx(t)
+	ts := &taskGitStore{opsStore: fx.st, links: &gitdom.TaskGit{}, foreign: true}
+	svc := New(ts, fakeProviders{p: fx.pr})
+	if _, err := svc.ListTaskGit(context.Background(), fx.sc.ProjectID, uuid.New()); !errors.Is(err, gitdom.ErrNotFound) {
+		t.Fatalf("err = %v, want ErrNotFound", err)
+	}
 }

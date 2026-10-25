@@ -38,6 +38,13 @@ type cachedCI struct {
 // and remembers the answer, a few at a time. A platform that does not answer
 // leaves the entry as it is.
 func (s *Service) ListTaskGit(ctx context.Context, projectID, taskID uuid.UUID) (*gitdom.TaskGit, error) {
+	ok, err := s.store.TaskInProject(ctx, projectID, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, gitdom.ErrNotFound
+	}
 	out, err := s.store.ListTaskGit(ctx, projectID, taskID)
 	if err != nil {
 		return nil, err

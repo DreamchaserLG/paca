@@ -697,3 +697,21 @@ func TestCheckWebhookEndpoint(t *testing.T) {
 		}
 	}
 }
+
+func TestWebhookKeysThatCannotBeOursAreNotFound(t *testing.T) {
+	svc, st, _ := setup(t)
+	ident := st.addIdentity("bot", "app-1")
+	st.endpoints["ready"] = &gitdom.WebhookEndpoint{Key: "ready", ProviderID: "p", IdentityID: &ident.ID}
+	ctx := context.Background()
+	for _, k := range []string{"", "a\x00b", strings.Repeat("a", 129), "a b", "../x", "k'--", "\u2603"} {
+		if err := svc.CheckWebhookEndpoint(ctx, k); !errors.Is(err, gitdom.ErrNotFound) {
+			t.Errorf("Check(%q) = %v", k, err)
+		}
+		if _, err := svc.HandleWebhook(ctx, k, Delivery{}); !errors.Is(err, gitdom.ErrNotFound) {
+			t.Errorf("Handle(%q) = %v", k, err)
+		}
+	}
+	if err := svc.CheckWebhookEndpoint(ctx, "ready"); err != nil {
+		t.Errorf("a real key: %v", err)
+	}
+}

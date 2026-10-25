@@ -21,6 +21,7 @@ import (
 )
 
 type fakeGitSvc struct {
+	checkErr error // answered by CheckWebhookEndpoint
 	link     gitsvc.LinkInput
 	repos    []*gitdom.Repository
 	err      error
@@ -112,7 +113,7 @@ func (f *fakeGitSvc) MintCredential(_ context.Context, in gitsvc.MintInput) (git
 	f.mint = in
 	return f.cred, f.err
 }
-func (f *fakeGitSvc) CheckWebhookEndpoint(context.Context, string) error { return nil }
+func (f *fakeGitSvc) CheckWebhookEndpoint(context.Context, string) error { return f.checkErr }
 
 func (f *fakeGitSvc) HandleWebhook(_ context.Context, k string, d gitsvc.Delivery) (*gitsvc.WebhookResult, error) {
 	f.key, f.delivery = k, d
@@ -500,4 +501,33 @@ func TestGitHandler_AgentAccessGrant(t *testing.T) {
 	if rec := serveGit(t, g, "POST", base, `{"provider_id":"p"}`, &actor); rec.Code != 409 || errCode(rec) != "GIT_NO_IDENTITY" {
 		t.Errorf("agent without an identity: %d %s", rec.Code, errCode(rec))
 	}
+}
+
+func TestGitHandler_WebhookRefusesAnUnknownEndpointBeforeReadingTheBody(t *testing.T) {
+	f := &fakeGitSvc{checkErr: gitdom.ErrNotFound}
+	r := chi.NewRouter()
+	r.Post("/git/webhooks/{endpointKey}", NewGitHandler(f).ReceiveWebhook)
+	body := &countingReader{r: strings.NewReader(strings.Repeat("x", 1024))}
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), "POST", "/git/webhooks/nope", body))
+	if rec.Code != 404 {
+		t.Fatalf("status = %d, want 404: %s", rec.Code, rec.Body)
+	}
+	if body.n != 0 {
+		t.Fatalf("the body was read (%d bytes) for an unknown endpoint", body.n)
+	}
+	if f.key != "" {
+		t.Fatalf("the delivery reached the service: key=%q", f.key)
+	}
+}
+
+type countingReader struct {
+	r interface{ Read([]byte) (int, error) }
+	n int
+}
+
+func (c *countingReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.n += n
+	return n, err
 }

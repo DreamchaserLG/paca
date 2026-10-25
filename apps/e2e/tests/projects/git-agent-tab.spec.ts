@@ -238,10 +238,9 @@ test.describe("Agent Git tab", () => {
 			).toBeVisible();
 			await expect(page.getByText("@paca-reviewer")).toBeVisible();
 			await page.getByRole("button", { name: "Remove" }).click();
-			const confirm = page
-				.getByRole("button", { name: /^(Remove|Remove identity|Confirm)/ })
-				.last();
-			if (await confirm.isVisible().catch(() => false)) await confirm.click();
+			const dialog = page.getByRole("dialog");
+			await expect(dialog).toBeVisible();
+			await dialog.getByRole("button", { name: "Remove identity" }).click();
 			await expect
 				.poll(() =>
 					stub.calls.some(

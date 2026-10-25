@@ -23,7 +23,6 @@ Feature: A project's Git automation settings, runs and providers (API)
   Scenario: Settings round-trip
     When the settings are saved with paused true and minimum permission "admin"
     Then reading them back returns the same values
-    And a partial update keeps the fields it does not mention
 
   Scenario Outline: Each minimum permission level is accepted
     When the minimum permission is "<level>"

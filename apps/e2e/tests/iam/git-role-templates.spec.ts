@@ -4,6 +4,7 @@
 import { type APIRequestContext, expect, test } from "@playwright/test";
 import {
 	API_URL,
+	assignGlobalRoles,
 	authRequest,
 	cleanupGlobalRolesByPrefix,
 	cleanupProjectsByPrefix,
@@ -18,6 +19,7 @@ import {
 	allow,
 	asUser,
 	createMember,
+	createPerson,
 	dataOf,
 	errorCode,
 	policyOf,
@@ -134,18 +136,18 @@ test.describe("Git actions in roles", () => {
 		expect(role.name).toBe(name("WS_OK"));
 	});
 
-	test("The workspace action is refused on a project or unknown resource", async ({
+	test("The workspace action is refused on an unknown resource root or action", async ({
 		request,
 	}) => {
-		const onProject = await request.post(`${API_URL}/admin/roles`, {
+		const unknownRoot = await request.post(`${API_URL}/admin/roles`, {
 			data: {
 				name: name("WS_BAD"),
 				description: "",
 				policy: policyOf(allow(["git.identities:manage"], ["bogus/*"])),
 			},
 		});
-		expect(onProject.status()).toBe(422);
-		expect(await errorCode(onProject)).toBe("ROLE_POLICY_INVALID");
+		expect(unknownRoot.status()).toBe(422);
+		expect(await errorCode(unknownRoot)).toBe("ROLE_POLICY_INVALID");
 
 		const unknownAction = await request.post(`${API_URL}/admin/roles`, {
 			data: {
@@ -155,6 +157,24 @@ test.describe("Git actions in roles", () => {
 			},
 		});
 		expect(unknownAction.status()).toBe(422);
+	});
+
+	test("The workspace action on a project resource is accepted but grants nothing", async ({
+		request,
+		playwright,
+	}) => {
+		const roleName = name("WS_ON_PROJECT");
+		await createGlobalRole(
+			request,
+			roleName,
+			policyOf(allow(["git.identities:manage"], [`project/${projectId}/*`])),
+		);
+		const person = await createPerson(request, playwright, name("WS_INERT"));
+		await assignGlobalRoles(request, person.userId, [roleName]);
+		await asUser(playwright, person.username, async (api) => {
+			expect((await api.get(`${API_URL}/git/identities`)).status()).toBe(403);
+			expect((await api.get(`${API_URL}/git/providers`)).status()).toBe(403);
+		});
 	});
 
 	test("A project role naming the workspace action never reaches the workspace routes", async ({
@@ -173,10 +193,9 @@ test.describe("Git actions in roles", () => {
 				},
 			},
 		);
-		if (!response.ok()) {
-			expect(response.status()).toBe(422);
-			return;
-		}
+		// Accepted (the validator checks the root and the action name only) but
+		// inert: the workspace routes are checked on git_identity/*.
+		expect(response.status()).toBe(201);
 		const role = await dataOf<Role>(response);
 		const member = await createMember(
 			request,

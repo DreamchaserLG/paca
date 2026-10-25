@@ -143,6 +143,18 @@ test.describe("Administration, Git", () => {
 			await page.goto(`${BASE_URL}/admin/git`);
 
 			await expect(page).toHaveURL(/\/home/);
+			// The sidebar entries come from the user's permissions: open the sidebar
+			// when it is collapsed (narrow screens) and wait for an entry the user
+			// holds before asserting the Git entry is absent.
+			if ((page.viewportSize()?.width ?? 1280) < 768) {
+				await page
+					.getByRole("button", { name: /toggle sidebar/i })
+					.first()
+					.click();
+			}
+			await expect(
+				page.getByRole("link", { name: "Users", exact: true }),
+			).toBeVisible();
 			await expect(
 				page.getByRole("link", { name: "Git", exact: true }),
 			).toHaveCount(0);

@@ -174,7 +174,17 @@ test.describe("Git on the task page", () => {
 	test("Nothing is shown until a repository is linked", async ({ page }) => {
 		await signIn(page);
 		await stubGit(page, projectId, taskId, newStub({ repositories: [] }));
+		// The sections depend on the repositories request: wait for it to
+		// complete, then for the task's own Properties panel, before asserting
+		// that nothing Git-related was rendered.
+		const repositories = page.waitForResponse(
+			(r) =>
+				r.url().endsWith(`/projects/${projectId}/git/repositories`) &&
+				r.request().method() === "GET",
+		);
 		await openTask(page);
+		await repositories;
+		await expect(page.getByText("Properties", { exact: true })).toBeVisible();
 
 		await expect(page.getByText("Pull requests", { exact: true })).toHaveCount(
 			0,
@@ -264,6 +274,8 @@ test.describe("Git on the task page", () => {
 		expect(stub.requests[0].method).toBe("DELETE");
 		expect(stub.requests[0].path).toContain("/branches");
 		expect(stub.requests[0].path).toContain("branch=feat%2Flogin");
+		await expect(page.getByText("No branches linked yet.")).toBeVisible();
+		await expect(page.getByText("feat/login", { exact: true })).toHaveCount(0);
 	});
 
 	test("A pull request is unlinked", async ({ page }) => {
@@ -278,6 +290,8 @@ test.describe("Git on the task page", () => {
 		await expect.poll(() => stub.requests.length).toBe(1);
 		expect(stub.requests[0].method).toBe("DELETE");
 		expect(stub.requests[0].path).toContain("/change-requests/4");
+		await expect(page.getByText("No pull requests linked yet.")).toBeVisible();
+		await expect(page.getByText("Add login", { exact: true })).toHaveCount(0);
 	});
 
 	test("A pull request is linked by pasted link", async ({ page }) => {

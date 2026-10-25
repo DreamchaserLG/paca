@@ -28,8 +28,13 @@ Feature: Git actions in roles
   Scenario: A workspace role may hold git.identities:manage on its own resource
     When a workspace role allowing "git.identities:manage" on "git_identity/*" is created
     Then it is stored
-    And the same action on a project resource is refused (ROLE_POLICY_INVALID, 422)
-    And the same action on an unknown resource root is refused
+    And the same action on an unknown resource root is refused (ROLE_POLICY_INVALID, 422)
+    And so is an unknown action in the same domain
+
+  Scenario: The workspace action on a project resource is accepted but grants nothing
+    Given a workspace role allowing "git.identities:manage" on "project/<id>/*"
+    Then the policy validator accepts it, because it checks only the resource root and the action name
+    But a user holding it still answers 403 on the workspace identity routes, which are checked on "git_identity/*"
 
   Scenario: The Editor role really works
     Given a member holding only the built-in Editor role

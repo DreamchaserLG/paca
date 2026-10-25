@@ -16,7 +16,12 @@ export interface GitProvider {
 		change_request_plural: string;
 		repository: string;
 	};
-	capabilities: { multiple_identities: boolean; access_grants: boolean };
+	capabilities: {
+		multiple_identities: boolean;
+		access_grants: boolean;
+		/** Branches can be looked up and created through the provider. */
+		branches?: boolean;
+	};
 }
 
 /** A bot identity (for example a GitHub App) on a Git platform host. */
@@ -447,6 +452,129 @@ export async function beginAgentGitAccess(
 	return data.data;
 }
 
+// ── A task's pull/merge requests and branches ────────────────────────────────
+
+/** The state of a pull/merge request's checks; absent when it has none. */
+export interface GitCISummary {
+	state: "passing" | "failing" | "pending";
+	total: number;
+	passed: number;
+	failed: number;
+	pending: number;
+	/** Names of failing checks (a few). */
+	failing: string[];
+}
+
+export interface GitTaskChangeRequest {
+	repository_id: string;
+	repository: string;
+	provider_id: string;
+	number: string;
+	title: string;
+	state: "open" | "closed" | "merged";
+	draft: boolean;
+	head_ref: string;
+	base_ref: string;
+	author: string;
+	/** The request's page on the platform; empty when it is not known. */
+	url: string;
+	merged_at: string | null;
+	updated_at: string;
+	ci: GitCISummary | null;
+}
+
+export interface GitTaskBranch {
+	repository_id: string;
+	repository: string;
+	provider_id: string;
+	branch: string;
+}
+
+export interface GitTaskLinks {
+	change_requests: GitTaskChangeRequest[];
+	branches: GitTaskBranch[];
+}
+
+export const taskGitKey = (projectId: string, taskId: string) =>
+	["git", "projects", projectId, "tasks", taskId] as const;
+
+export async function getTaskGit(
+	projectId: string,
+	taskId: string,
+): Promise<GitTaskLinks> {
+	const { data } = await apiClient.instance.get<SuccessEnvelope<GitTaskLinks>>(
+		`/projects/${projectId}/tasks/${taskId}/git`,
+	);
+	return data.data;
+}
+
+const taskGit = (projectId: string, taskId: string) =>
+	`/projects/${projectId}/tasks/${taskId}/git`;
+
+export async function linkTaskChangeRequest(
+	projectId: string,
+	taskId: string,
+	payload: { repository_id: string; number: string },
+): Promise<void> {
+	await apiClient.instance.post(
+		`${taskGit(projectId, taskId)}/change-requests`,
+		payload,
+	);
+}
+
+export async function unlinkTaskChangeRequest(
+	projectId: string,
+	taskId: string,
+	repositoryId: string,
+	number: string,
+): Promise<void> {
+	await apiClient.instance.delete(
+		`${taskGit(projectId, taskId)}/change-requests/${encodeURIComponent(number)}`,
+		{ params: { repository_id: repositoryId } },
+	);
+}
+
+export async function linkTaskBranch(
+	projectId: string,
+	taskId: string,
+	payload: { repository_id: string; branch: string },
+): Promise<void> {
+	await apiClient.instance.post(
+		`${taskGit(projectId, taskId)}/branches`,
+		payload,
+	);
+}
+
+/** Creates the branch on the platform and links it to the task. */
+export async function createTaskBranch(
+	projectId: string,
+	taskId: string,
+	payload: { repository_id: string; branch: string; from?: string },
+): Promise<void> {
+	await apiClient.instance.post(
+		`${taskGit(projectId, taskId)}/branches/new`,
+		payload,
+	);
+}
+
+export async function unlinkTaskBranch(
+	projectId: string,
+	taskId: string,
+	repositoryId: string,
+	branch: string,
+): Promise<void> {
+	await apiClient.instance.delete(`${taskGit(projectId, taskId)}/branches`, {
+		params: { repository_id: repositoryId, branch },
+	});
+}
+
+export const taskGitQueryOptions = (projectId: string, taskId: string) =>
+	queryOptions({
+		queryKey: taskGitKey(projectId, taskId),
+		queryFn: () => getTaskGit(projectId, taskId),
+		staleTime: 30 * 1000,
+	});
+
 // ── Workflow: who may start agents, triggers and runs ────────────────────────
 
 /** Repository permission levels, lowest first, as the API names them. */
@@ -490,25 +618,8 @@ export interface GitTrigger {
 	config: GitAutoReviewConfig;
 }
 
-export interface GitRun {
-	id: string;
-	repository_id: string;
-	repository: string;
-	agent_id: string;
-	trigger: GitTriggerKind;
-	subject_kind: "issue" | "change_request" | "";
-	subject_number: string;
-	conversation_id: string | null;
-	status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
-	created_at: string;
-	finished_at: string | null;
-}
-
 export const gitSettingsKey = (projectId: string) =>
 	["git", "projects", projectId, "settings"] as const;
-
-export const gitRunsKey = (projectId: string) =>
-	["git", "projects", projectId, "runs"] as const;
 
 export const agentGitTriggersKey = (projectId: string, agentId: string) =>
 	["git", "projects", projectId, "agents", agentId, "triggers"] as const;
@@ -532,25 +643,10 @@ export async function updateGitSettings(
 	return data.data;
 }
 
-export async function listGitRuns(projectId: string): Promise<GitRun[]> {
-	const { data } = await apiClient.instance.get<SuccessEnvelope<GitRun[]>>(
-		`${projectGit(projectId)}/runs`,
-		{ params: { limit: 20 } },
-	);
-	return data.data;
-}
-
 export const gitSettingsQueryOptions = (projectId: string) =>
 	queryOptions({
 		queryKey: gitSettingsKey(projectId),
 		queryFn: () => getGitSettings(projectId),
-	});
-
-export const gitRunsQueryOptions = (projectId: string) =>
-	queryOptions({
-		queryKey: gitRunsKey(projectId),
-		queryFn: () => listGitRuns(projectId),
-		refetchInterval: 15 * 1000,
 	});
 
 export async function listAgentGitTriggers(

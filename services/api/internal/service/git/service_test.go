@@ -387,7 +387,7 @@ func prEvent(id, action, head, title string) gitprovider.Event {
 	return gitprovider.Event{ID: id, Kind: gitprovider.EventChangeRequest, Action: action, Text: title,
 		Repo: gitprovider.RepoRef{Host: "git.example", FullPath: "Acme/Web"},
 		Subject: &gitprovider.EventSubject{Kind: gitprovider.SubjectChangeRequest, Number: "7", Base: "main",
-			Head: &gitprovider.Branch{Ref: head, SHA: "abc"}}}
+			Head: &gitprovider.Branch{Ref: head, SHA: "abc"}, URL: "https://git.example/acme/web/pull/7"}}
 }
 
 func TestHandleWebhook_FansOutAndIsIdempotent(t *testing.T) {
@@ -410,7 +410,7 @@ func TestHandleWebhook_FansOutAndIsIdempotent(t *testing.T) {
 	if res.Events != 2 || res.Stored != 2 || res.Unlinked != 1 || res.Replayed != 0 {
 		t.Fatalf("result = %+v", res)
 	}
-	if len(st.crs) != 2 || st.crs[0].HeadRef != "feat/PACA-12-login" || st.crs[0].State != "open" || st.crs[0].Title != "Add login" {
+	if len(st.crs) != 2 || st.crs[0].HeadRef != "feat/PACA-12-login" || st.crs[0].State != "open" || st.crs[0].Title != "Add login" || st.crs[0].URL != "https://git.example/acme/web/pull/7" {
 		t.Fatalf("change requests = %+v", st.crs)
 	}
 	if len(st.taskLinks) != 2 || st.branches[0] != "feat/PACA-12-login" {

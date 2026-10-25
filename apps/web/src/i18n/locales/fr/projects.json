@@ -84,19 +84,7 @@
 					"help": "En pause, aucune activité Git ne lance d'agent. Les exécutions en cours se poursuivent."
 				},
 				"save": "Enregistrer",
-				"saved": "Enregistré.",
-				"runs": {
-					"title": "Exécutions récentes",
-					"empty": "Aucune exécution d'agent n'a encore été lancée par l'activité Git.",
-					"open": "Ouvrir la conversation",
-					"status": {
-						"queued": "En attente",
-						"running": "En cours",
-						"succeeded": "Réussie",
-						"failed": "Échouée",
-						"cancelled": "Annulée"
-					}
-				}
+				"saved": "Enregistré."
 			},
 			"triggerKinds": {
 				"mention": {
@@ -1778,6 +1766,66 @@
 		"searchableList": {
 			"searchPlaceholder": "Rechercher…",
 			"noResults": "Aucun résultat"
+		},
+		"git": {
+			"branches": "Branches",
+			"pullRequests": "Pull requests",
+			"linkBranch": "Lier une branche",
+			"newBranch": "Nouvelle branche",
+			"linkPullRequest": "Lier une pull request",
+			"noBranches": "Aucune branche liée pour l'instant.",
+			"noPullRequests": "Aucune pull request liée pour l'instant.",
+			"by": "par {{author}}",
+			"unlink": "Délier",
+			"unlinkPullRequest": "Délier la pull request {{name}}",
+			"unlinkBranch": "Délier la branche {{name}}",
+			"copyCheckout": "Copier la commande de checkout",
+			"copy": "Copier",
+			"copied": "Copié",
+			"state": {
+				"open": "Ouverte",
+				"draft": "Brouillon",
+				"merged": "Fusionnée",
+				"closed": "Fermée"
+			},
+			"ci": {
+				"passing": "CI réussie",
+				"failing": "CI en échec",
+				"pending": "CI en cours",
+				"failingNames": "En échec : {{names}}",
+				"counts": "{{passed}} vérifications sur {{total}} réussies"
+			},
+			"forms": {
+				"selectRepository": "Sélectionner un dépôt…",
+				"cancel": "Annuler",
+				"pullRequest": "Pull request",
+				"pullRequestHint": "Collez le lien de la pull request ou saisissez son numéro.",
+				"willLink": "{{what}} de {{repository}} sera lié",
+				"repository": "Dépôt",
+				"linkPullRequest": "Lier la pull request",
+				"existingBranch": "Branche existante",
+				"branchHint": "Saisissez un nom de branche ou collez un lien vers celle-ci.",
+				"linkBranch": "Lier la branche",
+				"branchType": "Type",
+				"branchName": "Nom de la branche",
+				"branchFrom": "Créer depuis",
+				"branchFromHint": "Facultatif — par défaut, la branche par défaut du dépôt.",
+				"createBranch": "Créer la branche",
+				"orLocally": "Ou la créer en local"
+			},
+			"errors": {
+				"notFound": "Introuvable dans ce dépôt.",
+				"rejected": "La plateforme Git a refusé la requête pour ce dépôt.",
+				"unavailable": "Le fournisseur Git est momentanément indisponible. Réessayez.",
+				"noIdentity": "Aucune identité Git ne peut agir sur ce dépôt.",
+				"forbidden": "Vous n'avez pas l'accès nécessaire.",
+				"generic": "Une erreur s'est produite. Réessayez.",
+				"repoNotLinked": "« {{repository}} » n'est pas lié à ce projet.",
+				"selectRepository": "Sélectionnez un dépôt.",
+				"invalidNumber": "Saisissez un numéro ou collez un lien.",
+				"branchRequired": "Saisissez un nom de branche ou collez un lien.",
+				"createRefused": "La plateforme n'a pas pu créer cette branche (le nom est peut-être déjà pris ou invalide)."
+			}
 		}
 	},
 	"portForwardDetail": {

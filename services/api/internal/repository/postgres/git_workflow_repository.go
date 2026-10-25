@@ -341,3 +341,74 @@ func (s *GitRepository) ListProjectRuns(ctx context.Context, projectID uuid.UUID
 	}
 	return out, nil
 }
+
+// ListTaskGit returns the change requests and branches linked to a task. The
+// task must belong to the project, so another project's links never show.
+func (s *GitRepository) ListTaskGit(ctx context.Context, projectID, taskID uuid.UUID) (*gitdom.TaskGit, error) {
+	var crs []struct {
+		gitCRRecord
+		FullPath   string `db:"full_path"`
+		ProviderID string `db:"provider_id"`
+	}
+	if err := s.db.SelectContext(ctx, &crs, `
+		SELECT c.id, c.repository_id, c.number, c.title, c.state, c.draft, c.head_ref, c.head_sha, c.base_ref, c.author, c.html_url,
+			c.merged_at, c.opened_by_agent_id, c.opened_conversation_id, c.created_at, c.updated_at, g.full_path, g.provider_id
+		FROM git_task_links l
+		JOIN git_change_requests c ON c.id = l.change_request_id
+		JOIN git_repositories g ON g.id = c.repository_id
+		JOIN tasks t ON t.id = l.task_id
+		WHERE l.task_id = $1 AND t.project_id = $2 AND g.project_id = $2
+		ORDER BY c.updated_at DESC`, taskID.String(), projectID.String()); err != nil {
+		return nil, fmt.Errorf("git repo: list task change requests: %w", err)
+	}
+	var brs []struct {
+		RepositoryID string `db:"repository_id"`
+		Branch       string `db:"branch_name"`
+		FullPath     string `db:"full_path"`
+		ProviderID   string `db:"provider_id"`
+	}
+	if err := s.db.SelectContext(ctx, &brs, `
+		SELECT b.repository_id, b.branch_name, g.full_path, g.provider_id
+		FROM git_task_branches b
+		JOIN git_repositories g ON g.id = b.repository_id
+		JOIN tasks t ON t.id = b.task_id
+		WHERE b.task_id = $1 AND t.project_id = $2 AND g.project_id = $2
+		ORDER BY b.created_at DESC`, taskID.String(), projectID.String()); err != nil {
+		return nil, fmt.Errorf("git repo: list task branches: %w", err)
+	}
+	out := &gitdom.TaskGit{ChangeRequests: []*gitdom.TaskChangeRequest{}, Branches: []*gitdom.TaskBranch{}}
+	for _, c := range crs {
+		out.ChangeRequests = append(out.ChangeRequests, &gitdom.TaskChangeRequest{ChangeRequest: *c.gitCRRecord.domain(), RepositoryPath: c.FullPath, ProviderID: c.ProviderID})
+	}
+	for _, b := range brs {
+		rid, _ := uuid.Parse(b.RepositoryID)
+		out.Branches = append(out.Branches, &gitdom.TaskBranch{RepositoryID: rid, RepositoryPath: b.FullPath, ProviderID: b.ProviderID, Branch: b.Branch})
+	}
+	return out, nil
+}
+
+// TaskInProject reports whether the task belongs to the project.
+func (s *GitRepository) TaskInProject(ctx context.Context, projectID, taskID uuid.UUID) (bool, error) {
+	var ok bool
+	if err := s.db.GetContext(ctx, &ok, `SELECT EXISTS (SELECT 1 FROM tasks WHERE id = $1 AND project_id = $2)`, taskID.String(), projectID.String()); err != nil {
+		return false, fmt.Errorf("git repo: task in project: %w", err)
+	}
+	return ok, nil
+}
+
+// UnlinkTaskFromChangeRequest removes a task's link to a change request.
+func (s *GitRepository) UnlinkTaskFromChangeRequest(ctx context.Context, taskID, changeRequestID uuid.UUID) error {
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM git_task_links WHERE task_id = $1 AND change_request_id = $2`, taskID.String(), changeRequestID.String()); err != nil {
+		return fmt.Errorf("git repo: unlink change request: %w", err)
+	}
+	return nil
+}
+
+// UnlinkTaskBranch removes a task's link to a branch.
+func (s *GitRepository) UnlinkTaskBranch(ctx context.Context, taskID, repositoryID uuid.UUID, branch string) error {
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM git_task_branches WHERE task_id = $1 AND repository_id = $2 AND branch_name = $3`,
+		taskID.String(), repositoryID.String(), branch); err != nil {
+		return fmt.Errorf("git repo: unlink branch: %w", err)
+	}
+	return nil
+}

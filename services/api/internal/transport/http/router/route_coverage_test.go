@@ -683,7 +683,7 @@ func TestEntityRoutesHonourPerEntityPolicy(t *testing.T) {
 			// workspace-level action; the entity policy is what varies here.
 			platformRole(allow([]string{"git.identities:manage"}, "git_identity/*")),
 		}
-		grants = append(grants, projectRole(project, allow([]string{"git:write"}, "project/"+project)))
+		grants = append(grants, projectRole(project, allow([]string{"git:read", "git:write"}, "project/"+project)))
 		routes := walkGates(t, coverageDeps(newTestIAM(&iamUserStore{grants: grants})))
 		checked := 0
 		for _, rt := range routes {

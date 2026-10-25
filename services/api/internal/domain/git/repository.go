@@ -58,6 +58,12 @@ type Store interface {
 	UpsertChangeRequest(ctx context.Context, cr *ChangeRequest) (*ChangeRequest, error)
 	LinkTaskToChangeRequest(ctx context.Context, taskID, changeRequestID uuid.UUID) error
 	LinkTaskBranch(ctx context.Context, taskID, repositoryID uuid.UUID, branch string) error
+	// ListTaskGit returns the change requests and branches linked to a task of the project.
+	ListTaskGit(ctx context.Context, projectID, taskID uuid.UUID) (*TaskGit, error)
+	// TaskInProject reports whether the task belongs to the project.
+	TaskInProject(ctx context.Context, projectID, taskID uuid.UUID) (bool, error)
+	UnlinkTaskFromChangeRequest(ctx context.Context, taskID, changeRequestID uuid.UUID) error
+	UnlinkTaskBranch(ctx context.Context, taskID, repositoryID uuid.UUID, branch string) error
 	// FindTaskByRef resolves "PREFIX-123" within a project to a task id.
 	FindTaskByRef(ctx context.Context, projectID uuid.UUID, prefix string, number int) (uuid.UUID, bool, error)
 

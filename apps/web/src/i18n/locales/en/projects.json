@@ -84,19 +84,7 @@
 					"help": "While paused, no Git activity starts an agent. Runs already in progress continue."
 				},
 				"save": "Save",
-				"saved": "Saved.",
-				"runs": {
-					"title": "Recent runs",
-					"empty": "No agent run has been started by Git activity yet.",
-					"open": "Open conversation",
-					"status": {
-						"queued": "Queued",
-						"running": "Running",
-						"succeeded": "Succeeded",
-						"failed": "Failed",
-						"cancelled": "Cancelled"
-					}
-				}
+				"saved": "Saved."
 			},
 			"triggerKinds": {
 				"mention": {
@@ -1778,6 +1766,66 @@
 		"searchableList": {
 			"searchPlaceholder": "Search…",
 			"noResults": "No matches"
+		},
+		"git": {
+			"branches": "Branches",
+			"pullRequests": "Pull requests",
+			"linkBranch": "Link branch",
+			"newBranch": "New branch",
+			"linkPullRequest": "Link pull request",
+			"noBranches": "No branches linked yet.",
+			"noPullRequests": "No pull requests linked yet.",
+			"by": "by {{author}}",
+			"unlink": "Unlink",
+			"unlinkPullRequest": "Unlink pull request {{name}}",
+			"unlinkBranch": "Unlink branch {{name}}",
+			"copyCheckout": "Copy checkout command",
+			"copy": "Copy",
+			"copied": "Copied",
+			"state": {
+				"open": "Open",
+				"draft": "Draft",
+				"merged": "Merged",
+				"closed": "Closed"
+			},
+			"ci": {
+				"passing": "CI passing",
+				"failing": "CI failing",
+				"pending": "CI running",
+				"failingNames": "Failing: {{names}}",
+				"counts": "{{passed}} of {{total}} checks passed"
+			},
+			"forms": {
+				"selectRepository": "Select a repository…",
+				"cancel": "Cancel",
+				"pullRequest": "Pull request",
+				"pullRequestHint": "Paste a link to the pull request, or enter its number.",
+				"willLink": "Will link {{what}} from {{repository}}",
+				"repository": "Repository",
+				"linkPullRequest": "Link pull request",
+				"existingBranch": "Existing branch",
+				"branchHint": "Enter a branch name, or paste a link to it.",
+				"linkBranch": "Link branch",
+				"branchType": "Type",
+				"branchName": "Branch name",
+				"branchFrom": "Branch from",
+				"branchFromHint": "Optional — defaults to the repository's default branch.",
+				"createBranch": "Create branch",
+				"orLocally": "Or create it locally"
+			},
+			"errors": {
+				"notFound": "It wasn't found in that repository.",
+				"rejected": "The Git platform refused the request for this repository.",
+				"unavailable": "The Git provider is temporarily unavailable. Try again.",
+				"noIdentity": "No Git identity can act on this repository.",
+				"forbidden": "You don't have access to do that.",
+				"generic": "Something went wrong. Try again.",
+				"repoNotLinked": "\"{{repository}}\" isn't linked to this project.",
+				"selectRepository": "Select a repository.",
+				"invalidNumber": "Enter a number or paste a link.",
+				"branchRequired": "Enter a branch name or paste a link.",
+				"createRefused": "The platform couldn't create that branch (the name may be taken or invalid)."
+			}
 		}
 	},
 	"portForwardDetail": {

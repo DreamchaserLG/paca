@@ -84,19 +84,7 @@
 					"help": "一時停止中は、Git のアクティビティでエージェントは起動しません。実行中のものは継続します。"
 				},
 				"save": "保存",
-				"saved": "保存しました。",
-				"runs": {
-					"title": "最近の実行",
-					"empty": "Git のアクティビティによって開始されたエージェントの実行はまだありません。",
-					"open": "会話を開く",
-					"status": {
-						"queued": "待機中",
-						"running": "実行中",
-						"succeeded": "成功",
-						"failed": "失敗",
-						"cancelled": "キャンセル"
-					}
-				}
+				"saved": "保存しました。"
 			},
 			"triggerKinds": {
 				"mention": {
@@ -1778,6 +1766,66 @@
 		"searchableList": {
 			"searchPlaceholder": "検索…",
 			"noResults": "一致なし"
+		},
+		"git": {
+			"branches": "ブランチ",
+			"pullRequests": "プルリクエスト",
+			"linkBranch": "ブランチをリンク",
+			"newBranch": "新しいブランチ",
+			"linkPullRequest": "プルリクエストをリンク",
+			"noBranches": "リンクされたブランチはまだありません。",
+			"noPullRequests": "リンクされたプルリクエストはまだありません。",
+			"by": "作成者: {{author}}",
+			"unlink": "リンク解除",
+			"unlinkPullRequest": "プルリクエスト {{name}} のリンクを解除",
+			"unlinkBranch": "ブランチ {{name}} のリンクを解除",
+			"copyCheckout": "checkout コマンドをコピー",
+			"copy": "コピー",
+			"copied": "コピーしました",
+			"state": {
+				"open": "オープン",
+				"draft": "ドラフト",
+				"merged": "マージ済み",
+				"closed": "クローズ"
+			},
+			"ci": {
+				"passing": "CI 成功",
+				"failing": "CI 失敗",
+				"pending": "CI 実行中",
+				"failingNames": "失敗: {{names}}",
+				"counts": "{{total}} 件中 {{passed}} 件のチェックが成功"
+			},
+			"forms": {
+				"selectRepository": "リポジトリを選択…",
+				"cancel": "キャンセル",
+				"pullRequest": "プルリクエスト",
+				"pullRequestHint": "プルリクエストのリンクを貼り付けるか、番号を入力してください。",
+				"willLink": "{{repository}} の {{what}} をリンクします",
+				"repository": "リポジトリ",
+				"linkPullRequest": "プルリクエストをリンク",
+				"existingBranch": "既存のブランチ",
+				"branchHint": "ブランチ名を入力するか、そのリンクを貼り付けてください。",
+				"linkBranch": "ブランチをリンク",
+				"branchType": "種類",
+				"branchName": "ブランチ名",
+				"branchFrom": "作成元",
+				"branchFromHint": "任意 — 既定ではリポジトリの既定ブランチです。",
+				"createBranch": "ブランチを作成",
+				"orLocally": "またはローカルで作成"
+			},
+			"errors": {
+				"notFound": "そのリポジトリには見つかりませんでした。",
+				"rejected": "Git プラットフォームがこのリポジトリへのリクエストを拒否しました。",
+				"unavailable": "Git プロバイダーが一時的に利用できません。もう一度お試しください。",
+				"noIdentity": "このリポジトリで操作できる Git ID がありません。",
+				"forbidden": "この操作を行う権限がありません。",
+				"generic": "問題が発生しました。もう一度お試しください。",
+				"repoNotLinked": "「{{repository}}」はこのプロジェクトにリンクされていません。",
+				"selectRepository": "リポジトリを選択してください。",
+				"invalidNumber": "番号を入力するか、リンクを貼り付けてください。",
+				"branchRequired": "ブランチ名を入力するか、リンクを貼り付けてください。",
+				"createRefused": "プラットフォームがそのブランチを作成できませんでした(名前が使用済みか無効の可能性があります)。"
+			}
 		}
 	},
 	"portForwardDetail": {

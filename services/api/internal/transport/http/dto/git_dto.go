@@ -270,3 +270,83 @@ func GitRunFromEntity(r *gitdom.ProjectRun) GitRunResponse {
 		Trigger: string(r.Trigger), SubjectKind: r.SubjectKind, SubjectNumber: r.SubjectNumber, ConversationID: r.ConversationID,
 		Status: string(r.Status), CreatedAt: r.CreatedAt, FinishedAt: r.FinishedAt}
 }
+
+// GitTaskChangeRequestResponse is a pull/merge request linked to a task.
+type GitTaskChangeRequestResponse struct {
+	RepositoryID uuid.UUID  `json:"repository_id"`
+	Repository   string     `json:"repository"`
+	ProviderID   string     `json:"provider_id"`
+	Number       string     `json:"number"`
+	Title        string     `json:"title"`
+	State        string     `json:"state"`
+	Draft        bool       `json:"draft"`
+	HeadRef      string     `json:"head_ref"`
+	BaseRef      string     `json:"base_ref"`
+	Author       string     `json:"author"`
+	URL          string     `json:"url"`
+	MergedAt     *time.Time `json:"merged_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+	// CI is the state of the head commit's checks; null when it has none.
+	CI *GitCISummaryResponse `json:"ci"`
+}
+
+// GitCISummaryResponse summarizes a change request's checks.
+type GitCISummaryResponse struct {
+	State   string   `json:"state"` // passing | failing | pending
+	Total   int      `json:"total"`
+	Passed  int      `json:"passed"`
+	Failed  int      `json:"failed"`
+	Pending int      `json:"pending"`
+	Failing []string `json:"failing"`
+}
+
+// LinkGitTaskChangeRequestRequest links a pull/merge request to a task.
+type LinkGitTaskChangeRequestRequest struct {
+	RepositoryID uuid.UUID `json:"repository_id"`
+	Number       string    `json:"number"`
+}
+
+// LinkGitTaskBranchRequest links an existing branch to a task.
+type LinkGitTaskBranchRequest struct {
+	RepositoryID uuid.UUID `json:"repository_id"`
+	Branch       string    `json:"branch"`
+}
+
+// CreateGitTaskBranchRequest creates a branch for a task.
+type CreateGitTaskBranchRequest struct {
+	RepositoryID uuid.UUID `json:"repository_id"`
+	Branch       string    `json:"branch"`
+	From         string    `json:"from"`
+}
+
+// GitTaskBranchResponse is a branch linked to a task.
+type GitTaskBranchResponse struct {
+	RepositoryID uuid.UUID `json:"repository_id"`
+	Repository   string    `json:"repository"`
+	ProviderID   string    `json:"provider_id"`
+	Branch       string    `json:"branch"`
+}
+
+// GitTaskResponse is what Git knows about a task.
+type GitTaskResponse struct {
+	ChangeRequests []GitTaskChangeRequestResponse `json:"change_requests"`
+	Branches       []GitTaskBranchResponse        `json:"branches"`
+}
+
+// GitTaskFromEntity maps a task's Git links to their response.
+func GitTaskFromEntity(g *gitdom.TaskGit) GitTaskResponse {
+	out := GitTaskResponse{ChangeRequests: []GitTaskChangeRequestResponse{}, Branches: []GitTaskBranchResponse{}}
+	for _, c := range g.ChangeRequests {
+		var ci *GitCISummaryResponse
+		if c.CI != nil {
+			ci = &GitCISummaryResponse{State: c.CI.State, Total: c.CI.Total, Passed: c.CI.Passed, Failed: c.CI.Failed, Pending: c.CI.Pending, Failing: c.CI.Failing}
+		}
+		out.ChangeRequests = append(out.ChangeRequests, GitTaskChangeRequestResponse{CI: ci, RepositoryID: c.RepositoryID, Repository: c.RepositoryPath,
+			ProviderID: c.ProviderID, Number: c.Number, Title: c.Title, State: c.State, Draft: c.Draft, HeadRef: c.HeadRef, BaseRef: c.BaseRef,
+			Author: c.Author, URL: c.URL, MergedAt: c.MergedAt, UpdatedAt: c.UpdatedAt})
+	}
+	for _, b := range g.Branches {
+		out.Branches = append(out.Branches, GitTaskBranchResponse{RepositoryID: b.RepositoryID, Repository: b.RepositoryPath, ProviderID: b.ProviderID, Branch: b.Branch})
+	}
+	return out
+}

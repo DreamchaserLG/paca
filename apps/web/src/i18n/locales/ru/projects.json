@@ -84,19 +84,7 @@
 					"help": "Пока автоматизация приостановлена, активность в Git не запускает агентов. Уже идущие выполнения продолжаются."
 				},
 				"save": "Сохранить",
-				"saved": "Сохранено.",
-				"runs": {
-					"title": "Недавние выполнения",
-					"empty": "Активность в Git ещё не запустила ни одного выполнения агента.",
-					"open": "Открыть беседу",
-					"status": {
-						"queued": "В очереди",
-						"running": "Выполняется",
-						"succeeded": "Успешно",
-						"failed": "Ошибка",
-						"cancelled": "Отменено"
-					}
-				}
+				"saved": "Сохранено."
 			},
 			"triggerKinds": {
 				"mention": {
@@ -1796,6 +1784,66 @@
 		"searchableList": {
 			"searchPlaceholder": "Поиск…",
 			"noResults": "Ничего не найдено"
+		},
+		"git": {
+			"branches": "Ветки",
+			"pullRequests": "Pull request",
+			"linkBranch": "Привязать ветку",
+			"newBranch": "Новая ветка",
+			"linkPullRequest": "Привязать pull request",
+			"noBranches": "Привязанных веток пока нет.",
+			"noPullRequests": "Привязанных pull request пока нет.",
+			"by": "автор: {{author}}",
+			"unlink": "Отвязать",
+			"unlinkPullRequest": "Отвязать pull request {{name}}",
+			"unlinkBranch": "Отвязать ветку {{name}}",
+			"copyCheckout": "Скопировать команду checkout",
+			"copy": "Копировать",
+			"copied": "Скопировано",
+			"state": {
+				"open": "Открыт",
+				"draft": "Черновик",
+				"merged": "Слит",
+				"closed": "Закрыт"
+			},
+			"ci": {
+				"passing": "CI пройден",
+				"failing": "CI не пройден",
+				"pending": "CI выполняется",
+				"failingNames": "Не прошли: {{names}}",
+				"counts": "Пройдено проверок: {{passed}} из {{total}}"
+			},
+			"forms": {
+				"selectRepository": "Выберите репозиторий…",
+				"cancel": "Отмена",
+				"pullRequest": "Pull request",
+				"pullRequestHint": "Вставьте ссылку на pull request или введите его номер.",
+				"willLink": "Будет привязан {{what}} из {{repository}}",
+				"repository": "Репозиторий",
+				"linkPullRequest": "Привязать pull request",
+				"existingBranch": "Существующая ветка",
+				"branchHint": "Введите имя ветки или вставьте ссылку на неё.",
+				"linkBranch": "Привязать ветку",
+				"branchType": "Тип",
+				"branchName": "Имя ветки",
+				"branchFrom": "Создать от",
+				"branchFromHint": "Необязательно — по умолчанию основная ветка репозитория.",
+				"createBranch": "Создать ветку",
+				"orLocally": "Или создайте локально"
+			},
+			"errors": {
+				"notFound": "Не найдено в этом репозитории.",
+				"rejected": "Git-платформа отклонила запрос для этого репозитория.",
+				"unavailable": "Git-провайдер временно недоступен. Повторите попытку.",
+				"noIdentity": "Нет Git-идентичности, которая может работать с этим репозиторием.",
+				"forbidden": "У вас нет доступа для этого действия.",
+				"generic": "Что-то пошло не так. Повторите попытку.",
+				"repoNotLinked": "«{{repository}}» не привязан к этому проекту.",
+				"selectRepository": "Выберите репозиторий.",
+				"invalidNumber": "Введите номер или вставьте ссылку.",
+				"branchRequired": "Введите имя ветки или вставьте ссылку.",
+				"createRefused": "Платформа не смогла создать эту ветку (имя может быть занято или недопустимо)."
+			}
 		}
 	},
 	"portForwardDetail": {

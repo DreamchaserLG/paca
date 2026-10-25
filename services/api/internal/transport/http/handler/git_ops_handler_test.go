@@ -31,9 +31,11 @@ type fakeOps struct {
 	kind    gitprovider.SubjectKind
 	err     error
 
-	settings *gitdom.ProjectSettings
-	trigger  string
-	limit    int
+	settings  *gitdom.ProjectSettings
+	trigger   string
+	limit     int
+	taskCall  string
+	taskActor uuid.UUID
 }
 
 func (f *fakeOps) NewScope(_ context.Context, p, r, a uuid.UUID, claimed string) gitsvc.Scope {
@@ -77,6 +79,33 @@ func (f *fakeOps) ListProjectRuns(_ context.Context, _ uuid.UUID, limit int) ([]
 	f.limit = limit
 	return []*gitdom.ProjectRun{{Run: gitdom.Run{Trigger: gitdom.TriggerMention, Status: gitdom.RunRunning}, RepositoryPath: "acme/web"}}, f.err
 }
+func (f *fakeOps) ListTaskGit(_ context.Context, _, _ uuid.UUID) (*gitdom.TaskGit, error) {
+	return &gitdom.TaskGit{
+		ChangeRequests: []*gitdom.TaskChangeRequest{{ChangeRequest: gitdom.ChangeRequest{Number: "4", Title: "Fix", State: "open", URL: "https://x/pull/4"}, RepositoryPath: "acme/web"}},
+		Branches:       []*gitdom.TaskBranch{{Branch: "feat/x", RepositoryPath: "acme/web"}},
+	}, f.err
+}
+func (f *fakeOps) LinkTaskChangeRequest(_ context.Context, ref gitsvc.TaskRef, repo uuid.UUID, number string) error {
+	f.taskCall = fmt.Sprintf("link-cr/%s/%s/%s/%s", ref.ProjectID, ref.TaskID, repo, number)
+	f.taskActor = ref.ActorID
+	return f.err
+}
+func (f *fakeOps) UnlinkTaskChangeRequest(_ context.Context, _ gitsvc.TaskRef, repo uuid.UUID, number string) error {
+	f.taskCall = fmt.Sprintf("unlink-cr/%s/%s", repo, number)
+	return f.err
+}
+func (f *fakeOps) LinkTaskBranch(_ context.Context, _ gitsvc.TaskRef, repo uuid.UUID, b string) error {
+	f.taskCall = fmt.Sprintf("link-br/%s/%s", repo, b)
+	return f.err
+}
+func (f *fakeOps) CreateTaskBranch(_ context.Context, _ gitsvc.TaskRef, repo uuid.UUID, b, from string) (gitprovider.BranchInfo, error) {
+	f.taskCall = fmt.Sprintf("create-br/%s/%s/%s", repo, b, from)
+	return gitprovider.BranchInfo{Name: b, SHA: "s1"}, f.err
+}
+func (f *fakeOps) UnlinkTaskBranch(_ context.Context, _ gitsvc.TaskRef, repo uuid.UUID, b string) error {
+	f.taskCall = fmt.Sprintf("unlink-br/%s/%s", repo, b)
+	return f.err
+}
 func (f *fakeOps) RerunChecks(context.Context, gitsvc.Scope, string, string) error { return f.err }
 
 func serveOps(t *testing.T, f *fakeOps, method, target, body string, actor *uuid.UUID, header map[string]string) *httptest.ResponseRecorder {
@@ -93,6 +122,12 @@ func serveOps(t *testing.T, f *fakeOps, method, target, body string, actor *uuid
 	r.Get("/projects/{projectId}/git/settings", h.GetSettings)
 	r.Put("/projects/{projectId}/git/settings", h.PutSettings)
 	r.Get("/projects/{projectId}/git/runs", h.ListProjectRuns)
+	r.Get("/projects/{projectId}/tasks/{taskId}/git", h.GetTaskGit)
+	r.Post("/projects/{projectId}/tasks/{taskId}/git/change-requests", h.LinkTaskChangeRequest)
+	r.Delete("/projects/{projectId}/tasks/{taskId}/git/change-requests/{number}", h.UnlinkTaskChangeRequest)
+	r.Post("/projects/{projectId}/tasks/{taskId}/git/branches", h.LinkTaskBranch)
+	r.Post("/projects/{projectId}/tasks/{taskId}/git/branches/new", h.CreateTaskBranch)
+	r.Delete("/projects/{projectId}/tasks/{taskId}/git/branches", h.UnlinkTaskBranch)
 	r.Get("/projects/{projectId}/agents/{agentId}/git/triggers", h.ListAgentTriggers)
 	r.Put("/projects/{projectId}/agents/{agentId}/git/triggers/{kind}", h.SetAgentTrigger)
 	req := httptest.NewRequestWithContext(t.Context(), method, target, bytes.NewBufferString(body))
@@ -240,5 +275,57 @@ func TestGitOpsHandler_SettingsTriggersAndRuns(t *testing.T) {
 	f.err = fmt.Errorf("%w: min_actor_permission must be read", gitdom.ErrInvalidInput)
 	if rec := serveOps(t, f, "PUT", base+"/git/settings", `{}`, &actor, nil); rec.Code != 400 || !strings.Contains(rec.Body.String(), "min_actor_permission") {
 		t.Fatalf("validation: %d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestGitOpsHandler_TaskGit(t *testing.T) {
+	actor, project, task := uuid.New(), uuid.New(), uuid.New()
+	url := "/projects/" + project.String() + "/tasks/" + task.String() + "/git"
+	rec := serveOps(t, &fakeOps{}, "GET", url, "", &actor, nil)
+	if rec.Code != 200 {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	for _, want := range []string{`"number":"4"`, `"repository":"acme/web"`, `"url":"https://x/pull/4"`, `"branch":"feat/x"`} {
+		if !strings.Contains(rec.Body.String(), want) {
+			t.Errorf("response lacks %s: %s", want, rec.Body)
+		}
+	}
+	if rec := serveOps(t, &fakeOps{}, "GET", "/projects/"+project.String()+"/tasks/nope/git", "", &actor, nil); rec.Code != 400 {
+		t.Fatalf("bad task id: %d", rec.Code)
+	}
+}
+
+func TestGitOpsHandler_TaskLinks(t *testing.T) {
+	actor, project, task, repo := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	base := "/projects/" + project.String() + "/tasks/" + task.String() + "/git"
+	f := &fakeOps{}
+
+	if rec := serveOps(t, f, "POST", base+"/change-requests", `{"repository_id":"`+repo.String()+`","number":"5"}`, &actor, nil); rec.Code != 204 ||
+		f.taskCall != "link-cr/"+project.String()+"/"+task.String()+"/"+repo.String()+"/5" || f.taskActor != actor {
+		t.Fatalf("link cr: %d %q", rec.Code, f.taskCall)
+	}
+	if rec := serveOps(t, f, "DELETE", base+"/change-requests/5?repository_id="+repo.String(), "", &actor, nil); rec.Code != 204 || f.taskCall != "unlink-cr/"+repo.String()+"/5" {
+		t.Fatalf("unlink cr: %d %q", rec.Code, f.taskCall)
+	}
+	if rec := serveOps(t, f, "POST", base+"/branches", `{"repository_id":"`+repo.String()+`","branch":"feat/x"}`, &actor, nil); rec.Code != 204 || f.taskCall != "link-br/"+repo.String()+"/feat/x" {
+		t.Fatalf("link branch: %d %q", rec.Code, f.taskCall)
+	}
+	rec := serveOps(t, f, "POST", base+"/branches/new", `{"repository_id":"`+repo.String()+`","branch":"paca/x","from":"main"}`, &actor, nil)
+	if rec.Code != 200 || f.taskCall != "create-br/"+repo.String()+"/paca/x/main" || !strings.Contains(rec.Body.String(), `"sha":"s1"`) {
+		t.Fatalf("create branch: %d %q %s", rec.Code, f.taskCall, rec.Body)
+	}
+	// Branch names contain slashes, so the branch travels in the query.
+	if rec := serveOps(t, f, "DELETE", base+"/branches?repository_id="+repo.String()+"&branch=feat%2Fx", "", &actor, nil); rec.Code != 204 || f.taskCall != "unlink-br/"+repo.String()+"/feat/x" {
+		t.Fatalf("unlink branch: %d %q", rec.Code, f.taskCall)
+	}
+	if rec := serveOps(t, f, "DELETE", base+"/branches?branch=x", "", &actor, nil); rec.Code != 400 {
+		t.Fatalf("missing repository_id: %d", rec.Code)
+	}
+	if rec := serveOps(t, f, "POST", base+"/branches", `{"branch":"x"}`, nil, nil); rec.Code != 401 {
+		t.Fatalf("anonymous: %d", rec.Code)
+	}
+	f.err = fmt.Errorf("%w: branch name is invalid", gitdom.ErrInvalidInput)
+	if rec := serveOps(t, f, "POST", base+"/branches/new", `{"repository_id":"`+repo.String()+`","branch":"-x"}`, &actor, nil); rec.Code != 400 {
+		t.Fatalf("validation: %d", rec.Code)
 	}
 }

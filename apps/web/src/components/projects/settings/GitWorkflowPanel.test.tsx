@@ -8,15 +8,6 @@ const h = vi.hoisted(() => ({ get: vi.fn(), put: vi.fn() }));
 vi.mock("@/lib/api-client", () => ({
 	apiClient: { instance: { get: h.get, put: h.put } },
 }));
-vi.mock("@tanstack/react-router", () => ({
-	Link: ({
-		children,
-		params,
-	}: {
-		children: React.ReactNode;
-		params: { conversationId: string };
-	}) => <a href={`/conversations/${params.conversationId}`}>{children}</a>,
-}));
 
 import { GitWorkflowPanel } from "./GitWorkflowPanel";
 
@@ -29,7 +20,6 @@ const agents = [
 	{ id: "a1", name: "Dev", handle: "dev" },
 	{ id: "a2", name: "Reviewer", handle: "reviewer" },
 ];
-let runs: unknown[] = [];
 
 function renderPanel(canWrite = true) {
 	const client = new QueryClient({
@@ -45,10 +35,8 @@ function renderPanel(canWrite = true) {
 describe("GitWorkflowPanel", () => {
 	beforeEach(() => {
 		vi.resetAllMocks();
-		runs = [];
 		h.get.mockImplementation(async (url: string) => {
 			if (url.endsWith("/git/settings")) return { data: { data: settings } };
-			if (url.endsWith("/git/runs")) return { data: { data: runs } };
 			if (url.endsWith("/agents"))
 				return {
 					data: { data: { items: agents, page_size: 50, next_cursor: null } },
@@ -107,39 +95,5 @@ describe("GitWorkflowPanel", () => {
 			screen.getByRole("switch", { name: /pause automation/i }),
 		).toHaveAttribute("aria-disabled", "true");
 		expect(screen.queryByRole("button", { name: /^save$/i })).toBeNull();
-	});
-
-	it("lists recent runs with agent, trigger, status and a link to the conversation", async () => {
-		runs = [
-			{
-				id: "r1",
-				repository_id: "repo1",
-				repository: "acme/web",
-				agent_id: "a2",
-				trigger: "own_cr_feedback",
-				subject_kind: "change_request",
-				subject_number: "42",
-				conversation_id: "c9",
-				status: "succeeded",
-				created_at: "2026-01-02T03:04:05Z",
-				finished_at: "2026-01-02T03:10:00Z",
-			},
-		];
-		renderPanel();
-		expect(await screen.findByText("acme/web #42")).toBeInTheDocument();
-		expect(
-			screen.getByText(/Reviewer · Feedback on its pull request/),
-		).toBeInTheDocument();
-		expect(screen.getByText("Succeeded")).toBeInTheDocument();
-		expect(
-			screen.getByRole("link", { name: /open conversation/i }),
-		).toHaveAttribute("href", "/conversations/c9");
-	});
-
-	it("says so when nothing has run yet", async () => {
-		renderPanel();
-		expect(
-			await screen.findByText(/no agent run has been started/i),
-		).toBeInTheDocument();
 	});
 });

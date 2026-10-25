@@ -35,6 +35,7 @@ import { DescriptionSection } from "./description-section";
 import { mapApiFieldToUi } from "./helpers";
 import { PropertiesPanel } from "./properties-panel";
 import { SubtasksSection } from "./subtasks-section";
+import { TaskGitSection } from "./task-git-section";
 import { TaskHeader } from "./task-header";
 import { TaskLinksSection } from "./task-links-section";
 import type { TaskDetailModalProps } from "./types";
@@ -497,6 +498,18 @@ export function TaskDetailModal({
 								taskIdPrefix={taskIdPrefix}
 								canEdit={canEdit}
 								onNavigateToTask={navigateToTask}
+							/>
+						)}
+
+						{/* Pull/merge requests and branches Git tied to this task */}
+						{projectId && (
+							<TaskGitSection
+								projectId={projectId}
+								taskId={task.id}
+								taskIdPrefix={taskIdPrefix}
+								taskNumber={task.task_number}
+								taskTitle={task.title}
+								canEdit={canEdit}
 							/>
 						)}
 

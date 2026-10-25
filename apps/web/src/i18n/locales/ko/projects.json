@@ -84,19 +84,7 @@
 					"help": "일시 중지 중에는 Git 활동이 에이전트를 시작하지 않습니다. 진행 중인 실행은 계속됩니다."
 				},
 				"save": "저장",
-				"saved": "저장했습니다.",
-				"runs": {
-					"title": "최근 실행",
-					"empty": "Git 활동으로 시작된 에이전트 실행이 아직 없습니다.",
-					"open": "대화 열기",
-					"status": {
-						"queued": "대기 중",
-						"running": "실행 중",
-						"succeeded": "성공",
-						"failed": "실패",
-						"cancelled": "취소됨"
-					}
-				}
+				"saved": "저장했습니다."
 			},
 			"triggerKinds": {
 				"mention": {
@@ -1778,6 +1766,66 @@
 		"searchableList": {
 			"searchPlaceholder": "검색…",
 			"noResults": "일치하는 항목 없음"
+		},
+		"git": {
+			"branches": "브랜치",
+			"pullRequests": "풀 리퀘스트",
+			"linkBranch": "브랜치 연결",
+			"newBranch": "새 브랜치",
+			"linkPullRequest": "풀 리퀘스트 연결",
+			"noBranches": "연결된 브랜치가 아직 없습니다.",
+			"noPullRequests": "연결된 풀 리퀘스트가 아직 없습니다.",
+			"by": "작성자: {{author}}",
+			"unlink": "연결 해제",
+			"unlinkPullRequest": "풀 리퀘스트 {{name}} 연결 해제",
+			"unlinkBranch": "브랜치 {{name}} 연결 해제",
+			"copyCheckout": "checkout 명령어 복사",
+			"copy": "복사",
+			"copied": "복사됨",
+			"state": {
+				"open": "열림",
+				"draft": "초안",
+				"merged": "병합됨",
+				"closed": "닫힘"
+			},
+			"ci": {
+				"passing": "CI 통과",
+				"failing": "CI 실패",
+				"pending": "CI 실행 중",
+				"failingNames": "실패: {{names}}",
+				"counts": "검사 {{total}}개 중 {{passed}}개 통과"
+			},
+			"forms": {
+				"selectRepository": "저장소 선택…",
+				"cancel": "취소",
+				"pullRequest": "풀 리퀘스트",
+				"pullRequestHint": "풀 리퀘스트 링크를 붙여넣거나 번호를 입력하세요.",
+				"willLink": "{{repository}}의 {{what}}을(를) 연결합니다",
+				"repository": "저장소",
+				"linkPullRequest": "풀 리퀘스트 연결",
+				"existingBranch": "기존 브랜치",
+				"branchHint": "브랜치 이름을 입력하거나 링크를 붙여넣으세요.",
+				"linkBranch": "브랜치 연결",
+				"branchType": "유형",
+				"branchName": "브랜치 이름",
+				"branchFrom": "기준 브랜치",
+				"branchFromHint": "선택 사항 — 기본값은 저장소의 기본 브랜치입니다.",
+				"createBranch": "브랜치 만들기",
+				"orLocally": "또는 로컬에서 만들기"
+			},
+			"errors": {
+				"notFound": "해당 저장소에서 찾을 수 없습니다.",
+				"rejected": "Git 플랫폼이 이 저장소에 대한 요청을 거부했습니다.",
+				"unavailable": "Git 공급자를 일시적으로 사용할 수 없습니다. 다시 시도하세요.",
+				"noIdentity": "이 저장소에서 작업할 수 있는 Git ID가 없습니다.",
+				"forbidden": "이 작업을 수행할 권한이 없습니다.",
+				"generic": "문제가 발생했습니다. 다시 시도하세요.",
+				"repoNotLinked": "\"{{repository}}\"은(는) 이 프로젝트에 연결되어 있지 않습니다.",
+				"selectRepository": "저장소를 선택하세요.",
+				"invalidNumber": "번호를 입력하거나 링크를 붙여넣으세요.",
+				"branchRequired": "브랜치 이름을 입력하거나 링크를 붙여넣으세요.",
+				"createRefused": "플랫폼에서 해당 브랜치를 만들 수 없습니다(이름이 이미 있거나 올바르지 않을 수 있습니다)."
+			}
 		}
 	},
 	"portForwardDetail": {

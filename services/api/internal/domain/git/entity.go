@@ -263,3 +263,43 @@ type ProjectRun struct {
 	Run
 	RepositoryPath string
 }
+
+// CI states of a change request's checks.
+const (
+	CIPassing = "passing"
+	CIFailing = "failing"
+	CIPending = "pending"
+)
+
+// CISummary is the state of a change request's checks, derived from the
+// platform when asked for and never stored.
+type CISummary struct {
+	State   string // passing | failing | pending
+	Total   int
+	Passed  int
+	Failed  int
+	Pending int
+	Failing []string // names of the failing checks, capped
+}
+
+// TaskChangeRequest is a change request linked to a task, with its repository.
+type TaskChangeRequest struct {
+	ChangeRequest
+	RepositoryPath string
+	ProviderID     string
+	CI             *CISummary // nil when it has no checks or they could not be read
+}
+
+// TaskBranch is a branch linked to a task.
+type TaskBranch struct {
+	RepositoryID   uuid.UUID
+	RepositoryPath string
+	ProviderID     string
+	Branch         string
+}
+
+// TaskGit is what Git knows about one task.
+type TaskGit struct {
+	ChangeRequests []*TaskChangeRequest
+	Branches       []*TaskBranch
+}

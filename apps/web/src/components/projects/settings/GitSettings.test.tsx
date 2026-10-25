@@ -86,7 +86,6 @@ describe("GitSettings", () => {
 						},
 					},
 				};
-			if (url.endsWith("/git/runs")) return { data: { data: [] } };
 			if (url.endsWith("/agents"))
 				return {
 					data: { data: { items: [], page_size: 50, next_cursor: null } },

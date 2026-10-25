@@ -84,19 +84,7 @@
 					"help": "Mientras esté en pausa, ninguna actividad de Git inicia un agente. Las ejecuciones en curso continúan."
 				},
 				"save": "Guardar",
-				"saved": "Guardado.",
-				"runs": {
-					"title": "Ejecuciones recientes",
-					"empty": "La actividad de Git aún no ha iniciado ninguna ejecución de agente.",
-					"open": "Abrir conversación",
-					"status": {
-						"queued": "En cola",
-						"running": "En ejecución",
-						"succeeded": "Completada",
-						"failed": "Fallida",
-						"cancelled": "Cancelada"
-					}
-				}
+				"saved": "Guardado."
 			},
 			"triggerKinds": {
 				"mention": {
@@ -1778,6 +1766,66 @@
 		"searchableList": {
 			"searchPlaceholder": "Buscar…",
 			"noResults": "Sin resultados"
+		},
+		"git": {
+			"branches": "Ramas",
+			"pullRequests": "Pull requests",
+			"linkBranch": "Vincular rama",
+			"newBranch": "Nueva rama",
+			"linkPullRequest": "Vincular pull request",
+			"noBranches": "Aún no hay ramas vinculadas.",
+			"noPullRequests": "Aún no hay pull requests vinculados.",
+			"by": "por {{author}}",
+			"unlink": "Desvincular",
+			"unlinkPullRequest": "Desvincular el pull request {{name}}",
+			"unlinkBranch": "Desvincular la rama {{name}}",
+			"copyCheckout": "Copiar comando de checkout",
+			"copy": "Copiar",
+			"copied": "Copiado",
+			"state": {
+				"open": "Abierto",
+				"draft": "Borrador",
+				"merged": "Fusionado",
+				"closed": "Cerrado"
+			},
+			"ci": {
+				"passing": "CI correcto",
+				"failing": "CI con fallos",
+				"pending": "CI en curso",
+				"failingNames": "Fallan: {{names}}",
+				"counts": "{{passed}} de {{total}} comprobaciones superadas"
+			},
+			"forms": {
+				"selectRepository": "Selecciona un repositorio…",
+				"cancel": "Cancelar",
+				"pullRequest": "Pull request",
+				"pullRequestHint": "Pega el enlace del pull request o escribe su número.",
+				"willLink": "Se vinculará {{what}} de {{repository}}",
+				"repository": "Repositorio",
+				"linkPullRequest": "Vincular pull request",
+				"existingBranch": "Rama existente",
+				"branchHint": "Escribe el nombre de una rama o pega un enlace a ella.",
+				"linkBranch": "Vincular rama",
+				"branchType": "Tipo",
+				"branchName": "Nombre de la rama",
+				"branchFrom": "Crear desde",
+				"branchFromHint": "Opcional: por defecto, la rama predeterminada del repositorio.",
+				"createBranch": "Crear rama",
+				"orLocally": "O créala en local"
+			},
+			"errors": {
+				"notFound": "No se encontró en ese repositorio.",
+				"rejected": "La plataforma Git rechazó la solicitud para este repositorio.",
+				"unavailable": "El proveedor de Git no está disponible por el momento. Inténtalo de nuevo.",
+				"noIdentity": "Ninguna identidad de Git puede actuar en este repositorio.",
+				"forbidden": "No tienes acceso para hacer eso.",
+				"generic": "Algo salió mal. Inténtalo de nuevo.",
+				"repoNotLinked": "«{{repository}}» no está vinculado a este proyecto.",
+				"selectRepository": "Selecciona un repositorio.",
+				"invalidNumber": "Escribe un número o pega un enlace.",
+				"branchRequired": "Escribe el nombre de una rama o pega un enlace.",
+				"createRefused": "La plataforma no pudo crear esa rama (el nombre puede estar en uso o no ser válido)."
+			}
 		}
 	},
 	"portForwardDetail": {

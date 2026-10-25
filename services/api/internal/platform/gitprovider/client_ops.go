@@ -125,3 +125,13 @@ func (c *Client) React(ctx context.Context, req ReactRequest) error {
 func (c *Client) MergeChangeRequest(ctx context.Context, req MergeRequest) (MergeResult, error) {
 	return call[MergeRequest, MergeResult](ctx, c, "merge_change_request", req)
 }
+
+// GetBranch looks up a branch (capability branches).
+func (c *Client) GetBranch(ctx context.Context, req GetBranchRequest) (BranchInfo, error) {
+	return call[GetBranchRequest, BranchInfo](ctx, c, "get_branch", req)
+}
+
+// CreateBranch creates a branch (capability branches).
+func (c *Client) CreateBranch(ctx context.Context, req CreateBranchRequest) (BranchInfo, error) {
+	return call[CreateBranchRequest, BranchInfo](ctx, c, "create_branch", req)
+}

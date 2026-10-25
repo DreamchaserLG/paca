@@ -105,3 +105,32 @@ func TestGuardsIAM_GitApproveAndMergeAreSeparate(t *testing.T) {
 		}, gate)
 	}
 }
+
+// Linking a task to a request or branch changes the task and reads the
+// repository through the bot (tasks:write + git:read); creating a branch writes
+// to the repository, so it needs git:write on top. Neither half is enough alone.
+func TestGuardsIAM_TaskGitLinking(t *testing.T) {
+	project := uuid.NewString()
+	res := "project/" + project + "/*"
+	both := func(task, git iam.Action) func(g guards) func(http.Handler) http.Handler {
+		return func(g guards) func(http.Handler) http.Handler {
+			return func(next http.Handler) http.Handler {
+				return g.Project(task)(g.Project(git)(next))
+			}
+		}
+	}
+	runIAMGateCases(t, project, []iamGateCase{
+		{name: "link: tasks:write + git:read", authenticated: true, want: http.StatusNoContent,
+			grants: []iam.Grant{projectRole(project, allow([]string{"tasks:write", "git:read"}, res))}},
+		{name: "link: tasks:write alone", authenticated: true, want: http.StatusForbidden,
+			grants: []iam.Grant{projectRole(project, allow([]string{"tasks:write"}, res))}},
+		{name: "link: git:read alone", authenticated: true, want: http.StatusForbidden,
+			grants: []iam.Grant{projectRole(project, allow([]string{"git:read"}, res))}},
+	}, both(iam.ActionTasksWrite, iam.ActionGitRead))
+	runIAMGateCases(t, project, []iamGateCase{
+		{name: "create branch: tasks:write + git:write", authenticated: true, want: http.StatusNoContent,
+			grants: []iam.Grant{projectRole(project, allow([]string{"tasks:write", "git:write"}, res))}},
+		{name: "create branch: git:read is not enough", authenticated: true, want: http.StatusForbidden,
+			grants: []iam.Grant{projectRole(project, allow([]string{"tasks:write", "git:read"}, res))}},
+	}, both(iam.ActionTasksWrite, iam.ActionGitWrite))
+}

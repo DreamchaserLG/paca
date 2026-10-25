@@ -599,3 +599,78 @@ func TestGitStore_InboxClaimingAndRuns(t *testing.T) {
 		t.Fatalf("agent for identity: %v %v %v", got, ok, err)
 	}
 }
+
+func TestGitStore_TaskGitIsScopedToTheTasksProject(t *testing.T) {
+	s, fx := newGitFx(t)
+	ctx := t.Context()
+	project, other := fx.project(), fx.project()
+	task := uuid.New()
+	pgExec(t, fx.db, `INSERT INTO tasks (id, project_id, task_number, title) VALUES ($1,$2,1,'t')`, task, project)
+	repo := linkRepo(t, s, project, "acme/web", nil)
+	cr, err := s.UpsertChangeRequest(ctx, &gitdom.ChangeRequest{RepositoryID: repo.ID, Number: "4", Title: "Fix", State: "open", HeadRef: "feat/x", URL: "https://github.com/acme/web/pull/4"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.LinkTaskToChangeRequest(ctx, task, cr.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.LinkTaskBranch(ctx, task, repo.ID, "feat/x"); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := s.ListTaskGit(ctx, project, task)
+	if err != nil || len(got.ChangeRequests) != 1 || len(got.Branches) != 1 {
+		t.Fatalf("got = %+v %v", got, err)
+	}
+	c := got.ChangeRequests[0]
+	if c.Number != "4" || c.RepositoryPath != "acme/web" || c.URL != "https://github.com/acme/web/pull/4" || got.Branches[0].Branch != "feat/x" {
+		t.Fatalf("change request = %+v branch = %+v", c, got.Branches[0])
+	}
+	// Asked through another project, the task's links must not show.
+	if foreign, err := s.ListTaskGit(ctx, other, task); err != nil || len(foreign.ChangeRequests) != 0 || len(foreign.Branches) != 0 {
+		t.Fatalf("another project must see nothing: %+v %v", foreign, err)
+	}
+	if none, _ := s.ListTaskGit(ctx, project, uuid.New()); len(none.ChangeRequests) != 0 || none.ChangeRequests == nil {
+		t.Fatalf("an unlinked task has empty, non-nil lists: %+v", none)
+	}
+}
+
+func TestGitStore_TaskLinksCanBeRemoved(t *testing.T) {
+	s, fx := newGitFx(t)
+	ctx := t.Context()
+	project := fx.project()
+	task := uuid.New()
+	pgExec(t, fx.db, `INSERT INTO tasks (id, project_id, task_number, title) VALUES ($1,$2,1,'t')`, task, project)
+	repo := linkRepo(t, s, project, "acme/web", nil)
+	cr, _ := s.UpsertChangeRequest(ctx, &gitdom.ChangeRequest{RepositoryID: repo.ID, Number: "4", State: "open"})
+	_ = s.LinkTaskToChangeRequest(ctx, task, cr.ID)
+	_ = s.LinkTaskBranch(ctx, task, repo.ID, "a/b")
+
+	if ok, err := s.TaskInProject(ctx, project, task); err != nil || !ok {
+		t.Fatalf("own project: %v %v", ok, err)
+	}
+	if ok, _ := s.TaskInProject(ctx, fx.project(), task); ok {
+		t.Fatal("another project's task must not match")
+	}
+	if ok, _ := s.TaskInProject(ctx, project, uuid.New()); ok {
+		t.Fatal("unknown task")
+	}
+
+	if err := s.UnlinkTaskFromChangeRequest(ctx, task, cr.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UnlinkTaskBranch(ctx, task, repo.ID, "a/b"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UnlinkTaskBranch(ctx, task, repo.ID, "a/b"); err != nil {
+		t.Fatalf("unlinking twice is harmless: %v", err)
+	}
+	got, _ := s.ListTaskGit(ctx, project, task)
+	if len(got.ChangeRequests) != 0 || len(got.Branches) != 0 {
+		t.Fatalf("still linked: %+v", got)
+	}
+	// The change request itself stays cached: it still exists on the platform.
+	if _, err := s.FindChangeRequest(ctx, repo.ID, "4"); err != nil {
+		t.Fatalf("the cached request must remain: %v", err)
+	}
+}

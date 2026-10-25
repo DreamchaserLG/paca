@@ -84,19 +84,7 @@
 					"help": "Khi tạm dừng, hoạt động Git không khởi động tác nhân nào. Các lượt chạy đang diễn ra vẫn tiếp tục."
 				},
 				"save": "Lưu",
-				"saved": "Đã lưu.",
-				"runs": {
-					"title": "Các lượt chạy gần đây",
-					"empty": "Chưa có lượt chạy tác nhân nào được hoạt động Git khởi động.",
-					"open": "Mở cuộc trò chuyện",
-					"status": {
-						"queued": "Đang chờ",
-						"running": "Đang chạy",
-						"succeeded": "Thành công",
-						"failed": "Thất bại",
-						"cancelled": "Đã hủy"
-					}
-				}
+				"saved": "Đã lưu."
 			},
 			"triggerKinds": {
 				"mention": {
@@ -1778,6 +1766,66 @@
 		"searchableList": {
 			"searchPlaceholder": "Tìm kiếm…",
 			"noResults": "Không có kết quả"
+		},
+		"git": {
+			"branches": "Nhánh",
+			"pullRequests": "Pull request",
+			"linkBranch": "Liên kết nhánh",
+			"newBranch": "Nhánh mới",
+			"linkPullRequest": "Liên kết pull request",
+			"noBranches": "Chưa có nhánh nào được liên kết.",
+			"noPullRequests": "Chưa có pull request nào được liên kết.",
+			"by": "bởi {{author}}",
+			"unlink": "Hủy liên kết",
+			"unlinkPullRequest": "Hủy liên kết pull request {{name}}",
+			"unlinkBranch": "Hủy liên kết nhánh {{name}}",
+			"copyCheckout": "Sao chép lệnh checkout",
+			"copy": "Sao chép",
+			"copied": "Đã sao chép",
+			"state": {
+				"open": "Đang mở",
+				"draft": "Bản nháp",
+				"merged": "Đã hợp nhất",
+				"closed": "Đã đóng"
+			},
+			"ci": {
+				"passing": "CI đạt",
+				"failing": "CI lỗi",
+				"pending": "CI đang chạy",
+				"failingNames": "Lỗi: {{names}}",
+				"counts": "{{passed}}/{{total}} kiểm tra đạt"
+			},
+			"forms": {
+				"selectRepository": "Chọn một kho mã…",
+				"cancel": "Hủy",
+				"pullRequest": "Pull request",
+				"pullRequestHint": "Dán liên kết pull request hoặc nhập số của nó.",
+				"willLink": "Sẽ liên kết {{what}} từ {{repository}}",
+				"repository": "Kho mã",
+				"linkPullRequest": "Liên kết pull request",
+				"existingBranch": "Nhánh có sẵn",
+				"branchHint": "Nhập tên nhánh hoặc dán liên kết đến nhánh.",
+				"linkBranch": "Liên kết nhánh",
+				"branchType": "Loại",
+				"branchName": "Tên nhánh",
+				"branchFrom": "Tạo từ",
+				"branchFromHint": "Tùy chọn — mặc định là nhánh mặc định của kho mã.",
+				"createBranch": "Tạo nhánh",
+				"orLocally": "Hoặc tạo cục bộ"
+			},
+			"errors": {
+				"notFound": "Không tìm thấy trong kho mã đó.",
+				"rejected": "Nền tảng Git đã từ chối yêu cầu cho kho mã này.",
+				"unavailable": "Nhà cung cấp Git tạm thời không khả dụng. Hãy thử lại.",
+				"noIdentity": "Không có danh tính Git nào có thể hoạt động trên kho mã này.",
+				"forbidden": "Bạn không có quyền thực hiện việc đó.",
+				"generic": "Đã xảy ra lỗi. Hãy thử lại.",
+				"repoNotLinked": "\"{{repository}}\" chưa được liên kết với dự án này.",
+				"selectRepository": "Chọn một kho mã.",
+				"invalidNumber": "Nhập một số hoặc dán liên kết.",
+				"branchRequired": "Nhập tên nhánh hoặc dán liên kết.",
+				"createRefused": "Nền tảng không thể tạo nhánh đó (tên có thể đã tồn tại hoặc không hợp lệ)."
+			}
 		}
 	},
 	"portForwardDetail": {

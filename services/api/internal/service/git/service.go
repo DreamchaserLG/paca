@@ -59,6 +59,7 @@ type Service struct {
 	mu     sync.Mutex
 	cache  map[credKey]cachedCred
 	reruns map[uuid.UUID][]time.Time // check re-runs per repository, last hour
+	ci     map[ciKey]cachedCI        // CI summaries of change-request heads
 }
 
 // New returns a Service.
@@ -236,7 +237,7 @@ func (s *Service) trackChangeRequest(ctx context.Context, repo *gitdom.Repositor
 	if sub == nil || sub.Kind != gitprovider.SubjectChangeRequest {
 		return nil
 	}
-	cr := &gitdom.ChangeRequest{RepositoryID: repo.ID, Number: sub.Number, Draft: sub.Draft, Author: sub.Author, BaseRef: sub.Base, State: crState(ev)}
+	cr := &gitdom.ChangeRequest{RepositoryID: repo.ID, Number: sub.Number, Draft: sub.Draft, Author: sub.Author, BaseRef: sub.Base, State: crState(ev), URL: sub.URL}
 	if sub.Head != nil {
 		cr.HeadRef, cr.HeadSHA = sub.Head.Ref, sub.Head.SHA
 	}

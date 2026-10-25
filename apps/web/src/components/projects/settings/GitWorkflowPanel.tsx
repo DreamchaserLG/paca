@@ -1,9 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import { Bot, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,9 +11,7 @@ import {
 	GIT_PERMISSIONS,
 	type GitPermission,
 	type GitProjectSettings,
-	type GitRun,
 	gitErrorKey,
-	gitRunsQueryOptions,
 	gitSettingsKey,
 	gitSettingsQueryOptions,
 	updateGitSettings,
@@ -27,21 +23,10 @@ interface GitWorkflowPanelProps {
 	canWrite: boolean;
 }
 
-const STATUS_VARIANT: Record<
-	GitRun["status"],
-	"default" | "secondary" | "destructive" | "outline"
-> = {
-	queued: "outline",
-	running: "default",
-	succeeded: "secondary",
-	failed: "destructive",
-	cancelled: "outline",
-};
-
 /**
  * How Git events reach this project's agents: who answers a mention that names
  * no agent, how much access an actor needs to start a run, a pause switch, and
- * the runs the events started. Which events start which agent is set per agent
+ Which events start which agent is set per agent
  * (the agent's Git tab).
  */
 export function GitWorkflowPanel({
@@ -51,7 +36,6 @@ export function GitWorkflowPanel({
 	const { t } = useTranslation("projects");
 	const queryClient = useQueryClient();
 	const settings = useQuery(gitSettingsQueryOptions(projectId));
-	const runs = useQuery(gitRunsQueryOptions(projectId));
 	const agents = useQuery({
 		queryKey: ["git", "projects", projectId, "responder-candidates"] as const,
 		queryFn: () => listAgents(projectId),
@@ -84,8 +68,6 @@ export function GitWorkflowPanel({
 		return <Skeleton className="h-32 w-full" />;
 	}
 	const agentList = agents.data?.items ?? [];
-	const nameOf = (id: string) =>
-		agentList.find((a) => a.id === id)?.name ?? "—";
 	const dirty =
 		JSON.stringify(draft) !== JSON.stringify(settings.data ?? draft);
 	const change = (patch: Partial<GitProjectSettings>) => {
@@ -200,54 +182,6 @@ export function GitWorkflowPanel({
 					</div>
 				) : null}
 			</form>
-
-			<div className="flex flex-col gap-2">
-				<h3 className="text-sm font-semibold">
-					{t("project.git.workflow.runs.title")}
-				</h3>
-				{runs.isLoading ? (
-					<Skeleton className="h-16 w-full" />
-				) : (runs.data ?? []).length === 0 ? (
-					<p className="text-sm text-muted-foreground">
-						{t("project.git.workflow.runs.empty")}
-					</p>
-				) : (
-					<ul className="flex flex-col divide-y divide-border/60 rounded-lg border border-border/60">
-						{(runs.data ?? []).map((r) => (
-							<li
-								key={r.id}
-								className="flex items-center justify-between gap-3 px-4 py-2.5"
-							>
-								<div className="min-w-0">
-									<p className="truncate text-sm font-medium">
-										{r.repository}
-										{r.subject_number ? ` #${r.subject_number}` : ""}
-									</p>
-									<p className="truncate text-xs text-muted-foreground">
-										{nameOf(r.agent_id)} ·{" "}
-										{t(`project.git.triggerKinds.${r.trigger}.label` as never)}{" "}
-										· {new Date(r.created_at).toLocaleString()}
-									</p>
-								</div>
-								<div className="flex items-center gap-3">
-									<Badge variant={STATUS_VARIANT[r.status]}>
-										{t(`project.git.workflow.runs.status.${r.status}` as never)}
-									</Badge>
-									{r.conversation_id ? (
-										<Link
-											to="/projects/$projectId/conversations/$conversationId"
-											params={{ projectId, conversationId: r.conversation_id }}
-											className="text-xs text-primary hover:underline"
-										>
-											{t("project.git.workflow.runs.open")}
-										</Link>
-									) : null}
-								</div>
-							</li>
-						))}
-					</ul>
-				)}
-			</div>
 		</div>
 	);
 }

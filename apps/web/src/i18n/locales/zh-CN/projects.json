@@ -84,19 +84,7 @@
 					"help": "暂停期间,Git 活动不会启动任何智能体。已在进行的运行会继续。"
 				},
 				"save": "保存",
-				"saved": "已保存。",
-				"runs": {
-					"title": "最近的运行",
-					"empty": "Git 活动尚未启动任何智能体运行。",
-					"open": "打开对话",
-					"status": {
-						"queued": "排队中",
-						"running": "运行中",
-						"succeeded": "成功",
-						"failed": "失败",
-						"cancelled": "已取消"
-					}
-				}
+				"saved": "已保存。"
 			},
 			"triggerKinds": {
 				"mention": {
@@ -1778,6 +1766,66 @@
 		"searchableList": {
 			"searchPlaceholder": "搜索…",
 			"noResults": "没有匹配项"
+		},
+		"git": {
+			"branches": "分支",
+			"pullRequests": "拉取请求",
+			"linkBranch": "关联分支",
+			"newBranch": "新建分支",
+			"linkPullRequest": "关联拉取请求",
+			"noBranches": "尚未关联任何分支。",
+			"noPullRequests": "尚未关联任何拉取请求。",
+			"by": "作者:{{author}}",
+			"unlink": "取消关联",
+			"unlinkPullRequest": "取消关联拉取请求 {{name}}",
+			"unlinkBranch": "取消关联分支 {{name}}",
+			"copyCheckout": "复制 checkout 命令",
+			"copy": "复制",
+			"copied": "已复制",
+			"state": {
+				"open": "打开",
+				"draft": "草稿",
+				"merged": "已合并",
+				"closed": "已关闭"
+			},
+			"ci": {
+				"passing": "CI 通过",
+				"failing": "CI 失败",
+				"pending": "CI 运行中",
+				"failingNames": "失败:{{names}}",
+				"counts": "{{total}} 项检查中 {{passed}} 项通过"
+			},
+			"forms": {
+				"selectRepository": "选择仓库…",
+				"cancel": "取消",
+				"pullRequest": "拉取请求",
+				"pullRequestHint": "粘贴拉取请求的链接,或输入其编号。",
+				"willLink": "将关联 {{repository}} 的 {{what}}",
+				"repository": "仓库",
+				"linkPullRequest": "关联拉取请求",
+				"existingBranch": "已有分支",
+				"branchHint": "输入分支名称,或粘贴其链接。",
+				"linkBranch": "关联分支",
+				"branchType": "类型",
+				"branchName": "分支名称",
+				"branchFrom": "基于",
+				"branchFromHint": "可选 — 默认使用仓库的默认分支。",
+				"createBranch": "创建分支",
+				"orLocally": "或在本地创建"
+			},
+			"errors": {
+				"notFound": "在该仓库中未找到。",
+				"rejected": "Git 平台拒绝了对该仓库的请求。",
+				"unavailable": "Git 提供方暂时不可用,请重试。",
+				"noIdentity": "没有可在该仓库上操作的 Git 身份。",
+				"forbidden": "你没有权限执行此操作。",
+				"generic": "出错了,请重试。",
+				"repoNotLinked": "“{{repository}}”未关联到此项目。",
+				"selectRepository": "请选择仓库。",
+				"invalidNumber": "请输入编号或粘贴链接。",
+				"branchRequired": "请输入分支名称或粘贴链接。",
+				"createRefused": "平台无法创建该分支(名称可能已存在或无效)。"
+			}
 		}
 	},
 	"portForwardDetail": {

@@ -46,7 +46,8 @@ type opsFake struct {
 	logs     gitprovider.Logs
 	err      error
 
-	permission gitprovider.Permission
+	permission    gitprovider.Permission
+	branchMissing bool
 }
 
 func (o *opsFake) providerInfo() gitprovider.Info { return o.info }
@@ -145,6 +146,17 @@ func (o *opsFake) RerunChecks(_ context.Context, r gitprovider.RerunRequest) err
 func (o *opsFake) React(_ context.Context, r gitprovider.ReactRequest) error {
 	o.rec("React", r)
 	return o.err
+}
+func (o *opsFake) GetBranch(_ context.Context, r gitprovider.GetBranchRequest) (gitprovider.BranchInfo, error) {
+	o.rec("GetBranch", r)
+	if o.branchMissing {
+		return gitprovider.BranchInfo{}, &gitprovider.Error{Code: gitprovider.CodeNotFound}
+	}
+	return gitprovider.BranchInfo{Name: r.Name, SHA: "b1"}, o.err
+}
+func (o *opsFake) CreateBranch(_ context.Context, r gitprovider.CreateBranchRequest) (gitprovider.BranchInfo, error) {
+	o.rec("CreateBranch", r)
+	return gitprovider.BranchInfo{Name: r.Name, SHA: "b2"}, o.err
 }
 func (o *opsFake) GetActorPermission(_ context.Context, r gitprovider.ActorPermissionRequest) (gitprovider.Permission, error) {
 	o.rec("GetActorPermission", r)
@@ -447,4 +459,56 @@ func TestOps_NewScopeKeepsOnlyAConversationTheAgentOwns(t *testing.T) {
 	if sc := fx.svc.NewScope(context.Background(), fx.sc.ProjectID, fx.sc.RepositoryID, fx.agent, "not-a-uuid"); sc.ConversationID != nil {
 		t.Fatal("garbage must be dropped")
 	}
+}
+
+func TestOps_TaskGitFillsInWhatEventsDidNotCarry(t *testing.T) {
+	fx := newOpsFx(t)
+	task := uuid.New()
+	ts := &taskGitStore{opsStore: fx.st, links: &gitdom.TaskGit{ChangeRequests: []*gitdom.TaskChangeRequest{
+		{ChangeRequest: gitdom.ChangeRequest{RepositoryID: fx.repo.ID, Number: "5", State: "open"}, RepositoryPath: "acme/web"},
+		{ChangeRequest: gitdom.ChangeRequest{RepositoryID: fx.repo.ID, Number: "6", Title: "Known", URL: "https://x/6", State: "merged", HeadSHA: "h6"}},
+	}}}
+	svc := New(ts, fakeProviders{p: fx.pr})
+	fx.pr.cr = gitprovider.ChangeRequest{Number: "5", Title: "Real title", URL: "https://x/5", State: gitprovider.CRMerged, Head: gitprovider.Branch{Ref: "feat/x"}, Base: gitprovider.Branch{Ref: "main"}}
+
+	got, err := svc.ListTaskGit(context.Background(), fx.sc.ProjectID, task)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := got.ChangeRequests[0]
+	if c.Title != "Real title" || c.URL != "https://x/5" || c.State != "merged" || c.HeadRef != "feat/x" {
+		t.Fatalf("not filled in: %+v", c)
+	}
+	if n := countCalls(fx.pr.calls, "GetChangeRequest"); n != 1 {
+		t.Fatalf("only the incomplete entry may cost a platform call, got %d", n)
+	}
+	if last := fx.st.crs[len(fx.st.crs)-1]; last.Number != "5" || last.Title != "Real title" {
+		t.Fatalf("the answer must be remembered: %+v", last)
+	}
+
+	// A platform that fails leaves the entry as it was, and the listing still works.
+	fx.pr.err = &gitprovider.Error{Code: gitprovider.CodeTransient}
+	ts.links = &gitdom.TaskGit{ChangeRequests: []*gitdom.TaskChangeRequest{{ChangeRequest: gitdom.ChangeRequest{RepositoryID: fx.repo.ID, Number: "9"}}}}
+	if got, err := svc.ListTaskGit(context.Background(), fx.sc.ProjectID, task); err != nil || got.ChangeRequests[0].Title != "" {
+		t.Fatalf("failing platform: %+v %v", got, err)
+	}
+}
+
+type taskGitStore struct {
+	*opsStore
+	links *gitdom.TaskGit
+}
+
+func (s *taskGitStore) ListTaskGit(context.Context, uuid.UUID, uuid.UUID) (*gitdom.TaskGit, error) {
+	return s.links, nil
+}
+
+func countCalls(calls []string, name string) int {
+	n := 0
+	for _, c := range calls {
+		if c == name {
+			n++
+		}
+	}
+	return n
 }

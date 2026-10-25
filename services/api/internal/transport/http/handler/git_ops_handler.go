@@ -51,6 +51,12 @@ type GitOps interface {
 	ListAgentTriggers(ctx context.Context, agentID uuid.UUID) ([]gitsvc.TriggerView, error)
 	SetAgentTrigger(ctx context.Context, agentID uuid.UUID, kind gitdom.TriggerKind, enabled bool, config json.RawMessage) error
 	ListProjectRuns(ctx context.Context, projectID uuid.UUID, limit int) ([]*gitdom.ProjectRun, error)
+	ListTaskGit(ctx context.Context, projectID, taskID uuid.UUID) (*gitdom.TaskGit, error)
+	LinkTaskChangeRequest(ctx context.Context, ref gitsvc.TaskRef, repositoryID uuid.UUID, number string) error
+	UnlinkTaskChangeRequest(ctx context.Context, ref gitsvc.TaskRef, repositoryID uuid.UUID, number string) error
+	LinkTaskBranch(ctx context.Context, ref gitsvc.TaskRef, repositoryID uuid.UUID, branch string) error
+	CreateTaskBranch(ctx context.Context, ref gitsvc.TaskRef, repositoryID uuid.UUID, branch, from string) (gitprovider.BranchInfo, error)
+	UnlinkTaskBranch(ctx context.Context, ref gitsvc.TaskRef, repositoryID uuid.UUID, branch string) error
 }
 
 // conversationHeader carries the conversation a tool call runs in; the service
@@ -518,4 +524,134 @@ func (h *GitHandler) SetAgentTrigger(w http.ResponseWriter, r *http.Request) {
 	}
 	out, err := h.ops.ListAgentTriggers(r.Context(), agentID)
 	h.respond(w, r, out, err)
+}
+
+// GetTaskGit handles GET /projects/:projectId/tasks/:taskId/git: the pull/merge
+// requests and branches linked to a task. It reads Paca's own records, not the
+// platform, so it needs only access to the task.
+func (h *GitHandler) GetTaskGit(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := gitProjectID(w, r)
+	if !ok {
+		return
+	}
+	taskID, err := uuid.Parse(chi.URLParam(r, "taskId"))
+	if err != nil {
+		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid task ID"))
+		return
+	}
+	g, err := h.ops.ListTaskGit(r.Context(), projectID, taskID)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	presenter.OK(w, r, dto.GitTaskFromEntity(g))
+}
+
+func (h *GitHandler) taskRef(w http.ResponseWriter, r *http.Request) (gitsvc.TaskRef, bool) {
+	projectID, ok := gitProjectID(w, r)
+	if !ok {
+		return gitsvc.TaskRef{}, false
+	}
+	taskID, err := uuid.Parse(chi.URLParam(r, "taskId"))
+	if err != nil {
+		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid task ID"))
+		return gitsvc.TaskRef{}, false
+	}
+	actor, ok := requireAccountID(w, r)
+	if !ok {
+		return gitsvc.TaskRef{}, false
+	}
+	return gitsvc.TaskRef{ProjectID: projectID, TaskID: taskID, ActorID: actor}, true
+}
+
+func queryRepoID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	id, err := uuid.Parse(r.URL.Query().Get("repository_id"))
+	if err != nil {
+		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid repository_id"))
+		return uuid.Nil, false
+	}
+	return id, true
+}
+
+// LinkTaskChangeRequest handles POST /projects/:projectId/tasks/:taskId/git/change-requests.
+func (h *GitHandler) LinkTaskChangeRequest(w http.ResponseWriter, r *http.Request) {
+	ref, ok := h.taskRef(w, r)
+	if !ok {
+		return
+	}
+	var req dto.LinkGitTaskChangeRequestRequest
+	if !middleware.BindJSON(w, r, &req) {
+		return
+	}
+	if err := h.ops.LinkTaskChangeRequest(r.Context(), ref, req.RepositoryID, req.Number); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	presenter.NoContent(w)
+}
+
+// UnlinkTaskChangeRequest handles DELETE …/git/change-requests/:number?repository_id=….
+func (h *GitHandler) UnlinkTaskChangeRequest(w http.ResponseWriter, r *http.Request) {
+	ref, ok := h.taskRef(w, r)
+	if !ok {
+		return
+	}
+	repoID, ok := queryRepoID(w, r)
+	if !ok {
+		return
+	}
+	if err := h.ops.UnlinkTaskChangeRequest(r.Context(), ref, repoID, chi.URLParam(r, "number")); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	presenter.NoContent(w)
+}
+
+// LinkTaskBranch handles POST …/git/branches.
+func (h *GitHandler) LinkTaskBranch(w http.ResponseWriter, r *http.Request) {
+	ref, ok := h.taskRef(w, r)
+	if !ok {
+		return
+	}
+	var req dto.LinkGitTaskBranchRequest
+	if !middleware.BindJSON(w, r, &req) {
+		return
+	}
+	if err := h.ops.LinkTaskBranch(r.Context(), ref, req.RepositoryID, req.Branch); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	presenter.NoContent(w)
+}
+
+// CreateTaskBranch handles POST …/git/branches/new: creates the branch on the
+// platform and links it. Writing to the repository, it has its own gate.
+func (h *GitHandler) CreateTaskBranch(w http.ResponseWriter, r *http.Request) {
+	ref, ok := h.taskRef(w, r)
+	if !ok {
+		return
+	}
+	var req dto.CreateGitTaskBranchRequest
+	if !middleware.BindJSON(w, r, &req) {
+		return
+	}
+	info, err := h.ops.CreateTaskBranch(r.Context(), ref, req.RepositoryID, req.Branch, req.From)
+	h.respond(w, r, info, err)
+}
+
+// UnlinkTaskBranch handles DELETE …/git/branches?repository_id=…&branch=….
+func (h *GitHandler) UnlinkTaskBranch(w http.ResponseWriter, r *http.Request) {
+	ref, ok := h.taskRef(w, r)
+	if !ok {
+		return
+	}
+	repoID, ok := queryRepoID(w, r)
+	if !ok {
+		return
+	}
+	if err := h.ops.UnlinkTaskBranch(r.Context(), ref, repoID, r.URL.Query().Get("branch")); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	presenter.NoContent(w)
 }

@@ -707,6 +707,21 @@ func New(deps Deps) http.Handler {
 					})
 
 					// Links
+					if deps.Git != nil {
+						task := func(a iam.Action) func(http.Handler) http.Handler {
+							return require.ProjectEntity("task", "taskId", resTask, a)
+						}
+						r.With(task(iam.ActionTasksRead)).Get("/{taskId}/git", deps.Git.GetTaskGit)
+						// Linking records which request or branch belongs to the task,
+						// after asking the platform it exists: changing the task, and
+						// reading the repository through the bot. Creating a branch
+						// writes to the repository, so it also needs git:write.
+						r.With(task(iam.ActionTasksWrite), require.Project(iam.ActionGitRead)).Post("/{taskId}/git/change-requests", deps.Git.LinkTaskChangeRequest)
+						r.With(task(iam.ActionTasksWrite), require.Project(iam.ActionGitRead)).Delete("/{taskId}/git/change-requests/{number}", deps.Git.UnlinkTaskChangeRequest)
+						r.With(task(iam.ActionTasksWrite), require.Project(iam.ActionGitRead)).Post("/{taskId}/git/branches", deps.Git.LinkTaskBranch)
+						r.With(task(iam.ActionTasksWrite), require.Project(iam.ActionGitWrite)).Post("/{taskId}/git/branches/new", deps.Git.CreateTaskBranch)
+						r.With(task(iam.ActionTasksWrite), require.Project(iam.ActionGitRead)).Delete("/{taskId}/git/branches", deps.Git.UnlinkTaskBranch)
+					}
 					r.Route("/{taskId}/links", func(r chi.Router) {
 						r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksRead)).Get("/", deps.Task.ListTaskLinks)
 						r.With(require.ProjectEntity("task", "taskId", resTask, iam.ActionTasksWrite)).Post("/", deps.Task.CreateTaskLink)

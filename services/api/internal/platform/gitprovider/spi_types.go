@@ -202,6 +202,9 @@ type Capabilities struct {
 	Reactions         bool `json:"reactions"`
 	WebhookManagement bool `json:"webhook_management"`
 	IdentityDeletion  bool `json:"identity_deletion"`
+	// Branches is true when branches can be looked up and created through the
+	// provider (core uses it to link and create a task's branch).
+	Branches bool `json:"branches"`
 	// AccessGrants is true when an identity must be granted access to each
 	// account or organization before it can see its repositories, and a user
 	// does that on the platform (GitHub: installing the App on an account).
@@ -292,7 +295,6 @@ type CompleteSetupRequest struct {
 	Host   string            `json:"host"`
 	State  string            `json:"state"`
 	Params map[string]string `json:"params"` // callback query parameters, or {"token": "..."}
-	// Next is set when the flow has further legs (GitHub: manifest → install).
 }
 
 // Identity is a created identity as core stores it. Secrets stay with the
@@ -304,7 +306,7 @@ type Identity struct {
 	DisplayName string       `json:"display_name"`
 	// ExpiresAt is when the identity's credentials stop working, for platforms
 	// whose tokens expire (zero = does not expire). Core warns before it passes.
-	ExpiresAt time.Time `json:"expires_at,omitempty"`
+	ExpiresAt time.Time `json:"expires_at,omitzero"`
 	// Next, when set, is a further step to run before the identity is usable
 	// (GitHub: install the app).
 	Next *SetupStep `json:"next,omitempty"`
@@ -443,6 +445,9 @@ type EventSubject struct {
 	Base   string      `json:"base,omitempty"`
 	Draft  bool        `json:"draft,omitempty"`
 	Author string      `json:"author,omitempty"`
+	// URL is the subject's web page, when the platform's event carries it; core
+	// shows it as the link to the pull/merge request.
+	URL string `json:"url,omitempty"`
 }
 
 // Location pins a review comment to code.
@@ -520,7 +525,7 @@ type MintRequest struct {
 type Credential struct {
 	Username  string    `json:"username"`
 	Secret    string    `json:"secret"`
-	ExpiresAt time.Time `json:"expires_at,omitempty"`
+	ExpiresAt time.Time `json:"expires_at,omitzero"`
 }
 
 // ActorPermissionRequest asks for a login's access to a repository.
@@ -567,7 +572,7 @@ type ChangeRequest struct {
 	URL       string    `json:"url"`
 	Labels    []string  `json:"labels,omitempty"`
 	Reviewers []string  `json:"reviewers,omitempty"`
-	UpdatedAt time.Time `json:"updated_at,omitempty"`
+	UpdatedAt time.Time `json:"updated_at,omitzero"`
 }
 
 // CRRequest addresses one change request.
@@ -597,6 +602,11 @@ type ChangedFilePage struct {
 	Items      []ChangedFile `json:"items"`
 	NextCursor string        `json:"next_cursor,omitempty"`
 }
+
+// Size limits (MaxBytes, TailBytes) count bytes. Text results (Diff, Logs) are
+// cut on a UTF-8 boundary, so the result is always valid UTF-8 and may be a few
+// bytes shorter than the limit; Truncated reports that anything was cut. File
+// content is raw bytes and is cut exactly at the limit.
 
 // DiffRequest asks for a change request's diff, whole or for one file.
 type DiffRequest struct {
@@ -941,3 +951,29 @@ type RemoveWebhookRequest struct {
 
 // Empty is the result of operations that return nothing.
 type Empty struct{}
+
+// ── Branches ─────────────────────────────────────────────────────────────────
+
+// GetBranchRequest asks whether a branch exists.
+type GetBranchRequest struct {
+	Target Target `json:"target"`
+	Name   string `json:"name"`
+}
+
+// CreateBranchRequest creates a branch from another branch (or the default).
+// With IdempotencyKey, and when the provider declares IdempotentWrites, a retry
+// of a call that already succeeded returns the original result instead of
+// conflict.
+type CreateBranchRequest struct {
+	Target         Target `json:"target"`
+	Name           string `json:"name"`
+	From           string `json:"from,omitempty"` // empty = the repository's default branch
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+// BranchInfo is a branch and the commit it points at.
+type BranchInfo struct {
+	Name string `json:"name"`
+	SHA  string `json:"sha"`
+	URL  string `json:"url,omitempty"`
+}

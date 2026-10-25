@@ -46,6 +46,8 @@ type OpsAPI interface {
 	RerunChecks(ctx context.Context, req gitprovider.RerunRequest) error
 	React(ctx context.Context, req gitprovider.ReactRequest) error
 	GetActorPermission(ctx context.Context, req gitprovider.ActorPermissionRequest) (gitprovider.Permission, error)
+	GetBranch(ctx context.Context, req gitprovider.GetBranchRequest) (gitprovider.BranchInfo, error)
+	CreateBranch(ctx context.Context, req gitprovider.CreateBranchRequest) (gitprovider.BranchInfo, error)
 }
 
 // Scope says whose repository an operation targets and who performs it. The

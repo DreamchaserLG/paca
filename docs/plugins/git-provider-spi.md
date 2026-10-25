@@ -1,6 +1,6 @@
 # Writing a Git provider plugin
 
-A *Git provider* adapts one source-control platform (GitHub, GitLab, Bitbucket, Gitea, …) to Paca's platform-neutral Git integration. Paca core owns triggers, routing, policy, runs, status comments, audit, MCP tools and UI; your plugin only answers platform-specific questions. The design is in [../ai-agent/git-agent-workflow.md](../ai-agent/git-agent-workflow.md); this page is the author's guide. Source: `plugin-sdk-go/gitprovider`.
+A *Git provider* adapts one source-control platform (GitHub, GitLab, Bitbucket, Gitea, …) to Paca's platform-neutral Git integration. Paca core owns triggers, routing, policy, runs, status comments, audit, MCP tools and UI; your plugin only answers platform-specific questions. How the integration works end to end is in [../ai-agent/git-agent-workflow.md](../ai-agent/git-agent-workflow.md); this page is the author's guide. Source: `plugin-sdk-go/gitprovider`.
 
 ## 1. Skeleton
 
@@ -23,7 +23,7 @@ func (p *myPlugin) Shutdown() {}
 func main() { plugin.Run(&myPlugin{}) }
 ```
 
-`newProvider` returns a type implementing `gitprovider.Provider` plus whichever optional interfaces your platform supports. Declare the capability `git-provider` and a `gitProvider` block in `plugin.json` (id, hosts, identity kinds, credential model, setup kind).
+`newProvider` returns a type implementing `gitprovider.Provider` plus whichever optional interfaces your platform supports. Declare the capability `git-provider` in `plugin.json`; everything else about the provider (hosts, identity kinds, credential model, capabilities) is reported by `Describe`. Core refuses a provider whose reported `spi_version` has another major version than the one it implements (`gitprovider.v1`).
 
 ## 2. What you implement
 
@@ -39,33 +39,25 @@ func main() { plugin.Run(&myPlugin{}) }
 | `Merger`, `CheckRerunner`, `Reactor` | `merge`, `rerun_checks`, `reactions` |
 | `WebhookManager` | `webhook_management` (repo/group-scoped webhooks) |
 | `IdentityDeleter` | `identity_deletion` |
+| `BranchManager` (`GetBranch`, `CreateBranch`) | `branches` |
+| `AccessGranter` | `access_grants` (see below) |
 
 Anything you do not support simply is not implemented; the wire layer answers `unsupported`, and core never calls it because the capability is false.
 
-## 3. Rules the conformance suite enforces
+## 3. Rules a provider follows (enforced by the SDK conformance suite)
 
 * **Honest capabilities** — both directions: a flag without an implementation, or an implementation without a flag, fails.
 * **Webhooks**: reject a bad signature with `invalid_signature` and produce no events; normalize to the neutral `Event` (kinds, actions, repo, subject, actor, location, check); report `addressed[]` only for ways of being addressed that you declare in `triggers`; produce **deterministic event ids** (core de-duplicates on them); drop events you cannot map instead of guessing; never put secrets in an event.
 * **Errors** are `*gitprovider.Error` with a code from the closed set (`not_found`, `forbidden`, `invalid_signature`, `conflict`, `rate_limited`, `validation`, `unsupported`, `transient`, `internal`). Map platform failures onto them; never include tokens, secrets or raw payloads in a message. Unclassified errors are rejected.
-* **Credentials**: `ephemeral` platforms must set `ExpiresAt` within an hour; clone URLs must be credential-free.
+* **Credentials**: `ephemeral` platforms must set `ExpiresAt`; when the request names a lifetime (`ttl_seconds`), `ExpiresAt` must not be later than it (a platform that cannot shorten its tokens reports the requested lifetime, which only makes callers stop using the token sooner); clone URLs must be credential-free.
 * **Reads**: paging must visit each item exactly once; `MaxBytes`/`TailBytes` limits must set `Truncated` (silent truncation hides content); unknown things are `not_found`; repositories the identity cannot see are `not_found` or `forbidden`.
+* **Branches**: a missing branch is `not_found`, a taken name is `conflict`, a missing source is `not_found`, an invalid name is `validation`; a created branch points at the source branch's commit.
 * **Writes**: validate (`validation`), reject duplicates (`conflict`), return ids core can index (`Comment`, `ReplyThread`), honour idempotency keys if you set `idempotent_writes`, emulate batch review when `batch_review` is false and say so (`Emulated`), require `ExpectedHeadSHA` for merges.
 * **Wire**: every operation survives a malformed body without panicking.
 
-## 4. Testing your provider
+## 4. Conformance
 
-```go
-func TestConformance(t *testing.T) {
-	conformance.Run(t, conformance.Harness{
-		New:      func(t *testing.T) gitprovider.Provider { return newProviderAgainstFakeBackend(t) },
-		Fixtures: myFixtures(), // canned webhook deliveries + seed data of the fake backend
-	})
-}
-```
-
-Point `New` at the provider wired to a fake HTTP backend (recorded responses or `httptest`), and give `Fixtures` the canned webhook deliveries you recorded from the real platform with the events a correct adapter must produce. `fakeprovider.Fixtures()` is the template. Set `MutationsAllowed: false` to skip write tests when running against a real sandbox you do not want mutated.
-
-Run `./scripts/check-mutants.sh` in the SDK to see the suite fail on nine known-bad providers (no signature check, leaked secrets, unclassified errors, dishonest capabilities, missing expiry, silent truncation, unstable event ids, secrets in events, merge without head guard). A provider that passes the suite is one core can drive safely; it does not prove the platform semantics are right — your fixtures do.
+The SDK ships a conformance suite (`plugin-sdk-go/gitprovider/conformance`) and a reference fake provider (`gitprovider/fakeprovider`). A provider must pass the suite against a fake backend of its own platform: recorded webhook deliveries with the events a correct adapter produces, and canned API responses. The suite checks every rule in §3 in both directions, so a provider that passes is one core can drive safely.
 
 ## 5. Platform specifics you decide
 
@@ -75,7 +67,7 @@ Run `./scripts/check-mutants.sh` in the SDK to see the suite fail on nine known-
 * **Status kind**: check run, commit status, or comment — pick the best your platform offers.
 * **CI config globs** (`ci_config_globs`): paths agents must not modify (`.github/workflows/**`, `.gitlab-ci.yml`, …).
 * **Terms**: what the UI calls things ("Pull request" / "Merge request").
-* **Self-hosted hosts**: list default hosts; set `self_hosted_hosts` and allow outbound hosts from configuration (core change on the roadmap: `allowedOutboundDomainConfigKeys`).
+* **Self-hosted hosts**: list the default hosts and set `self_hosted_hosts`.
 
 ## 6. What you do not implement
 

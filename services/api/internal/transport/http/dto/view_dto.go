@@ -74,10 +74,12 @@ type ViewResponse struct {
 	ProjectID uuid.UUID          `json:"project_id"`
 	Name      string             `json:"name"`
 	ViewType  sprintdom.ViewType `json:"view_type"`
-	Config    ViewConfigDTO      `json:"config"`
-	Position  float64            `json:"position"`
-	CreatedAt time.Time          `json:"created_at"`
-	UpdatedAt time.Time          `json:"updated_at"`
+	// Context is the interaction the view belongs to: "sprint", "backlog" or "timeline".
+	Context   sprintdom.ViewContext `json:"context"`
+	Config    ViewConfigDTO         `json:"config"`
+	Position  float64               `json:"position"`
+	CreatedAt time.Time             `json:"created_at"`
+	UpdatedAt time.Time             `json:"updated_at"`
 	// IsPersonalized is true when Config reflects the caller's own personal
 	// override rather than the shared default everyone else sees. No
 	// omitempty: the frontend needs an explicit false, not an absent key.
@@ -122,6 +124,7 @@ func ViewFromEntity(v *sprintdom.SprintView) ViewResponse {
 		ProjectID:      v.ProjectID,
 		Name:           v.Name,
 		ViewType:       v.ViewType,
+		Context:        v.ViewContext,
 		IsPersonalized: v.HasPersonalConfig,
 		Config:         viewConfigToDTO(v.Config),
 		SharedConfig:   viewConfigToDTO(sharedConfig),

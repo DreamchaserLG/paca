@@ -185,6 +185,8 @@ func triggerTitle(t gitdom.TriggerKind) string {
 		return "your review was requested"
 	case gitdom.TriggerAssignment:
 		return "you were assigned"
+	case gitdom.TriggerLabel:
+		return "you were asked for by a label"
 	case gitdom.TriggerAutoReview:
 		return "a pull request needs review"
 	}
@@ -211,7 +213,7 @@ func instructions(in promptInput, subject, number string) string {
 		b.WriteString("2. `change_request_get_diff` (per file for large changes). Read the code that surrounds the change with `repo_get_file` when the diff is not enough.\n")
 		b.WriteString("3. Review for correctness, security, missing tests and unclear naming. Do not restate what the diff says.\n")
 		b.WriteString("4. `review_submit` with `headSha` set to the head you reviewed: `request_changes` for real problems, otherwise `comment`. Use inline comments for line-specific points (new-side line numbers). Approve only if your role allows it and you are confident.\n")
-	default: // mention, assignment
+	default: // mention, label, assignment
 		switch subject {
 		case string(gitprovider.SubjectChangeRequest):
 			fmt.Fprintf(&b, "1. Understand the context: `change_request_get_context` (%s, number `%s`). Use `change_request_get_diff` and `comment_list` as needed.\n", repo, number)

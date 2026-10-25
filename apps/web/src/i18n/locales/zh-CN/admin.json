@@ -680,11 +680,6 @@
 		},
 		"copy": "复制",
 		"copied": "已复制",
-		"stepStatus": {
-			"done": "已完成",
-			"current": "下一步",
-			"todo": "未开始"
-		},
 		"status": {
 			"connected": "已连接",
 			"notConnected": "未连接"

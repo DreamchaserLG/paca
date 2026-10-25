@@ -680,11 +680,6 @@
 		},
 		"copy": "コピー",
 		"copied": "コピーしました",
-		"stepStatus": {
-			"done": "完了",
-			"current": "次のステップ",
-			"todo": "未着手"
-		},
 		"status": {
 			"connected": "接続済み",
 			"notConnected": "未接続"

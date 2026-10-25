@@ -680,11 +680,6 @@
 		},
 		"copy": "복사",
 		"copied": "복사됨",
-		"stepStatus": {
-			"done": "완료",
-			"current": "다음 단계",
-			"todo": "시작 전"
-		},
 		"status": {
 			"connected": "연결됨",
 			"notConnected": "연결 안 됨"

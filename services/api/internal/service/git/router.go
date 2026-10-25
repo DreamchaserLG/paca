@@ -339,6 +339,21 @@ func (r *Router) decide(ctx context.Context, in *gitdom.InboxEvent, repo *gitdom
 		}
 		add(a, t)
 
+	case gitprovider.EventLabel:
+		if ev.Subject == nil {
+			out.ignore("event without a subject")
+			return nil, nil
+		}
+		a, ok, err := r.labelTarget(ctx, repo, ev.Label, settings, byID, agents, endpointAgent)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			out.ignore("label %q does not name an agent", ev.Label)
+			return nil, nil
+		}
+		add(a, gitdom.TriggerLabel)
+
 	case gitprovider.EventCheck:
 		if ev.Check == nil || ev.Check.Conclusion != "failure" {
 			out.ignore("check did not fail")
@@ -480,6 +495,8 @@ func addressedTrigger(ev *gitprovider.Event) (gitdom.TriggerKind, bool) {
 			return gitdom.TriggerReviewRequest, true
 		case gitprovider.ViaAssignment:
 			return gitdom.TriggerAssignment, true
+		case gitprovider.ViaLabel:
+			return gitdom.TriggerLabel, true
 		}
 	}
 	return "", false
@@ -531,6 +548,24 @@ func (r *Router) responder(ctx context.Context, repo *gitdom.Repository, ev *git
 	if st.DefaultResponderAgentID != nil {
 		a, ok := byID[*st.DefaultResponderAgentID]
 		return a, ok, nil
+	}
+	return AgentRef{}, false, nil
+}
+
+// labelTarget maps the label "paca" to the responder and "paca:<handle>" to that agent.
+func (r *Router) labelTarget(ctx context.Context, repo *gitdom.Repository, label string, st *gitdom.ProjectSettings,
+	byID map[uuid.UUID]AgentRef, agents []AgentRef, endpoint *uuid.UUID) (AgentRef, bool, error) {
+	l := strings.ToLower(strings.TrimSpace(label))
+	switch {
+	case l == "paca":
+		return r.responder(ctx, repo, &gitprovider.Event{}, st, byID, agents, endpoint)
+	case strings.HasPrefix(l, "paca:"):
+		handle := strings.TrimPrefix(l, "paca:")
+		for _, a := range agents {
+			if strings.EqualFold(a.Handle, handle) {
+				return a, true, nil
+			}
+		}
 	}
 	return AgentRef{}, false, nil
 }

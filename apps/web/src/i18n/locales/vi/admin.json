@@ -680,11 +680,6 @@
 		},
 		"copy": "Sao chép",
 		"copied": "Đã sao chép",
-		"stepStatus": {
-			"done": "đã xong",
-			"current": "bước tiếp theo",
-			"todo": "chưa bắt đầu"
-		},
 		"status": {
 			"connected": "Đã kết nối",
 			"notConnected": "Chưa kết nối"

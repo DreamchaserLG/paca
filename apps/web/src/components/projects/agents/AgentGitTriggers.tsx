@@ -33,7 +33,7 @@ const list = (s: string): string[] =>
 const GROUPS: { id: string; kinds: GitTrigger["kind"][] }[] = [
 	{
 		id: "requests",
-		kinds: ["mention", "review_request", "assignment"],
+		kinds: ["mention", "label", "review_request", "assignment"],
 	},
 	{ id: "followUp", kinds: ["own_cr_feedback", "ci_failure"] },
 	{ id: "proactive", kinds: ["auto_review"] },

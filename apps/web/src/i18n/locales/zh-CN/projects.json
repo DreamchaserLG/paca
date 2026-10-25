@@ -88,6 +88,10 @@
 					"label": "被指派",
 					"description": "机器人被指派到议题或拉取请求(平台支持时)。"
 				},
+				"label": {
+					"label": "标签",
+					"description": "议题或拉取请求被添加了标签“paca”(或“paca:<智能体标识>”)。"
+				},
 				"auto_review": {
 					"label": "评审每个拉取请求",
 					"description": "自动评审每个新的拉取请求。开启前默认关闭;草稿和智能体自己的拉取请求会被跳过。"
@@ -129,7 +133,7 @@
 			},
 			"usage": {
 				"title": "使用方法",
-				"description": "在 Git 平台上启动智能体的两种方式。",
+				"description": "在 Git 平台上启动智能体的三种方式。",
 				"mention": {
 					"title": "提及机器人",
 					"description": "在 issue 或拉取请求中评论，由默认回复智能体作答。"
@@ -137,6 +141,10 @@
 				"pick": {
 					"title": "指定智能体",
 					"description": "在提及中加入 agent:<handle> 以选择回复的智能体。"
+				},
+				"label": {
+					"title": "添加标签",
+					"description": "为 issue 或拉取请求添加“paca”标签。"
 				},
 				"automatic": "智能体也可以自行启动，例如跟进自己的拉取请求或评审每个新拉取请求。可在各智能体的 Git 标签页中开启。"
 			}

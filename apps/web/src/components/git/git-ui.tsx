@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Check, CircleDashed, Copy } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -47,110 +47,6 @@ export function CopyChip({
 				{copied ? <Check className="size-3" /> : <Copy className="size-3" />}
 			</button>
 		</span>
-	);
-}
-
-export type StepStatus = "done" | "current" | "todo";
-
-export interface StepItem {
-	id: string;
-	title: string;
-	description?: ReactNode;
-	status: StepStatus;
-	/** What to do now; shown under the description. */
-	action?: ReactNode;
-}
-
-/**
- * A numbered checklist: finished steps are checked, the next one is
- * highlighted with its action, the rest wait. It answers "what do I do next?".
- */
-export function StepList({ steps }: { steps: StepItem[] }) {
-	const { t } = useTranslation("admin");
-	return (
-		<ol className="flex flex-col">
-			{steps.map((s, i) => (
-				<li
-					key={s.id}
-					data-status={s.status}
-					className="relative flex gap-3 pb-4 last:pb-0"
-				>
-					{i < steps.length - 1 ? (
-						<span
-							aria-hidden="true"
-							className={cn(
-								"absolute left-[11px] top-6 bottom-0 w-px",
-								s.status === "done" ? "bg-primary/40" : "bg-border",
-							)}
-						/>
-					) : null}
-					<span
-						className={cn(
-							"relative z-10 mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
-							s.status === "done" &&
-								"border-primary bg-primary text-primary-foreground",
-							s.status === "current" && "border-primary text-primary",
-							s.status === "todo" && "border-border text-muted-foreground",
-						)}
-					>
-						{s.status === "done" ? (
-							<Check className="size-3.5" aria-hidden="true" />
-						) : s.status === "current" ? (
-							i + 1
-						) : (
-							<CircleDashed className="size-3.5" aria-hidden="true" />
-						)}
-					</span>
-					<div className="min-w-0 flex-1">
-						<p
-							className={cn(
-								"text-sm font-medium",
-								s.status === "todo" && "text-muted-foreground",
-							)}
-						>
-							{s.title}
-							<span className="sr-only">
-								{" "}
-								({t(`git.stepStatus.${s.status}` as never)})
-							</span>
-						</p>
-						{s.description ? (
-							<p className="mt-0.5 text-sm text-muted-foreground">
-								{s.description}
-							</p>
-						) : null}
-						{s.status === "current" && s.action ? (
-							<div className="mt-2">{s.action}</div>
-						) : null}
-					</div>
-				</li>
-			))}
-		</ol>
-	);
-}
-
-export interface FeatureItem {
-	icon: LucideIcon;
-	title: string;
-	description: string;
-}
-
-/** What the feature gives you: an icon, a short title and one line each. */
-export function FeatureGrid({ items }: { items: FeatureItem[] }) {
-	return (
-		<ul className="grid gap-3 sm:grid-cols-2">
-			{items.map((f) => (
-				<li key={f.title} className="flex gap-3">
-					<span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-						<f.icon className="size-4" aria-hidden="true" />
-					</span>
-					<div className="min-w-0">
-						<p className="text-sm font-medium">{f.title}</p>
-						<p className="text-sm text-muted-foreground">{f.description}</p>
-					</div>
-				</li>
-			))}
-		</ul>
 	);
 }
 

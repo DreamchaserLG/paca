@@ -88,6 +88,10 @@
 					"label": "Assigned",
 					"description": "The bot is assigned to an issue or pull request, where the platform allows it."
 				},
+				"label": {
+					"label": "Label",
+					"description": "The label \"paca\" (or \"paca:<agent handle>\") is added to an issue or pull request."
+				},
 				"auto_review": {
 					"label": "Review every pull request",
 					"description": "Reviews each new pull request automatically. Off until you switch it on; drafts and the agent's own pull requests are skipped."
@@ -129,7 +133,7 @@
 			},
 			"usage": {
 				"title": "Using it",
-				"description": "Two ways to start an agent from your Git platform.",
+				"description": "Three ways to start an agent from your Git platform.",
 				"mention": {
 					"title": "Mention the bot",
 					"description": "Comment on an issue or pull request. The default responder answers."
@@ -137,6 +141,10 @@
 				"pick": {
 					"title": "Pick an agent",
 					"description": "Add agent:<handle> to the mention to choose which agent answers."
+				},
+				"label": {
+					"title": "Add a label",
+					"description": "Add the \"paca\" label to an issue or pull request."
 				},
 				"automatic": "Agents can also start on their own, for example to follow up on their pull requests or review every new one. Turn these on in each agent's Git tab."
 			}

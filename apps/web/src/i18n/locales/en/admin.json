@@ -680,11 +680,6 @@
 		},
 		"copy": "Copy",
 		"copied": "Copied",
-		"stepStatus": {
-			"done": "done",
-			"current": "next step",
-			"todo": "not started"
-		},
 		"status": {
 			"connected": "Connected",
 			"notConnected": "Not connected"

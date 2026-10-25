@@ -168,11 +168,12 @@ func instructions(in promptInput, subject, number string) string {
 		b.WriteString("3. Review for correctness, security, missing tests and unclear naming. Do not restate what the diff says.\n")
 		b.WriteString("4. `review_submit` with `headSha` set to the head you reviewed: `request_changes` for real problems, otherwise `comment`. Use inline comments for line-specific points (new-side line numbers). Approve only if your role allows it and you are confident.\n")
 	default: // mention, label, assignment
-		if subject == string(gitprovider.SubjectChangeRequest) {
+		switch subject {
+		case string(gitprovider.SubjectChangeRequest):
 			fmt.Fprintf(&b, "1. Understand the context: `change_request_get_context` (%s, number `%s`). Use `change_request_get_diff` and `comment_list` as needed.\n", repo, number)
-		} else if subject == string(gitprovider.SubjectIssue) {
+		case string(gitprovider.SubjectIssue):
 			fmt.Fprintf(&b, "1. Understand the context: `issue_get` (%s, number `%s`) and `comment_list` (kind `issue`).\n", repo, number)
-		} else {
+		default:
 			fmt.Fprintf(&b, "1. Understand the request from the message above (%s).\n", repo)
 		}
 		b.WriteString("2. Do what was asked. For code changes: `workspace_inspect`, `workspace_prepare` (a branch such as `paca/<topic>`), edit and test, `git_commit`, `git_push`, then `change_request_open`.\n")

@@ -15,7 +15,7 @@ DST="$(cd "$(dirname "$0")/.." && pwd)/services/api/internal/platform/gitprovide
 [ -d "$SDK/gitprovider" ] || { echo "plugin-sdk-go not found at $SDK" >&2; exit 1; }
 mkdir -p "$DST/testdata"
 for f in types.go errors.go wiretypes.go; do
-  { echo "// Code copied from plugin-sdk-go/gitprovider/$f by scripts/sync-git-spi.sh. DO NOT EDIT."
+  { echo "// Code generated from plugin-sdk-go/gitprovider/$f by scripts/sync-git-spi.sh. DO NOT EDIT."
     echo "// Change it in the SDK, then re-run the script. Contract: wire-shapes.golden.json."
     echo
     cat "$SDK/gitprovider/$f"; } > "$DST/spi_$f"

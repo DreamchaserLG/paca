@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Repository is the persistence port of the Git integration.
+// Store is the persistence port of the Git integration.
 type Store interface {
 	// ── identities ──
 	CreateIdentity(ctx context.Context, id *Identity) error

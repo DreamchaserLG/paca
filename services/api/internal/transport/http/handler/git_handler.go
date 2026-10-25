@@ -69,7 +69,7 @@ func (h *GitHandler) WithAgentLookup(a GitAgentLookup) *GitHandler {
 }
 
 // providerError turns a provider failure into an API error with a stable code.
-// A message from a provider is never forwarded: it is written by a plugin.
+// Only a provider's validation message is forwarded, capped (see providerDetail); everything else is a fixed text.
 func providerError(err error) error {
 	var pe *gitprovider.Error
 	if !errors.As(err, &pe) {
@@ -88,6 +88,8 @@ func providerError(err error) error {
 		return apierr.New(apierr.CodeTooManyRequests, "the platform is rate limiting this identity")
 	case gitprovider.CodeTransient:
 		return apierr.New(apierr.CodeGitProviderUnavailable, "the Git provider is temporarily unavailable")
+	case gitprovider.CodeInvalidSignature, gitprovider.CodeInternal:
+		// Not something the caller can act on.
 	}
 	return apierr.New(apierr.CodeInternalError, "git provider error")
 }

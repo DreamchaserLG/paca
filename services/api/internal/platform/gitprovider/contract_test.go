@@ -17,7 +17,7 @@ import (
 func shapeOf(t reflect.Type) any { return shapeOfSeen(t, map[reflect.Type]bool{}) }
 
 func shapeOfSeen(t reflect.Type, seen map[reflect.Type]bool) any {
-	switch t.Kind() {
+	switch t.Kind() { //nolint:exhaustive // every other kind is described by its own name
 	case reflect.Pointer:
 		return shapeOfSeen(t.Elem(), seen)
 	case reflect.Struct:

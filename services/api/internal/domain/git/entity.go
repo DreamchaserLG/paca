@@ -15,6 +15,7 @@ import (
 // IdentityScope says whom an identity serves.
 type IdentityScope string
 
+// Identity scopes.
 const (
 	ScopeShared IdentityScope = "shared" // the host-wide shared identity
 	ScopeAgent  IdentityScope = "agent"  // one agent's own identity
@@ -67,6 +68,7 @@ type WebhookEndpoint struct {
 // InboxStatus is the lifecycle of a received event.
 type InboxStatus string
 
+// Inbox statuses.
 const (
 	InboxReceived InboxStatus = "received"
 	InboxIgnored  InboxStatus = "ignored"
@@ -186,6 +188,7 @@ const DefaultMinActorPermission = "write"
 // TriggerKind names an event an agent can be started by.
 type TriggerKind string
 
+// Triggers an agent can be started by.
 const (
 	TriggerMention       TriggerKind = "mention"
 	TriggerOwnCRFeedback TriggerKind = "own_cr_feedback"
@@ -229,6 +232,7 @@ type AgentTrigger struct {
 // RunStatus is the lifecycle of an agent run an event started.
 type RunStatus string
 
+// Run statuses.
 const (
 	RunQueued    RunStatus = "queued"
 	RunRunning   RunStatus = "running"

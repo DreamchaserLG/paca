@@ -1,4 +1,4 @@
-// Code copied from plugin-sdk-go/gitprovider/errors.go by scripts/sync-git-spi.sh. DO NOT EDIT.
+// Code generated from plugin-sdk-go/gitprovider/errors.go by scripts/sync-git-spi.sh. DO NOT EDIT.
 // Change it in the SDK, then re-run the script. Contract: wire-shapes.golden.json.
 
 package gitprovider

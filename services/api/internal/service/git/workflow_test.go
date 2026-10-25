@@ -177,7 +177,7 @@ func TestPrompt_FencesPeopleTextAndCannotBeBrokenOut(t *testing.T) {
 	}
 	open, closeAt := strings.Index(msg, fenceOpen), strings.Index(msg, fenceClose)
 	rules := strings.Index(msg, "### Rules")
-	if !(open < closeAt && closeAt < rules) {
+	if open >= closeAt || closeAt >= rules {
 		t.Fatalf("the rules must come after the fence, so fenced text cannot pose as them:\n%s", msg)
 	}
 	for _, want := range []string{"**fork**", "01234567", "repository permission: write", "Never push to the default branch"} {

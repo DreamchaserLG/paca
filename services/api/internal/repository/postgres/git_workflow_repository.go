@@ -337,7 +337,7 @@ func (s *GitRepository) ListProjectRuns(ctx context.Context, projectID uuid.UUID
 	}
 	out := make([]*gitdom.ProjectRun, 0, len(recs))
 	for _, r := range recs {
-		out = append(out, &gitdom.ProjectRun{Run: *r.gitRunRecord.domain(), RepositoryPath: r.FullPath})
+		out = append(out, &gitdom.ProjectRun{Run: *r.domain(), RepositoryPath: r.FullPath})
 	}
 	return out, nil
 }
@@ -378,7 +378,7 @@ func (s *GitRepository) ListTaskGit(ctx context.Context, projectID, taskID uuid.
 	}
 	out := &gitdom.TaskGit{ChangeRequests: []*gitdom.TaskChangeRequest{}, Branches: []*gitdom.TaskBranch{}}
 	for _, c := range crs {
-		out.ChangeRequests = append(out.ChangeRequests, &gitdom.TaskChangeRequest{ChangeRequest: *c.gitCRRecord.domain(), RepositoryPath: c.FullPath, ProviderID: c.ProviderID})
+		out.ChangeRequests = append(out.ChangeRequests, &gitdom.TaskChangeRequest{ChangeRequest: *c.domain(), RepositoryPath: c.FullPath, ProviderID: c.ProviderID})
 	}
 	for _, b := range brs {
 		rid, _ := uuid.Parse(b.RepositoryID)

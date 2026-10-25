@@ -176,9 +176,30 @@ type WebhookResult struct {
 	Unlinked int // events for repositories no project linked
 }
 
+// plausibleWebhookKey reports whether key could be one this instance issued
+// (hex today; letters, digits, "-" and "_" are allowed). The endpoint is public,
+// so anything else is turned away before it reaches the database, which would
+// reject a NUL byte as an error instead of a miss.
+func plausibleWebhookKey(key string) bool {
+	if key == "" || len(key) > 128 {
+		return false
+	}
+	for _, c := range key {
+		switch {
+		case c >= '0' && c <= '9', c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c == '-', c == '_':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
 // CheckWebhookEndpoint reports whether key names a webhook endpoint that can
 // receive deliveries, so the public handler can refuse before reading a body.
 func (s *Service) CheckWebhookEndpoint(ctx context.Context, key string) error {
+	if !plausibleWebhookKey(key) {
+		return gitdom.ErrNotFound
+	}
 	ep, err := s.store.FindWebhookEndpoint(ctx, key)
 	if err != nil {
 		return err
@@ -192,6 +213,9 @@ func (s *Service) CheckWebhookEndpoint(ctx context.Context, key string) error {
 // HandleWebhook verifies a delivery through the provider and stores its events
 // in the inbox, once per linked repository. A redelivery is a no-op.
 func (s *Service) HandleWebhook(ctx context.Context, endpointKey string, d Delivery) (*WebhookResult, error) {
+	if !plausibleWebhookKey(endpointKey) {
+		return nil, gitdom.ErrNotFound
+	}
 	ep, err := s.store.FindWebhookEndpoint(ctx, endpointKey)
 	if err != nil {
 		return nil, err

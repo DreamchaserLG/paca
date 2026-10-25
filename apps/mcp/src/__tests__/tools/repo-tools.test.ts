@@ -110,6 +110,27 @@ describe("handleRepoTool – list_repositories", () => {
 		expect(text).not.toContain("pluginId");
 	});
 
+	it("never prints credentials a provider put in a clone URL", async () => {
+		const client = makeClient({
+			listGitRepositories: vi.fn().mockResolvedValue([
+				{
+					...widgets,
+					clone_url:
+						"https://x-access-token:ghs_leaked@github.com/acme/widgets.git",
+				},
+			]),
+		});
+		const result = await handleRepoTool(
+			"list_repositories",
+			{ projectId: "p1" },
+			client,
+		);
+		expect(result.content[0].text).not.toContain("ghs_leaked");
+		expect(result.content[0].text).toContain(
+			"https://github.com/acme/widgets.git",
+		);
+	});
+
 	it("returns an error message when the API fails", async () => {
 		const client = makeClient({
 			listGitRepositories: vi.fn().mockRejectedValue(new Error("boom")),

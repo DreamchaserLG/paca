@@ -219,6 +219,9 @@ func (s *Service) HandleWebhook(ctx context.Context, endpointKey string, d Deliv
 			}
 			res.Stored++
 			if err := s.trackChangeRequest(ctx, repo, ev); err != nil {
+				// A redelivery is dropped as a replay, so a row whose cache update
+				// failed must not stay behind: remove it and let the platform retry.
+				_ = s.store.DeleteInboxEvent(ctx, ev.ID, repo.ID)
 				return nil, err
 			}
 		}
@@ -241,8 +244,23 @@ func (s *Service) trackChangeRequest(ctx context.Context, repo *gitdom.Repositor
 	if sub.Head != nil {
 		cr.HeadRef, cr.HeadSHA = sub.Head.Ref, sub.Head.SHA
 	}
-	if ev.Kind == gitprovider.EventChangeRequest {
+	switch ev.Kind { //nolint:exhaustive // the early return above leaves only these two kinds
+	case gitprovider.EventChangeRequest:
 		cr.Title = ev.Text
+		if ev.Action == "merged" {
+			now := s.now().UTC()
+			cr.MergedAt = &now
+		}
+	case gitprovider.EventReview:
+		// A review says nothing about the request's lifecycle or draft state:
+		// keep what the cache has rather than reset a merged request to open.
+		cur, err := s.store.FindChangeRequest(ctx, repo.ID, sub.Number)
+		switch {
+		case err == nil:
+			cr.State, cr.Draft, cr.MergedAt = cur.State, cur.Draft, cur.MergedAt
+		case !errors.Is(err, gitdom.ErrNotFound):
+			return err
+		}
 	}
 	_, err := s.saveChangeRequest(ctx, repo, cr)
 	return err

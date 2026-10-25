@@ -1,6 +1,7 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { PacaAPIClient } from "../api/index.js";
+import { stripCredentials } from "../git/credential-broker.js";
 import {
 	defaultGitExec,
 	type GitExec,
@@ -213,7 +214,7 @@ export async function handleRepoTool(
 					`${i + 1}. ${repo.full_path}`,
 					`   Provider: ${repo.provider_id} (${repo.host})`,
 					`   Repository ID: ${repo.id}`,
-					`   Clone URL: ${repo.clone_url}`,
+					`   Clone URL: ${stripCredentials(repo.clone_url)}`,
 					...(repo.default_branch
 						? [`   Default branch: ${repo.default_branch}`]
 						: []),

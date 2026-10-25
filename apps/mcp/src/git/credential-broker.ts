@@ -28,11 +28,12 @@ const MAX_REQUESTS_PER_COMMAND = 8;
 /** "https://host:8443/o/r.git" -> { host: "host:8443", path: "o/r" } (lower-cased host). */
 export function splitRemote(
 	url: string,
-): { host: string; path: string } | null {
+): { scheme: string; host: string; path: string } | null {
 	try {
 		const u = new URL(url);
 		if (u.protocol !== "https:" && u.protocol !== "http:") return null;
 		return {
+			scheme: u.protocol.slice(0, -1),
 			host: u.host.toLowerCase(),
 			path: u.pathname
 				.replace(/^\/+/, "")
@@ -102,7 +103,11 @@ export async function withCredentialBroker<T>(
 				.replace(/^\/+/, "")
 				.replace(/\.git$/, "")
 				.replace(/\/+$/, "");
+			// The scheme too: git must not be talked into sending the credential
+			// over http to a host the remote names with https (git-runner allows
+			// http for remotes that really are http).
 			if (
+				String(q.protocol ?? "").toLowerCase() !== expected.scheme ||
 				String(q.host ?? "").toLowerCase() !== expected.host ||
 				path !== expected.path
 			) {

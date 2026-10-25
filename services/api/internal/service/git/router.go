@@ -712,6 +712,12 @@ func (r *Router) launch(ctx context.Context, in *gitdom.InboxEvent, repo *gitdom
 	run := &gitdom.Run{EventID: in.EventID, RepositoryID: repo.ID, AgentID: d.agent.ID, Trigger: d.trigger,
 		SubjectKind: subjectKind, SubjectNumber: number, HeadSHA: headSHA, Status: gitdom.RunRunning}
 	created, err := r.svc.store.CreateRun(ctx, run)
+	if errors.Is(err, gitdom.ErrRunActive) {
+		// Another event (or replica) started a run on this subject in the
+		// meantime: wait for it, as for an active run found above.
+		out.deferred = true
+		return nil
+	}
 	if err != nil {
 		return err
 	}

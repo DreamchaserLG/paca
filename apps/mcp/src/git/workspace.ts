@@ -283,11 +283,14 @@ function authFor(
 		: undefined;
 }
 
-function sanitizeSlug(s: string): string {
+export function sanitizeSlug(s: string): string {
 	return (
 		s
 			.replace(/[^A-Za-z0-9._-]+/g, "-")
-			.replace(/^-+|-+$/g, "")
+			// "." and ".." are path components, not names: a slug of ".." would
+			// make join(root, slug) the checkout root itself.
+			.replace(/\.{2,}/g, ".")
+			.replace(/^[-.]+|[-.]+$/g, "")
 			.slice(0, 60) || "wt"
 	);
 }

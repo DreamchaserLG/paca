@@ -97,7 +97,7 @@ func providerError(err error) error {
 // providerDetail is a provider's explanation, capped, for the cases where the
 // caller can act on it.
 func providerDetail(pe *gitprovider.Error) string {
-	msg := strings.TrimSpace(pe.Message)
+	msg := strings.TrimSpace(gitsvc.RedactSecrets(pe.Message))
 	if msg == "" {
 		return ""
 	}

@@ -383,7 +383,7 @@ func (s *Service) GetCheckLogs(ctx context.Context, sc Scope, checkID string, ta
 	logs, err := run(s, ctx, sc, t, "checks.logs", checkID, func() (gitprovider.Logs, error) {
 		return t.api.GetCheckLogs(ctx, gitprovider.CheckLogsRequest{Target: t.target, CheckID: checkID, TailBytes: tailBytes})
 	})
-	logs.Text = redactSecrets(logs.Text)
+	logs.Text = RedactSecrets(logs.Text)
 	return logs, err
 }
 

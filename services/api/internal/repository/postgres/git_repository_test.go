@@ -674,3 +674,63 @@ func TestGitStore_TaskLinksCanBeRemoved(t *testing.T) {
 		t.Fatalf("the cached request must remain: %v", err)
 	}
 }
+
+func TestGitStore_ReviewFixes(t *testing.T) {
+	s, fx := newGitFx(t)
+	ctx := t.Context()
+	project := fx.project()
+
+	// A repository path is case-insensitive: the second spelling is already linked.
+	linkRepo(t, s, project, "Acme/Web", nil)
+	dup := &gitdom.Repository{ProjectID: project, ProviderID: "com.paca.github", Host: "github.com", FullPath: "acme/web"}
+	if err := s.CreateRepository(ctx, dup); !errors.Is(err, gitdom.ErrAlreadyLinked) {
+		t.Fatalf("a path differing only in case must be refused: %v", err)
+	}
+
+	// One unfinished run per agent and subject, even across different events.
+	repo := linkRepo(t, s, project, "acme/api", nil)
+	agent := fx.agent(nil, false)
+	first := &gitdom.Run{EventID: "e1", RepositoryID: repo.ID, AgentID: agent, Trigger: gitdom.TriggerMention, SubjectKind: "change_request", SubjectNumber: "7"}
+	if ok, err := s.CreateRun(ctx, first); err != nil || !ok {
+		t.Fatalf("first run: %v %v", ok, err)
+	}
+	second := &gitdom.Run{EventID: "e2", RepositoryID: repo.ID, AgentID: agent, Trigger: gitdom.TriggerMention, SubjectKind: "change_request", SubjectNumber: "7"}
+	if ok, err := s.CreateRun(ctx, second); !errors.Is(err, gitdom.ErrRunActive) || ok {
+		t.Fatalf("a second unfinished run on the subject must be refused: %v %v", ok, err)
+	}
+	if ok, err := s.CreateRun(ctx, &gitdom.Run{EventID: "e3", RepositoryID: repo.ID, AgentID: agent, Trigger: gitdom.TriggerMention, SubjectKind: "change_request", SubjectNumber: "8"}); err != nil || !ok {
+		t.Fatalf("another subject is fine: %v %v", ok, err)
+	}
+	other := fx.agent(nil, false)
+	if ok, err := s.CreateRun(ctx, &gitdom.Run{EventID: "e4", RepositoryID: repo.ID, AgentID: other, Trigger: gitdom.TriggerMention, SubjectKind: "change_request", SubjectNumber: "7"}); err != nil || !ok {
+		t.Fatalf("another agent is fine: %v %v", ok, err)
+	}
+	first.Status = gitdom.RunSucceeded
+	if err := s.UpdateRun(ctx, first); err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := s.CreateRun(ctx, second); err != nil || !ok {
+		t.Fatalf("once the first run finished the subject is free: %v %v", ok, err)
+	}
+
+	// A deleted task cannot be linked to.
+	task := uuid.New()
+	pgExec(t, fx.db, `INSERT INTO tasks (id, project_id, task_number, title) VALUES ($1,$2,5,'t')`, task, project)
+	if ok, _ := s.TaskInProject(ctx, project, task); !ok {
+		t.Fatal("a live task is in its project")
+	}
+	pgExec(t, fx.db, `UPDATE tasks SET deleted_at = NOW() WHERE id = $1`, task)
+	if ok, _ := s.TaskInProject(ctx, project, task); ok {
+		t.Fatal("a soft-deleted task must not be linkable")
+	}
+
+	// Removing an inbox row lets the same delivery be stored again.
+	ev := &gitdom.InboxEvent{EventID: "d1", RepositoryID: repo.ID, EndpointKey: "k", Kind: "comment", Action: "created", Payload: json.RawMessage(`{}`)}
+	_, _ = s.InsertInboxEvent(ctx, ev)
+	if err := s.DeleteInboxEvent(ctx, "d1", repo.ID); err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := s.InsertInboxEvent(ctx, ev); !ok {
+		t.Fatal("after deletion the delivery must be accepted again")
+	}
+}

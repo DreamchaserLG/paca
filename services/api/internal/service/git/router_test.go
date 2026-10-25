@@ -27,6 +27,7 @@ type routerStore struct {
 	finished      map[string]gitdom.InboxStatus
 	reasons       map[string]string
 	released      []string
+	runActive     bool // CreateRun loses the race to another run on the subject
 	claim         []*gitdom.InboxEvent
 }
 
@@ -68,6 +69,9 @@ func (s *routerStore) ReleaseInboxEvent(_ context.Context, id string, _ uuid.UUI
 	return nil
 }
 func (s *routerStore) CreateRun(_ context.Context, r *gitdom.Run) (bool, error) {
+	if s.runActive {
+		return false, gitdom.ErrRunActive
+	}
 	for _, e := range s.runs {
 		if e.EventID == r.EventID && e.RepositoryID == r.RepositoryID && e.AgentID == r.AgentID {
 			return false, nil
@@ -721,5 +725,21 @@ func TestRouter_AnIssueRunHasNoCheckToShowStatusOn(t *testing.T) {
 		if c == "SetStatus" {
 			t.Fatal("a check run needs a commit; an issue has none")
 		}
+	}
+}
+
+func TestRouter_LosingTheRaceForASubjectWaitsInsteadOfFailing(t *testing.T) {
+	fx := newRouterFx(t)
+	fx.rs.runActive = true
+	in := fx.feed(mention("@paca-bot", &gitprovider.EventSubject{Kind: gitprovider.SubjectIssue, Number: "5"}))
+	fx.tick()
+	if len(fx.starter.calls) != 0 {
+		t.Fatal("no run may start when another is already active on the subject")
+	}
+	if len(fx.rs.released) != 1 || fx.rs.released[0] != in.EventID {
+		t.Fatalf("the event must be released for a retry: %v", fx.rs.released)
+	}
+	if st, _ := fx.status(in); st != "" {
+		t.Fatalf("a deferred event is not finished: %s", st)
 	}
 }

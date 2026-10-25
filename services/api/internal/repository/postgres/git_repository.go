@@ -394,6 +394,14 @@ func (s *GitRepository) InsertInboxEvent(ctx context.Context, e *gitdom.InboxEve
 	return n > 0, nil
 }
 
+// DeleteInboxEvent removes an inbox row.
+func (s *GitRepository) DeleteInboxEvent(ctx context.Context, eventID string, repositoryID uuid.UUID) error {
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM git_event_inbox WHERE event_id = $1 AND repository_id = $2`, eventID, repositoryID.String()); err != nil {
+		return fmt.Errorf("git repo: delete inbox event: %w", err)
+	}
+	return nil
+}
+
 // ── change requests and task links ───────────────────────────────────────────
 
 type gitCRRecord struct {

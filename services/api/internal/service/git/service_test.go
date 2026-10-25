@@ -578,3 +578,88 @@ func TestMintCredential_ScopedToProjectAndAudited(t *testing.T) {
 		t.Fatalf("unknown repository: %v", err)
 	}
 }
+
+// trackStore lets a test read back and break the change-request cache.
+type trackStore struct {
+	*fakeStore
+	cur       *gitdom.ChangeRequest
+	upsertErr error
+	deleted   []string
+}
+
+func (s *trackStore) FindChangeRequest(context.Context, uuid.UUID, string) (*gitdom.ChangeRequest, error) {
+	if s.cur == nil {
+		return nil, gitdom.ErrNotFound
+	}
+	return s.cur, nil
+}
+func (s *trackStore) UpsertChangeRequest(ctx context.Context, cr *gitdom.ChangeRequest) (*gitdom.ChangeRequest, error) {
+	if s.upsertErr != nil {
+		return nil, s.upsertErr
+	}
+	return s.fakeStore.UpsertChangeRequest(ctx, cr)
+}
+func (s *trackStore) DeleteInboxEvent(_ context.Context, id string, repo uuid.UUID) error {
+	s.deleted = append(s.deleted, id)
+	delete(s.inbox, id+"|"+repo.String())
+	return nil
+}
+
+func TestHandleWebhook_AReviewNeverRewindsALifecycleState(t *testing.T) {
+	ctx := context.Background()
+	fs, pr := newFakeStore(), &fakeProv{}
+	ts := &trackStore{fakeStore: fs}
+	svc := New(ts, fakeProviders{p: pr})
+	ident := fs.addIdentity("bot", "a")
+	fs.endpoints["k"] = &gitdom.WebhookEndpoint{Key: "k", ProviderID: "p", IdentityID: &ident.ID}
+	linked(fs, uuid.New(), "acme/web")
+	merged := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	ts.cur = &gitdom.ChangeRequest{Number: "7", State: "merged", Draft: false, MergedAt: &merged}
+
+	review := prEvent("r1", "submitted", "feat/x", "")
+	review.Kind = gitprovider.EventReview
+	pr.events = []gitprovider.Event{review}
+	if _, err := svc.HandleWebhook(ctx, "k", Delivery{Method: "POST"}); err != nil {
+		t.Fatal(err)
+	}
+	saved := fs.crs[len(fs.crs)-1]
+	if saved.State != "merged" || saved.MergedAt == nil || !saved.MergedAt.Equal(merged) {
+		t.Fatalf("a review on a merged request must keep it merged: %+v", saved)
+	}
+
+	// A "merged" event records when.
+	pr.events = []gitprovider.Event{prEvent("m1", "merged", "feat/x", "Add")}
+	_, _ = svc.HandleWebhook(ctx, "k", Delivery{Method: "POST"})
+	if got := fs.crs[len(fs.crs)-1]; got.State != "merged" || got.MergedAt == nil {
+		t.Fatalf("merged event: %+v", got)
+	}
+	// And a reopening or a push clears it.
+	pr.events = []gitprovider.Event{prEvent("o1", "synchronized", "feat/x", "Add")}
+	_, _ = svc.HandleWebhook(ctx, "k", Delivery{Method: "POST"})
+	if got := fs.crs[len(fs.crs)-1]; got.State != "open" || got.MergedAt != nil {
+		t.Fatalf("an update of an open request: %+v", got)
+	}
+}
+
+func TestHandleWebhook_AFailedCacheUpdateDoesNotMakeTheRetryAReplay(t *testing.T) {
+	ctx := context.Background()
+	fs, pr := newFakeStore(), &fakeProv{}
+	ts := &trackStore{fakeStore: fs, upsertErr: errors.New("db down")}
+	svc := New(ts, fakeProviders{p: pr})
+	ident := fs.addIdentity("bot", "a")
+	fs.endpoints["k"] = &gitdom.WebhookEndpoint{Key: "k", ProviderID: "p", IdentityID: &ident.ID}
+	linked(fs, uuid.New(), "acme/web")
+	pr.events = []gitprovider.Event{prEvent("e1", "opened", "feat/x", "Add")}
+
+	if _, err := svc.HandleWebhook(ctx, "k", Delivery{Method: "POST"}); err == nil {
+		t.Fatal("the failure must reach the platform so it retries")
+	}
+	if len(ts.deleted) != 1 || ts.deleted[0] != "e1" {
+		t.Fatalf("the inbox row must be removed: %v", ts.deleted)
+	}
+	ts.upsertErr = nil
+	res, err := svc.HandleWebhook(ctx, "k", Delivery{Method: "POST"})
+	if err != nil || res.Stored != 1 || res.Replayed != 0 || len(fs.crs) != 1 {
+		t.Fatalf("the redelivery must be processed, not dropped: %+v %v crs=%d", res, err, len(fs.crs))
+	}
+}

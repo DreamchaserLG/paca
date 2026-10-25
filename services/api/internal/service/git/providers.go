@@ -2,6 +2,8 @@ package gitsvc
 
 import (
 	"context"
+	"strings"
+	"sync"
 
 	gitdom "github.com/Paca-AI/api/internal/domain/git"
 	plugindom "github.com/Paca-AI/api/internal/domain/plugin"
@@ -22,11 +24,51 @@ func (f DoerFunc) Do(ctx context.Context, pluginName, method, path string, body 
 type PluginProviders struct {
 	plugins plugindom.PluginRepository
 	doer    gitprovider.Doer
+
+	mu       sync.Mutex
+	verified map[string]string // plugin name → plugin version whose SPI major matched
 }
 
 // NewPluginProviders returns a Providers backed by the plugin registry and runtime.
 func NewPluginProviders(plugins plugindom.PluginRepository, doer gitprovider.Doer) *PluginProviders {
-	return &PluginProviders{plugins: plugins, doer: doer}
+	return &PluginProviders{plugins: plugins, doer: doer, verified: map[string]string{}}
+}
+
+// spiMajor is the compatibility part of an SPI version: "gitprovider.v1" and
+// "gitprovider.v1.2" are both "v1".
+func spiMajor(v string) string {
+	rest := strings.TrimPrefix(v, "gitprovider.")
+	major, _, _ := strings.Cut(rest, ".")
+	return major
+}
+
+// speaksOurSPI reports whether a provider's reported version has the major
+// version core implements.
+func speaksOurSPI(v string) bool {
+	return strings.HasPrefix(v, "gitprovider.") && spiMajor(v) == spiMajor(gitprovider.SPIVersion)
+}
+
+// verify asks a provider plugin for its SPI version once per installed plugin
+// version, refusing one whose major version core does not speak: its wire
+// shapes could be decoded into accepted but wrong results.
+func (p *PluginProviders) verify(ctx context.Context, name, version string) error {
+	p.mu.Lock()
+	ok := p.verified[name] == version
+	p.mu.Unlock()
+	if ok {
+		return nil
+	}
+	info, err := gitprovider.NewClient(p.doer, name).Describe(ctx)
+	if err != nil {
+		return gitdom.ErrProviderUnavailable
+	}
+	if !speaksOurSPI(info.SPIVersion) {
+		return gitdom.ErrProviderUnavailable
+	}
+	p.mu.Lock()
+	p.verified[name] = version
+	p.mu.Unlock()
+	return nil
 }
 
 // Provider returns a client for the enabled provider plugin with the given id,
@@ -38,6 +80,9 @@ func (p *PluginProviders) Provider(ctx context.Context, providerID string) (Prov
 	}
 	for _, pl := range list {
 		if pl.Name == providerID && pl.Enabled {
+			if err := p.verify(ctx, pl.Name, pl.Version); err != nil {
+				return nil, err
+			}
 			return gitprovider.NewClient(p.doer, pl.Name), nil
 		}
 	}
@@ -69,7 +114,7 @@ func (p *PluginProviders) List(ctx context.Context) ([]gitprovider.Info, error) 
 		if !pl.Enabled {
 			continue
 		}
-		if info, err := gitprovider.NewClient(p.doer, pl.Name).Describe(ctx); err == nil {
+		if info, err := gitprovider.NewClient(p.doer, pl.Name).Describe(ctx); err == nil && speaksOurSPI(info.SPIVersion) {
 			out = append(out, info)
 		}
 	}

@@ -54,6 +54,10 @@ type Store interface {
 	// reporting whether it was new — the idempotency guard for redelivery.
 	InsertInboxEvent(ctx context.Context, e *InboxEvent) (inserted bool, err error)
 
+	// DeleteInboxEvent removes an inbox row, so a delivery that could not be
+	// fully processed is not taken for a replay when the platform sends it again.
+	DeleteInboxEvent(ctx context.Context, eventID string, repositoryID uuid.UUID) error
+
 	// ── change requests and task links ──
 	UpsertChangeRequest(ctx context.Context, cr *ChangeRequest) (*ChangeRequest, error)
 	LinkTaskToChangeRequest(ctx context.Context, taskID, changeRequestID uuid.UUID) error

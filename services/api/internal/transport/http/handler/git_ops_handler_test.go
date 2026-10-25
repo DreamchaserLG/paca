@@ -329,3 +329,18 @@ func TestGitOpsHandler_TaskLinks(t *testing.T) {
 		t.Fatalf("validation: %d", rec.Code)
 	}
 }
+
+func TestGitOpsHandler_ProviderDetailIsRedacted(t *testing.T) {
+	agent, project, repo := uuid.New(), uuid.New(), uuid.New()
+	url := fmt.Sprintf("/projects/%s/git/repositories/%s/change-requests/1", project, repo)
+	msg := "request to https://u:pw123@host/x failed: token ghp_abcdefghijklmnopqrstuvwxyz0123456789, DB_PASSWORD=hunter2"
+	rec := serveOps(t, &fakeOps{err: &gitprovider.Error{Code: gitprovider.CodeValidation, Message: msg}}, "GET", url, "", &agent, nil)
+	if rec.Code != 400 {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	for _, secret := range []string{"pw123", "ghp_abcdef", "hunter2"} {
+		if strings.Contains(rec.Body.String(), secret) {
+			t.Errorf("the provider's message leaked %q: %s", secret, rec.Body)
+		}
+	}
+}

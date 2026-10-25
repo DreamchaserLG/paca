@@ -19,6 +19,8 @@ var (
 	ErrRateLimited = errors.New("git: rate limited")
 	// ErrInvalidInput means the request is malformed in a way only core can tell.
 	ErrInvalidInput = errors.New("git: invalid request")
+	// ErrRunActive means the agent already has an unfinished run on the subject.
+	ErrRunActive = errors.New("git: the agent already has an unfinished run on this subject")
 	// ErrIdentityExists means the host already has a shared identity.
 	ErrIdentityExists = errors.New("git: a shared identity already exists for this host")
 )

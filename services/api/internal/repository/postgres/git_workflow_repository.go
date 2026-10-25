@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	gitdom "github.com/Paca-AI/api/internal/domain/git"
 )
@@ -273,6 +274,10 @@ func (s *GitRepository) CreateRun(ctx context.Context, r *gitdom.Run) (bool, err
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "uq_git_runs_active_subject" {
+		return false, gitdom.ErrRunActive
+	}
 	if err != nil {
 		return false, fmt.Errorf("git repo: create run: %w", err)
 	}
@@ -357,7 +362,7 @@ func (s *GitRepository) ListTaskGit(ctx context.Context, projectID, taskID uuid.
 		JOIN git_change_requests c ON c.id = l.change_request_id
 		JOIN git_repositories g ON g.id = c.repository_id
 		JOIN tasks t ON t.id = l.task_id
-		WHERE l.task_id = $1 AND t.project_id = $2 AND g.project_id = $2
+		WHERE l.task_id = $1 AND t.project_id = $2 AND t.deleted_at IS NULL AND g.project_id = $2
 		ORDER BY c.updated_at DESC`, taskID.String(), projectID.String()); err != nil {
 		return nil, fmt.Errorf("git repo: list task change requests: %w", err)
 	}
@@ -372,7 +377,7 @@ func (s *GitRepository) ListTaskGit(ctx context.Context, projectID, taskID uuid.
 		FROM git_task_branches b
 		JOIN git_repositories g ON g.id = b.repository_id
 		JOIN tasks t ON t.id = b.task_id
-		WHERE b.task_id = $1 AND t.project_id = $2 AND g.project_id = $2
+		WHERE b.task_id = $1 AND t.project_id = $2 AND t.deleted_at IS NULL AND g.project_id = $2
 		ORDER BY b.created_at DESC`, taskID.String(), projectID.String()); err != nil {
 		return nil, fmt.Errorf("git repo: list task branches: %w", err)
 	}
@@ -390,7 +395,7 @@ func (s *GitRepository) ListTaskGit(ctx context.Context, projectID, taskID uuid.
 // TaskInProject reports whether the task belongs to the project.
 func (s *GitRepository) TaskInProject(ctx context.Context, projectID, taskID uuid.UUID) (bool, error) {
 	var ok bool
-	if err := s.db.GetContext(ctx, &ok, `SELECT EXISTS (SELECT 1 FROM tasks WHERE id = $1 AND project_id = $2)`, taskID.String(), projectID.String()); err != nil {
+	if err := s.db.GetContext(ctx, &ok, `SELECT EXISTS (SELECT 1 FROM tasks WHERE id = $1 AND project_id = $2 AND deleted_at IS NULL)`, taskID.String(), projectID.String()); err != nil {
 		return false, fmt.Errorf("git repo: task in project: %w", err)
 	}
 	return ok, nil

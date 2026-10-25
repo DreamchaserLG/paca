@@ -19,11 +19,15 @@ var secretPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`\bsk-[A-Za-z0-9_\-]{20,}\b`),
 	regexp.MustCompile(`(?i)\b(bearer|token)\s+[A-Za-z0-9._\-]{24,}`),
 	regexp.MustCompile(`(?i)(://[^/\s:@]+:)[^@\s/]+(@)`),
-	regexp.MustCompile(`(?i)\b((?:password|passwd|secret|api[_-]?key|access[_-]?token)\s*[=:]\s*)\S+`),
+	// No leading \b: names like DB_PASSWORD, STRIPE_API_KEY or GITHUB_ACCESS_TOKEN
+	// have a word character (the underscore) before the keyword.
+	regexp.MustCompile(`(?i)([A-Za-z0-9_]*(?:password|passwd|secret|api[_-]?key|access[_-]?token)[A-Za-z0-9_]*\s*[=:]\s*)\S+`),
 	regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(-----END [A-Z ]*PRIVATE KEY-----|$)`),
 }
 
-func redactSecrets(text string) string {
+// RedactSecrets masks credentials that commonly leak into text a caller will
+// see: CI logs and error messages a provider relays.
+func RedactSecrets(text string) string {
 	for i, re := range secretPatterns {
 		switch i {
 		case 7:

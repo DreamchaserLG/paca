@@ -48,7 +48,7 @@ const PROJECT_ROUTE_RE = /^\/projects\/[^/]+/;
 const CONVERSATIONS_ROUTE_RE = /^\/conversations(\/|$)/;
 
 export const Route = createFileRoute("/_authenticated")({
-	beforeLoad: async ({ context: { queryClient } }) => {
+	beforeLoad: async ({ context: { queryClient }, location }) => {
 		const user = await queryClient
 			.fetchQuery(currentUserQueryOptions)
 			.catch((err: unknown) => {
@@ -61,7 +61,15 @@ export const Route = createFileRoute("/_authenticated")({
 		// Every authenticated route, project routes included, needs a signed-in
 		// user: there are no public projects.
 		if (!user) {
-			throw redirect({ to: "/" });
+			// Carry the page the user was heading to through sign-in, so a
+			// deep link — notably a plugin callback such as a GitHub App
+			// installation return, whose one-time parameters can't be
+			// reproduced — survives a fully expired session.
+			throw redirect({
+				to: "/",
+				search:
+					location.pathname === "/home" ? {} : { redirect: location.href },
+			});
 		}
 
 		if (user?.must_change_password) {

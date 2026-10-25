@@ -25,6 +25,7 @@ import {
 	FolderKanban,
 	FolderOpen,
 	GanttChart,
+	GitBranch,
 	Home,
 	KanbanSquare,
 	Loader2,
@@ -1811,6 +1812,8 @@ export function AppSidebar() {
 	const canAccessSettings =
 		hasPermission("settings:write") || hasPermission("settings.sso:write");
 
+	const canAccessGit = hasPermission("git.identities:manage");
+
 	const canCreateProject = hasPermission("projects:create");
 
 	// A plugin admin nav item is only listed for callers who hold its
@@ -1828,6 +1831,7 @@ export function AppSidebar() {
 		canAccessGlobalAgents ||
 		canAccessServiceAccounts ||
 		canAccessPlugins ||
+		canAccessGit ||
 		canAccessSettings;
 	// Plugin-contributed admin pages get their own sidebar section, separate
 	// from core workspace administration.
@@ -1962,6 +1966,13 @@ export function AppSidebar() {
 													icon={Puzzle}
 													label={t("nav.plugins")}
 													exact
+												/>
+											) : null}
+											{canAccessGit ? (
+												<NavItem
+													to="/admin/git"
+													icon={GitBranch}
+													label={t("nav.git")}
 												/>
 											) : null}
 											{canAccessSettings ? (

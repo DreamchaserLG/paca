@@ -7,6 +7,7 @@ import {
 	CircleCheck,
 	Code2,
 	ExternalLink,
+	GitBranch,
 	KeyRound,
 	Loader2,
 	Plus,
@@ -94,6 +95,7 @@ import {
 } from "@/lib/environment-api";
 import { agentAvatar } from "@/lib/provider-logos";
 import { splitShellCommand } from "@/lib/shell-command";
+import { AgentGitTab } from "./AgentGitTab";
 import { AcpBridgeSetup } from "./acp-bridge-setup";
 import { AgentActivityTab } from "./agent-activity-tab";
 import { AgentGlobalRoleTab } from "./agent-global-role-tab";
@@ -117,6 +119,7 @@ type Tab =
 	| "skills"
 	| "env-vars"
 	| "global-role"
+	| "git"
 	| "activity";
 
 const CUSTOM = "__custom__";
@@ -1903,6 +1906,7 @@ const TABS = [
 		labelKey: "agents.detail.tabs.globalRole",
 		icon: ShieldCheck,
 	},
+	{ id: "git", labelKey: "agents.detail.tabs.git", icon: GitBranch },
 	{
 		id: "activity",
 		labelKey: "agents.detail.tabs.activity",
@@ -1997,6 +2001,8 @@ export function AgentDetailView({
 			return false;
 		}
 		if (tab.id === "global-role" && projectId) return false;
+		// An agent's Git identity is managed through its project's endpoints.
+		if (tab.id === "git" && !projectId) return false;
 		if (agent?.agent_type === "acp" && acpHiddenTabs.includes(tab.id)) {
 			return false;
 		}
@@ -2163,6 +2169,13 @@ export function AgentDetailView({
 				)}
 				{activeTab === "global-role" && !projectId && (
 					<AgentGlobalRoleTab agent={agent} canWrite={canWrite} />
+				)}
+				{activeTab === "git" && projectId && (
+					<AgentGitTab
+						projectId={projectId}
+						agentId={agentId}
+						canWrite={canWrite}
+					/>
 				)}
 				{activeTab === "activity" && projectId && (
 					<AgentActivityTab projectId={projectId} agentId={agentId} />

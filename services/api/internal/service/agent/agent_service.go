@@ -2896,12 +2896,12 @@ func (s *Service) createGlobalConversation(ctx context.Context, agentID, actorAc
 	return conv, nil
 }
 
-// gatherRepoPlugins returns all installed plugins with the "repository" capability.
+// gatherRepoPlugins returns all installed Git provider plugins.
 func (s *Service) gatherRepoPlugins(ctx context.Context) []*plugindom.Plugin {
 	if s.pluginRepo == nil {
 		return nil
 	}
-	plugins, err := s.pluginRepo.FindByCapability(ctx, "repository")
+	plugins, err := s.pluginRepo.FindByCapability(ctx, plugindom.CapabilityGitProvider)
 	if err != nil {
 		return nil
 	}
@@ -2909,7 +2909,7 @@ func (s *Service) gatherRepoPlugins(ctx context.Context) []*plugindom.Plugin {
 }
 
 // gatherRepoPluginIDs returns the string Names (e.g. "com.paca.github") of all
-// installed plugins with the "repository" capability. These are the identifiers
+// installed Git provider plugins. These are the identifiers
 // used in plugin API paths and published to the agent trigger stream.
 func (s *Service) gatherRepoPluginIDs(ctx context.Context) []string {
 	names := []string{}

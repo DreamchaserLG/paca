@@ -3,6 +3,7 @@ import { createFileRoute, useRouterState } from "@tanstack/react-router";
 import {
 	AlertTriangle,
 	Download,
+	GitBranch,
 	LayoutList,
 	Plus,
 	Settings,
@@ -16,6 +17,7 @@ import { CustomFieldsSettings } from "@/components/projects/settings/CustomField
 import { DangerZone } from "@/components/projects/settings/DangerZone";
 import { ExportSettings } from "@/components/projects/settings/ExportSettings";
 import { GeneralSettings } from "@/components/projects/settings/GeneralSettings";
+import { GitSettings } from "@/components/projects/settings/GitSettings";
 import { JevSettings } from "@/components/projects/settings/JevSettings";
 import { RolesSettings } from "@/components/projects/settings/RolesSettings";
 import { TaskStatusesSettings } from "@/components/projects/settings/TaskStatusesSettings";
@@ -78,6 +80,11 @@ const NAV_ITEMS = [
 		icon: Plus,
 	},
 	{
+		id: "git",
+		labelKey: "project.settingsPage.nav.git",
+		icon: GitBranch,
+	},
+	{
 		id: "jev",
 		labelKey: "project.settingsPage.nav.jev",
 		icon: Sparkles,
@@ -130,6 +137,14 @@ function SettingsPage() {
 	const canExport =
 		hasPermission("project:export") || hasProjectPermission("project:export");
 
+	// Linking repositories rides on git:read / git:write (see the router gates).
+	const canWriteGit =
+		hasPermission("git:write") || hasProjectPermission("git:write");
+	const canReadGit =
+		canWriteGit ||
+		hasPermission("git:read") ||
+		hasProjectPermission("git:read");
+
 	const canReadRoles =
 		canManageRoles ||
 		hasPermission("roles:read") ||
@@ -147,6 +162,7 @@ function SettingsPage() {
 		if (i.id === "danger") return canDelete;
 		if (i.id === "export") return canExport;
 		if (i.id === "roles") return canReadRoles;
+		if (i.id === "git") return canReadGit;
 		return true;
 	});
 
@@ -156,6 +172,7 @@ function SettingsPage() {
 		| "task-statuses"
 		| "task-types"
 		| "custom-fields"
+		| "git"
 		| "jev"
 		| "export"
 		| "danger"
@@ -315,6 +332,9 @@ function SettingsPage() {
 								projectId={projectId}
 								canWrite={canManageCustomFields}
 							/>
+						)}
+						{activeSection === "git" && canReadGit && (
+							<GitSettings projectId={projectId} canWrite={canWriteGit} />
 						)}
 						{activeSection === "jev" && (
 							<JevSettings projectId={projectId} canEdit={canEditProject} />

@@ -10,6 +10,7 @@
 				"taskStatuses": "Estados de tarea",
 				"taskTypes": "Tipos de tarea",
 				"customFields": "Campos personalizados",
+				"git": "Git",
 				"jev": "Jev IA",
 				"dangerZone": "Zona de peligro",
 				"plugins": "Plugins",
@@ -19,6 +20,112 @@
 				"noPermission": {
 					"title": "No tienes permiso para ver esta pestaña",
 					"description": "Pide a un propietario o administrador del proyecto que te conceda acceso a {{pluginName}}."
+				}
+			}
+		},
+		"git": {
+			"title": "Repositorios Git",
+			"description": "Repositorios en los que pueden trabajar los agentes de este proyecto, mediante la identidad Git compartida del espacio de trabajo.",
+			"empty": "Aún no hay repositorios vinculados.",
+			"noProviders": "No hay ningún proveedor de Git instalado. Pide a un administrador que instale uno.",
+			"link": {
+				"title": "Vincular un repositorio",
+				"platform": "Plataforma",
+				"repository": "Repositorio",
+				"placeholder": "propietario/nombre o URL del repositorio",
+				"button": "Vincular"
+			},
+			"unlink": {
+				"button": "Desvincular",
+				"confirm": "Confirmar",
+				"cancel": "Cancelar"
+			},
+			"resumed": "Bienvenido de nuevo. Vincula {{repository}} ahora.",
+			"access": {
+				"title": "La identidad compartida no puede ver este repositorio",
+				"description": "La identidad de {{provider}} solo ve los repositorios de las cuentas donde está instalada. Instálala en {{owner}} (irás a la plataforma y volverás aquí) y vuelve a vincular.",
+				"descriptionNoOwner": "La identidad de {{provider}} solo ve los repositorios de las cuentas donde está instalada. Elige dónde instalarla (irás a la plataforma y volverás aquí) y vuelve a vincular.",
+				"button": "Instalar en {{owner}}",
+				"buttonNoOwner": "Elegir dónde instalar"
+			},
+			"errors": {
+				"generic": "Algo salió mal. Inténtalo de nuevo.",
+				"setupInvalid": "Este enlace no es válido, ha caducado o ya se usó. Empieza de nuevo.",
+				"identityExists": "Ya existe una identidad aquí.",
+				"publicUrlRequired": "La URL pública de la instancia (PUBLIC_URL) no está configurada.",
+				"providerUnavailable": "El plugin del proveedor de Git no está disponible.",
+				"providerRejected": "La plataforma rechazó la solicitud.",
+				"notFound": "No encontrado.",
+				"accessNotGranted": "La identidad compartida no puede ver este repositorio.",
+				"noIdentity": "Aún no hay una identidad Git compartida para esta plataforma. Un administrador del espacio de trabajo la configura en Administración → Git.",
+				"alreadyLinked": "Este repositorio ya está vinculado al proyecto."
+			},
+			"workflow": {
+				"title": "Automatización de agentes",
+				"description": "Cómo la actividad de Git pone en marcha a tus agentes: quién responde a una mención que no nombra a ningún agente, qué acceso necesita una persona para iniciar una ejecución y las ejecuciones iniciadas hasta ahora. Qué eventos inician a qué agente se configura en la pestaña Git de cada agente.",
+				"responder": {
+					"label": "Respondedor predeterminado",
+					"none": "Sin respondedor predeterminado",
+					"help": "Responde a menciones, etiquetas y solicitudes de revisión que no nombran a ningún agente. Añade \"agent:handle\" a un comentario para elegir otro."
+				},
+				"minPermission": {
+					"label": "Acceso mínimo para iniciar un agente",
+					"help": "Quien tenga menos acceso al repositorio puede comentar, pero el agente no se iniciará. Los bots nunca inician agentes."
+				},
+				"permission": {
+					"read": "Lectura",
+					"triage": "Triaje",
+					"write": "Escritura",
+					"maintain": "Mantenimiento",
+					"admin": "Administración"
+				},
+				"paused": {
+					"label": "Pausar la automatización",
+					"help": "Mientras esté en pausa, ninguna actividad de Git inicia un agente. Las ejecuciones en curso continúan."
+				},
+				"save": "Guardar",
+				"saved": "Guardado.",
+				"runs": {
+					"title": "Ejecuciones recientes",
+					"empty": "La actividad de Git aún no ha iniciado ninguna ejecución de agente.",
+					"open": "Abrir conversación",
+					"status": {
+						"queued": "En cola",
+						"running": "En ejecución",
+						"succeeded": "Completada",
+						"failed": "Fallida",
+						"cancelled": "Cancelada"
+					}
+				}
+			},
+			"triggerKinds": {
+				"mention": {
+					"label": "Mención",
+					"description": "Alguien menciona al bot en un comentario, una revisión o una descripción."
+				},
+				"own_cr_feedback": {
+					"label": "Comentarios en su pull request",
+					"description": "Llega una revisión o un comentario a un pull request que este agente abrió."
+				},
+				"ci_failure": {
+					"label": "Fallo de CI en su pull request",
+					"description": "Falla una comprobación en el último commit de un pull request que este agente abrió (como máximo unos pocos intentos)."
+				},
+				"review_request": {
+					"label": "Revisión solicitada",
+					"description": "Se solicita al bot como revisor, si la plataforma lo permite."
+				},
+				"assignment": {
+					"label": "Asignación",
+					"description": "Se asigna al bot a una incidencia o pull request, si la plataforma lo permite."
+				},
+				"label": {
+					"label": "Etiqueta",
+					"description": "Se añade la etiqueta \"paca\" (o \"paca:<identificador del agente>\") a una incidencia o pull request."
+				},
+				"auto_review": {
+					"label": "Revisar todos los pull requests",
+					"description": "Revisa automáticamente cada pull request nuevo. Desactivado hasta que lo actives; se omiten los borradores y los pull requests del propio agente."
 				}
 			}
 		}
@@ -175,7 +282,8 @@
 				"skills": "Skills",
 				"envVars": "Entorno",
 				"globalRole": "Rol global",
-				"activity": "Actividad"
+				"activity": "Actividad",
+				"git": "Git"
 			},
 			"globalRole": {
 				"title": "Rol global",
@@ -376,6 +484,34 @@
 			},
 			"system": {
 				"badge": "Sistema"
+			},
+			"git": {
+				"title": "Identidad Git",
+				"description": "De forma predeterminada este agente actúa con la identidad Git compartida del espacio de trabajo. Dale una identidad propia para que sus commits, pull requests y comentarios aparezcan bajo un bot distinto, e instálala en las cuentas y organizaciones cuyos repositorios usa.",
+				"providersUnavailable": "No se pudieron cargar los proveedores de Git de este proyecto.",
+				"noProviders": "No hay ningún proveedor de Git instalado.",
+				"ownIdentity": "Identidad propia",
+				"usesShared": "Usa la identidad compartida",
+				"singleIdentity": "Esta plataforma tiene una identidad por host, así que se usa la compartida.",
+				"remove": "Quitar",
+				"create": "Crear identidad",
+				"askAdmin": "Pide a un administrador del espacio de trabajo que la cree.",
+				"install": {
+					"label": "Instalar en otra cuenta u organización",
+					"placeholder": "cuenta u organización (opcional)",
+					"button": "Instalar",
+					"help": "Abre la página de instalación de la plataforma. Deja el nombre vacío para elegir la cuenta allí."
+				},
+				"triggers": {
+					"title": "Disparadores de Git",
+					"description": "Qué eventos de Git inician a este agente. Solo se muestran los eventos que los proveedores de Git instalados pueden entregar.",
+					"filters": {
+						"branches": "Solo estas ramas de destino",
+						"authors": "Solo estos autores",
+						"help": "Separados por comas. Déjalo vacío para incluir todo. Los autores que sean bots deben figurar en la lista para ser revisados.",
+						"save": "Guardar filtros"
+					}
+				}
 			}
 		},
 		"conversationView": {
@@ -896,6 +1032,22 @@
 			"projectExport": {
 				"label": "Exportar datos del proyecto",
 				"description": "Exportar las tareas (con comentarios y actividades) y la documentación de este proyecto"
+			},
+			"gitRead": {
+				"label": "Ver Git",
+				"description": "Ver los repositorios vinculados al proyecto"
+			},
+			"gitWrite": {
+				"label": "Gestionar Git",
+				"description": "Vincular y desvincular repositorios, conceder acceso a repositorios y permitir que los agentes suban cambios"
+			},
+			"gitApprove": {
+				"label": "Aprobar solicitudes de cambios",
+				"description": "Aprobar pull requests y merge requests, lo que puede cumplir una revisión obligatoria. Comentar y solicitar cambios solo requiere Gestionar Git."
+			},
+			"gitMerge": {
+				"label": "Fusionar solicitudes de cambios",
+				"description": "Fusionar pull requests y merge requests en su rama de destino. La protección de ramas de la plataforma sigue aplicándose."
 			}
 		},
 		"permissionGroups": {
@@ -911,7 +1063,8 @@
 			"environments": "Entornos",
 			"annotations": "Annotations",
 			"workflows": "Automatización",
-			"plugins": "Plugins"
+			"plugins": "Plugins",
+			"git": "Git"
 		}
 	},
 	"settings": {

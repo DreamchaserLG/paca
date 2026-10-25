@@ -98,14 +98,28 @@ This document lists all MCP tools implemented for the Paca API server.
 - `list_doc_snapshots` - List all snapshots of a document
 - `get_doc_snapshot` - Get a specific document snapshot
 
-### 14. GitHub Integration (7 tools)
-- `get_github_integration` - Get GitHub integration status for a project
-- `set_github_token` - Set GitHub token for a project
-- `delete_github_token` - Delete GitHub token for a project
-- `list_github_repositories` - List available GitHub repositories
-- `list_linked_github_repos` - List linked GitHub repositories
-- `link_github_repository` - Link a GitHub repository to a project
-- `unlink_github_repository` - Unlink a GitHub repository from a project
+### 14. Git (27 tools)
+Available when a Git provider is installed. Credentials are minted per command from the core Git API and never stored.
+- `list_repositories` - List the repositories linked to a project
+- `clone_repository` - Clone a linked repository into the workspace
+- `push_branch` - Push a branch of a linked repository
+- `workspace_inspect` - Survey the working directory and the checkouts in it
+- `workspace_prepare` - Prepare (reuse or clone, fetch, branch) a checkout
+- `git_commit` - Commit changes in a checkout
+- `git_push` - Push a branch of a linked repository
+- `change_request_get_context` - Pull/merge request with files, review threads and CI in one call
+- `change_request_get_diff` - Unified diff, whole or per file
+- `review_list_threads` - Review threads with comments and resolved state
+- `issue_get` / `comment_list` - Read an issue and the comments on an issue or pull request
+- `checks_get` / `checks_get_logs` - CI results and the tail of a failing log
+- `repo_get_file` / `repo_search_code` - Read a file or search code without a clone
+- `change_request_open` / `change_request_update` - Open or edit a pull/merge request
+- `comment_post` / `review_reply_thread` / `review_resolve_thread` - Comment and work threads
+- `review_submit` - Review with a verdict and inline comments
+- `labels_add` / `reviewers_request` / `assignees_set` - Metadata
+- `checks_rerun` - Re-run failed CI (capped)
+- `change_request_merge` - Merge (needs `git:merge` and the expected head SHA)
+
 
 ### 15. Task Activities (4 tools)
 - `list_task_activities` - List activities for a task (newest first, one page per call)
@@ -218,128 +232,22 @@ This document lists all MCP tools implemented for the Paca API server.
 - GET /api/v1/projects/:projectId/docs/:docId/snapshots
 - GET /api/v1/projects/:projectId/docs/:docId/snapshots/:snapshotId
 
-### GitHub Integration
-- GET /api/v1/projects/:projectId/github
-- PUT /api/v1/projects/:projectId/github/token
-- DELETE /api/v1/projects/:projectId/github/token
-- GET /api/v1/projects/:github/repositories
-- GET /api/v1/projects/:github/linked-repositories
-- POST /api/v1/projects/:github/linked-repositories
-- DELETE /api/v1/projects/:github/linked-repositories/:repoId
-
-### Task Activities
-- GET /api/v1/projects/:projectId/tasks/:taskId/activities
-- POST /api/v1/projects/:projectId/tasks/:taskId/activities/comments
-- PATCH /api/v1/projects/:projectId/tasks/:taskId/activities/comments/:commentId
-- DELETE /api/v1/projects/:projectId/tasks/:taskId/activities/comments/:commentId
-
-### Task GitHub
-- GET /api/v1/projects/:projectId/tasks/:taskId/github/pull-requests
-- POST /api/v1/projects/:projectId/tasks/:taskId/github/pull-requests
-- DELETE /api/v1/projects/:projectId/tasks/:taskId/github/pull-requests/:prId
-- POST /api/v1/projects/:projectId/tasks/:taskId/github/branches
-- GET /api/v1/projects/:projectId/tasks/:taskId/github/branches
-
-## File Structure
-
-```
-src/
-├── api/
-│   ├── client.ts              # Base API client
-│   ├── extended-client.ts     # Members, roles, task types, statuses
-│   ├── views-client.ts        # Views, custom fields, attachments
-│   ├── task-extended-client.ts # Activities, comments, task GitHub
-│   ├── doc-client.ts          # Doc folders, snapshots, files
-│   ├── github-client.ts       # GitHub integration
-│   └── index.ts               # Exports
-├── tools/
-│   ├── project-tools.ts       # Project tools
-│   ├── task-tools.ts          # Task tools
-│   ├── sprint-tools.ts        # Sprint tools
-│   ├── document-tools.ts      # Document tools
-│   ├── member-tools.ts        # Member & role tools
-│   ├── task-type-tools.ts     # Task type & status tools
-│   ├── view-tools.ts          # View & custom field tools
-│   ├── attachment-tools.ts    # Attachment tools
-│   ├── doc-github-tools.ts    # Doc & GitHub tools
-│   ├── task-activity-tools.ts # Task activity & GitHub tools
-│   └── index.ts               # Tool registry & router
-├── types/
-│   └── index.ts               # All type definitions
-├── utils/
-│   ├── converters.ts          # BlockNote ↔ Markdown
-│   ├── formatters.ts          # Output formatting
-│   └── index.ts               # Exports
-├── server.ts                  # MCP server setup
-└── index.ts                   # Entry point
-```
-
-## Usage Examples
-
-### Creating a Complete Workflow
+### Git
 
 ```typescript
-// 1. Create a project
-create_project({
-  name: "New Project",
-  description: "Project description"
-})
+// 1. List the repositories linked to the project
+list_repositories({ projectId: "project-id" })
 
-// 2. Add a member
-add_project_member({
+// 2. Prepare a checkout on a new branch
+workspace_prepare({
   projectId: "project-id",
-  userId: "user-id",
-  roleIds: ["role-id"]
+  repoId: "repository-id",
+  createBranch: "fix/bug-123"
 })
 
-// 3. Create a task type
-create_task_type({
-  projectId: "project-id",
-  name: "Bug",
-  color: "#ff0000"
-})
-
-// 4. Create a task
-create_task({
-  projectId: "project-id",
-  title: "Fix critical bug",
-  description: "# Bug Details\n\nSteps to reproduce...",
-  typeId: "task-type-id"
-})
-
-// 5. Add a comment
-add_task_comment({
-  projectId: "project-id",
-  taskId: "task-id",
-  text: "Ready for review."
-})
-```
-
-### GitHub Integration
-
-```typescript
-// 1. Set GitHub token
-set_github_token({
-  projectId: "project-id",
-  token: "ghp_xxxxxxxxxxxx"
-})
-
-// 2. List repositories
-list_github_repositories({ projectId: "project-id" })
-
-// 3. Link a repository
-link_github_repository({
-  projectId: "project-id",
-  owner: "username",
-  repo: "repository-name"
-})
-
-// 4. Create a branch for a task
-create_branch_for_task({
-  projectId: "project-id",
-  taskId: "task-id",
-  branchName: "fix/bug-123"
-})
+// 3. Commit and push
+git_commit({ message: "Fix bug 123", all: true })
+git_push({ projectId: "project-id", repoId: "repository-id" })
 ```
 
 ## Notes

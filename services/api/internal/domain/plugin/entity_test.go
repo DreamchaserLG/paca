@@ -384,3 +384,22 @@ func TestValidate_RejectsMalformedRequiredPermission(t *testing.T) {
 		t.Fatalf("settings:write should be valid: %v", err)
 	}
 }
+
+func TestValidate_GitProviderRoutesAreInternalOnly(t *testing.T) {
+	manifest := func(path string) PluginManifest {
+		return PluginManifest{
+			ID: "com.example.git", DisplayName: "Git", Version: "1.0.0",
+			Backend: &BackendManifest{Routes: []PluginRoute{{Method: "POST", Path: path}}},
+		}
+	}
+	for _, path := range []string{"/_git", "/_git/describe", "/_git/mint_credential"} {
+		if err := manifest(path).Validate(); err == nil || !strings.Contains(err.Error(), "internal-only") {
+			t.Errorf("%s: want an internal-only rejection, got %v", path, err)
+		}
+	}
+	for _, path := range []string{"/git", "/_gitlab/hook", "/projects/:projectId/_git"} {
+		if err := manifest(path).Validate(); err != nil {
+			t.Errorf("%s must stay allowed: %v", path, err)
+		}
+	}
+}

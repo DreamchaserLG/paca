@@ -10,6 +10,7 @@
 				"taskStatuses": "Trạng thái nhiệm vụ",
 				"taskTypes": "Loại nhiệm vụ",
 				"customFields": "Trường tùy chỉnh",
+				"git": "Git",
 				"jev": "Jev AI",
 				"dangerZone": "Khu vực nguy hiểm",
 				"plugins": "Plugin",
@@ -19,6 +20,112 @@
 				"noPermission": {
 					"title": "Bạn không có quyền xem tab này",
 					"description": "Hãy yêu cầu chủ sở hữu hoặc quản trị viên dự án cấp cho bạn quyền truy cập vào {{pluginName}}."
+				}
+			}
+		},
+		"git": {
+			"title": "Repository Git",
+			"description": "Các repository mà agent của dự án này có thể làm việc, thông qua danh tính Git dùng chung của workspace.",
+			"empty": "Chưa liên kết repository nào.",
+			"noProviders": "Chưa cài nhà cung cấp Git nào. Hãy nhờ quản trị viên cài đặt.",
+			"link": {
+				"title": "Liên kết một repository",
+				"platform": "Nền tảng",
+				"repository": "Repository",
+				"placeholder": "chủ-sở-hữu/tên hoặc URL repository",
+				"button": "Liên kết"
+			},
+			"unlink": {
+				"button": "Hủy liên kết",
+				"confirm": "Xác nhận hủy",
+				"cancel": "Hủy"
+			},
+			"resumed": "Chào mừng trở lại. Hãy liên kết {{repository}} ngay.",
+			"access": {
+				"title": "Danh tính dùng chung không thấy repository này",
+				"description": "Danh tính {{provider}} chỉ thấy repository của các tài khoản mà nó được cài đặt. Hãy cài đặt trên {{owner}} (bạn sẽ đến nền tảng rồi quay lại đây), sau đó liên kết lại.",
+				"descriptionNoOwner": "Danh tính {{provider}} chỉ thấy repository của các tài khoản mà nó được cài đặt. Hãy chọn nơi cài đặt (bạn sẽ đến nền tảng rồi quay lại đây), sau đó liên kết lại.",
+				"button": "Cài đặt trên {{owner}}",
+				"buttonNoOwner": "Chọn nơi cài đặt"
+			},
+			"errors": {
+				"generic": "Đã xảy ra lỗi. Vui lòng thử lại.",
+				"setupInvalid": "Liên kết này không hợp lệ, đã hết hạn hoặc đã được dùng. Hãy bắt đầu lại.",
+				"identityExists": "Đã có một danh tính ở đây.",
+				"publicUrlRequired": "URL công khai của hệ thống (PUBLIC_URL) chưa được cấu hình.",
+				"providerUnavailable": "Plugin nhà cung cấp Git không khả dụng.",
+				"providerRejected": "Nền tảng đã từ chối yêu cầu.",
+				"notFound": "Không tìm thấy.",
+				"accessNotGranted": "Danh tính dùng chung không thấy repository này.",
+				"noIdentity": "Chưa có danh tính Git dùng chung cho nền tảng này. Quản trị viên workspace thiết lập tại Quản trị → Git.",
+				"alreadyLinked": "Repository này đã được liên kết với dự án."
+			},
+			"workflow": {
+				"title": "Tự động hóa tác nhân",
+				"description": "Cách hoạt động Git khởi động các tác nhân: ai trả lời một lần nhắc không nêu tác nhân nào, người dùng cần quyền truy cập nào để bắt đầu một lượt chạy, và các lượt chạy đã bắt đầu. Sự kiện nào khởi động tác nhân nào được đặt ở tab Git của từng tác nhân.",
+				"responder": {
+					"label": "Tác nhân phản hồi mặc định",
+					"none": "Không có tác nhân phản hồi mặc định",
+					"help": "Trả lời các lần nhắc, nhãn và yêu cầu review không nêu tác nhân nào. Thêm \"agent:handle\" vào bình luận để chọn tác nhân khác."
+				},
+				"minPermission": {
+					"label": "Quyền tối thiểu để khởi động tác nhân",
+					"help": "Người có quyền truy cập kho thấp hơn vẫn có thể bình luận, nhưng tác nhân sẽ không khởi động. Bot không bao giờ khởi động tác nhân."
+				},
+				"permission": {
+					"read": "Đọc",
+					"triage": "Phân loại",
+					"write": "Ghi",
+					"maintain": "Bảo trì",
+					"admin": "Quản trị"
+				},
+				"paused": {
+					"label": "Tạm dừng tự động hóa",
+					"help": "Khi tạm dừng, hoạt động Git không khởi động tác nhân nào. Các lượt chạy đang diễn ra vẫn tiếp tục."
+				},
+				"save": "Lưu",
+				"saved": "Đã lưu.",
+				"runs": {
+					"title": "Các lượt chạy gần đây",
+					"empty": "Chưa có lượt chạy tác nhân nào được hoạt động Git khởi động.",
+					"open": "Mở cuộc trò chuyện",
+					"status": {
+						"queued": "Đang chờ",
+						"running": "Đang chạy",
+						"succeeded": "Thành công",
+						"failed": "Thất bại",
+						"cancelled": "Đã hủy"
+					}
+				}
+			},
+			"triggerKinds": {
+				"mention": {
+					"label": "Được nhắc",
+					"description": "Ai đó nhắc đến bot trong bình luận, review hoặc mô tả."
+				},
+				"own_cr_feedback": {
+					"label": "Phản hồi về pull request của nó",
+					"description": "Có review hoặc bình luận trên pull request do tác nhân này mở."
+				},
+				"ci_failure": {
+					"label": "CI lỗi trên pull request của nó",
+					"description": "Một kiểm tra thất bại ở commit mới nhất của pull request do tác nhân này mở (tối đa vài lần thử)."
+				},
+				"review_request": {
+					"label": "Được yêu cầu review",
+					"description": "Bot được yêu cầu làm người review, khi nền tảng cho phép."
+				},
+				"assignment": {
+					"label": "Được giao việc",
+					"description": "Bot được giao một issue hoặc pull request, khi nền tảng cho phép."
+				},
+				"label": {
+					"label": "Nhãn",
+					"description": "Nhãn \"paca\" (hoặc \"paca:<handle của tác nhân>\") được thêm vào issue hoặc pull request."
+				},
+				"auto_review": {
+					"label": "Review mọi pull request",
+					"description": "Tự động review mỗi pull request mới. Tắt cho đến khi bạn bật; bỏ qua bản nháp và pull request do chính tác nhân mở."
 				}
 			}
 		}
@@ -175,7 +282,8 @@
 				"skills": "Skill",
 				"envVars": "Môi trường",
 				"globalRole": "Vai trò toàn cục",
-				"activity": "Hoạt động"
+				"activity": "Hoạt động",
+				"git": "Git"
 			},
 			"globalRole": {
 				"title": "Vai trò toàn cục",
@@ -376,6 +484,34 @@
 			},
 			"system": {
 				"badge": "Hệ thống"
+			},
+			"git": {
+				"title": "Danh tính Git",
+				"description": "Mặc định agent này hoạt động qua danh tính Git dùng chung của workspace. Hãy cấp cho nó danh tính riêng để commit, pull request và bình luận của nó hiển thị dưới một bot khác, rồi cài đặt danh tính đó trên các tài khoản và tổ chức có repository mà nó làm việc.",
+				"providersUnavailable": "Không thể tải nhà cung cấp Git của dự án này.",
+				"noProviders": "Chưa cài nhà cung cấp Git nào.",
+				"ownIdentity": "Danh tính riêng",
+				"usesShared": "Dùng danh tính chung",
+				"singleIdentity": "Nền tảng này chỉ có một danh tính cho mỗi host nên dùng danh tính chung.",
+				"remove": "Gỡ bỏ",
+				"create": "Tạo danh tính",
+				"askAdmin": "Hãy nhờ quản trị viên workspace tạo.",
+				"install": {
+					"label": "Cài đặt trên tài khoản hoặc tổ chức khác",
+					"placeholder": "tài khoản hoặc tổ chức (tùy chọn)",
+					"button": "Cài đặt",
+					"help": "Mở trang cài đặt của nền tảng. Để trống tên để chọn tài khoản tại đó."
+				},
+				"triggers": {
+					"title": "Trình kích hoạt Git",
+					"description": "Sự kiện Git nào khởi động tác nhân này. Chỉ hiện các sự kiện mà nhà cung cấp Git đã cài có thể phát.",
+					"filters": {
+						"branches": "Chỉ các nhánh đích này",
+						"authors": "Chỉ các tác giả này",
+						"help": "Cách nhau bằng dấu phẩy. Để trống để áp dụng tất cả. Tác giả là bot phải có trong danh sách mới được review.",
+						"save": "Lưu bộ lọc"
+					}
+				}
 			}
 		},
 		"conversationView": {
@@ -896,6 +1032,22 @@
 			"projectExport": {
 				"label": "Xuất dữ liệu dự án",
 				"description": "Xuất công việc (kèm bình luận và hoạt động) và tài liệu của dự án này"
+			},
+			"gitRead": {
+				"label": "Xem Git",
+				"description": "Xem các kho mã được liên kết với dự án"
+			},
+			"gitWrite": {
+				"label": "Quản lý Git",
+				"description": "Liên kết và hủy liên kết kho mã, cấp quyền truy cập kho mã và cho phép tác nhân đẩy thay đổi"
+			},
+			"gitApprove": {
+				"label": "Phê duyệt yêu cầu thay đổi",
+				"description": "Phê duyệt pull request và merge request, có thể đáp ứng yêu cầu review bắt buộc. Bình luận và yêu cầu thay đổi chỉ cần quyền Quản lý Git."
+			},
+			"gitMerge": {
+				"label": "Hợp nhất yêu cầu thay đổi",
+				"description": "Hợp nhất pull request và merge request vào nhánh đích. Bảo vệ nhánh trên nền tảng vẫn được áp dụng."
 			}
 		},
 		"permissionGroups": {
@@ -911,7 +1063,8 @@
 			"environments": "Môi trường",
 			"annotations": "Annotations",
 			"workflows": "Tự động hóa",
-			"plugins": "Plugin"
+			"plugins": "Plugin",
+			"git": "Git"
 		}
 	},
 	"settings": {

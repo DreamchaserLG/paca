@@ -10,6 +10,7 @@
 				"taskStatuses": "Task Statuses",
 				"taskTypes": "Task Types",
 				"customFields": "Custom Fields",
+				"git": "Git",
 				"jev": "Jev AI",
 				"dangerZone": "Danger Zone",
 				"plugins": "Plugins",
@@ -19,6 +20,112 @@
 				"noPermission": {
 					"title": "You don't have permission to view this tab",
 					"description": "Ask a project owner or admin to grant you access to {{pluginName}}."
+				}
+			}
+		},
+		"git": {
+			"title": "Git repositories",
+			"description": "Repositories this project's agents can work on, through the workspace's shared Git identity.",
+			"empty": "No repositories linked yet.",
+			"noProviders": "No Git provider is installed. Ask an administrator to install one.",
+			"link": {
+				"title": "Link a repository",
+				"platform": "Platform",
+				"repository": "Repository",
+				"placeholder": "owner/name or repository URL",
+				"button": "Link"
+			},
+			"unlink": {
+				"button": "Unlink",
+				"confirm": "Confirm unlink",
+				"cancel": "Cancel"
+			},
+			"resumed": "Welcome back. Link {{repository}} now.",
+			"access": {
+				"title": "The shared identity can't see this repository",
+				"description": "The {{provider}} identity can only see repositories of accounts it is installed on. Install it on {{owner}} (you'll go to the platform and come back here), then link again.",
+				"descriptionNoOwner": "The {{provider}} identity can only see repositories of accounts it is installed on. Choose where to install it (you'll go to the platform and come back here), then link again.",
+				"button": "Install on {{owner}}",
+				"buttonNoOwner": "Choose where to install"
+			},
+			"errors": {
+				"generic": "Something went wrong. Please try again.",
+				"setupInvalid": "This link is invalid, expired or already used. Start again.",
+				"identityExists": "An identity already exists here.",
+				"publicUrlRequired": "The instance's public URL (PUBLIC_URL) is not configured.",
+				"providerUnavailable": "The Git provider plugin is unavailable.",
+				"providerRejected": "The platform refused the request.",
+				"notFound": "Not found.",
+				"accessNotGranted": "The shared identity can't see this repository.",
+				"noIdentity": "No shared Git identity is set up for this platform yet. A workspace administrator sets it up under Administration → Git.",
+				"alreadyLinked": "This repository is already linked to the project."
+			},
+			"workflow": {
+				"title": "Agent automation",
+				"description": "How Git activity starts your agents: who answers a mention that names no agent, how much access a person needs to start a run, and the runs started so far. Which events start which agent is set on each agent's Git tab.",
+				"responder": {
+					"label": "Default responder",
+					"none": "No default responder",
+					"help": "Answers mentions, labels and review requests that name no agent. Add \"agent:handle\" to a comment to pick another."
+				},
+				"minPermission": {
+					"label": "Minimum access to start an agent",
+					"help": "Someone with less access to the repository can comment, but the agent will not start. Bots never start agents."
+				},
+				"permission": {
+					"read": "Read",
+					"triage": "Triage",
+					"write": "Write",
+					"maintain": "Maintain",
+					"admin": "Admin"
+				},
+				"paused": {
+					"label": "Pause automation",
+					"help": "While paused, no Git activity starts an agent. Runs already in progress continue."
+				},
+				"save": "Save",
+				"saved": "Saved.",
+				"runs": {
+					"title": "Recent runs",
+					"empty": "No agent run has been started by Git activity yet.",
+					"open": "Open conversation",
+					"status": {
+						"queued": "Queued",
+						"running": "Running",
+						"succeeded": "Succeeded",
+						"failed": "Failed",
+						"cancelled": "Cancelled"
+					}
+				}
+			},
+			"triggerKinds": {
+				"mention": {
+					"label": "Mentioned",
+					"description": "Someone mentions the bot in a comment, review or description."
+				},
+				"own_cr_feedback": {
+					"label": "Feedback on its pull request",
+					"description": "A review or comment arrives on a pull request this agent opened."
+				},
+				"ci_failure": {
+					"label": "CI failure on its pull request",
+					"description": "A check fails on the latest commit of a pull request this agent opened (a few attempts at most)."
+				},
+				"review_request": {
+					"label": "Review requested",
+					"description": "The bot is requested as a reviewer, where the platform allows it."
+				},
+				"assignment": {
+					"label": "Assigned",
+					"description": "The bot is assigned to an issue or pull request, where the platform allows it."
+				},
+				"label": {
+					"label": "Label",
+					"description": "The label \"paca\" (or \"paca:<agent handle>\") is added to an issue or pull request."
+				},
+				"auto_review": {
+					"label": "Review every pull request",
+					"description": "Reviews each new pull request automatically. Off until you switch it on; drafts and the agent's own pull requests are skipped."
 				}
 			}
 		}
@@ -175,7 +282,8 @@
 				"skills": "Skills",
 				"envVars": "Environment",
 				"globalRole": "Global role",
-				"activity": "Activity"
+				"activity": "Activity",
+				"git": "Git"
 			},
 			"globalRole": {
 				"title": "Global role",
@@ -376,6 +484,34 @@
 			},
 			"system": {
 				"badge": "System"
+			},
+			"git": {
+				"title": "Git identity",
+				"description": "By default this agent acts through the workspace's shared Git identity. Give it its own identity so its commits, pull requests and comments appear under a separate bot, and install that identity on the accounts and organizations whose repositories it works on.",
+				"providersUnavailable": "Git providers could not be loaded for this project.",
+				"noProviders": "No Git provider is installed.",
+				"ownIdentity": "Own identity",
+				"usesShared": "Uses the shared identity",
+				"singleIdentity": "This platform has one identity per host, so the shared identity is used.",
+				"remove": "Remove",
+				"create": "Create identity",
+				"askAdmin": "Ask a workspace administrator to create one.",
+				"install": {
+					"label": "Install on another account or organization",
+					"placeholder": "account or organization (optional)",
+					"button": "Install",
+					"help": "Opens the platform's install page. Leave the name empty to choose the account there."
+				},
+				"triggers": {
+					"title": "Git triggers",
+					"description": "Which Git events start this agent. Only events the installed Git providers can deliver are listed.",
+					"filters": {
+						"branches": "Only these target branches",
+						"authors": "Only these authors",
+						"help": "Comma-separated. Leave empty to match everything. Bot authors must be listed to be reviewed.",
+						"save": "Save filters"
+					}
+				}
 			}
 		},
 		"conversationView": {
@@ -896,6 +1032,22 @@
 			"projectExport": {
 				"label": "Export Project Data",
 				"description": "Export tasks (with comments and activities) and documentation of this project"
+			},
+			"gitRead": {
+				"label": "View Git",
+				"description": "See the repositories linked to the project"
+			},
+			"gitWrite": {
+				"label": "Manage Git",
+				"description": "Link and unlink repositories, grant repository access, and let agents push changes"
+			},
+			"gitApprove": {
+				"label": "Approve change requests",
+				"description": "Approve pull requests and merge requests, which can satisfy a required review. Commenting and requesting changes need only Manage Git."
+			},
+			"gitMerge": {
+				"label": "Merge change requests",
+				"description": "Merge pull requests and merge requests into their target branch. Branch protection on the platform still applies."
 			}
 		},
 		"permissionGroups": {
@@ -911,7 +1063,8 @@
 			"environments": "Environments",
 			"annotations": "Annotations",
 			"workflows": "Automation",
-			"plugins": "Plugins"
+			"plugins": "Plugins",
+			"git": "Git"
 		}
 	},
 	"settings": {

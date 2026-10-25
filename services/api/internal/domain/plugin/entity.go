@@ -218,6 +218,12 @@ func (m PluginManifest) validateRouteMiddlewares() error {
 		return nil
 	}
 	for _, route := range m.Backend.Routes {
+		// Routes under /_git are a Git provider's operations: core calls them
+		// internally and a browser must never be able to. A manifest cannot
+		// publish one through the HTTP router.
+		if p := strings.TrimSpace(route.Path); p == GitProviderRoutePrefix || strings.HasPrefix(p, GitProviderRoutePrefix+"/") {
+			return fmt.Errorf("route %s %s: %s is reserved for Git provider operations, which are internal-only", route.Method, route.Path, GitProviderRoutePrefix)
+		}
 		for _, mw := range route.Middlewares {
 			switch strings.ToLower(strings.TrimSpace(mw.Name)) {
 			case "requirepermissions":
@@ -236,6 +242,13 @@ func (m PluginManifest) validateRouteMiddlewares() error {
 	}
 	return nil
 }
+
+// GitProviderRoutePrefix is where a Git provider plugin mounts its SPI
+// operations. See platform/gitprovider.
+const GitProviderRoutePrefix = "/_git"
+
+// CapabilityGitProvider marks a plugin that implements the Git provider SPI.
+const CapabilityGitProvider = "git-provider"
 
 // actionPattern matches an IAM action: a dotted domain, ":", a verb.
 var actionPattern = regexp.MustCompile(`^[a-z0-9_]+(\.[a-z0-9_]+)*:[a-z0-9_]+$`)

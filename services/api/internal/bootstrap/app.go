@@ -37,6 +37,7 @@ import (
 	docsvc "github.com/Paca-AI/api/internal/service/doc"
 	environmentsvc "github.com/Paca-AI/api/internal/service/environment"
 	exportsvc "github.com/Paca-AI/api/internal/service/export"
+	gitsvc "github.com/Paca-AI/api/internal/service/git"
 	notificationsvc "github.com/Paca-AI/api/internal/service/notification"
 	pluginsvc "github.com/Paca-AI/api/internal/service/plugin"
 	projectsvc "github.com/Paca-AI/api/internal/service/project"
@@ -76,6 +77,8 @@ type App struct {
 	dueDateScheduler       *worker.DueDateScheduler
 	cronScheduler          *worker.CronScheduler
 	waitScheduler          *worker.WaitScheduler
+	gitRouter              *gitsvc.Router
+	stopGitRouter          context.CancelFunc
 	log                    *slog.Logger
 }
 
@@ -480,6 +483,16 @@ func New(cfg *config.Config) (*App, error) {
 		WithAvatarService(attachmentService).
 		WithTaskChecker(attachmentsvc.NewTaskOwnerChecker(taskRepo)).
 		WithJevProjectService(projectService, encryptor)
+	// Git integration: linked repositories, webhook ingest and credential
+	// minting. Provider plugins (capability git-provider) are called in-process
+	// through the runtime's internal route, never through the HTTP router.
+	gitService := gitsvc.New(pgRepo.NewGitRepository(db), gitsvc.NewPluginProviders(pluginRepo, gitsvc.DoerFunc(pluginRuntime.CallInternal))).
+		WithPublicURL(cfg.Server.PublicURL).
+		WithAgentNamer(gitAgentLookup{repo: agentRepo}).
+		WithAgentDirectory(gitAgentDirectory{repo: agentRepo})
+	// Routes webhook events to agent runs and keeps run status current.
+	gitRouter := gitsvc.NewRouter(gitService, gitAgentDirectory{repo: agentRepo}, gitRunStarter{agents: agentService}, gitsvc.RouterOptions{}, log)
+	gitHandler := handler.NewGitHandler(gitService).WithAgentLookup(gitAgentLookup{repo: agentRepo}).WithOps(gitService)
 	environmentHandler := handler.NewEnvironmentHandler(environmentService, cfg.AIAgentInternalKey).
 		WithListScoper(authorizer).
 		WithDeploymentConfig(cfg.SSHBastionHost, cfg.PortForwardHost)
@@ -562,6 +575,7 @@ func New(cfg *config.Config) (*App, error) {
 		Plugin:             pluginHandler,
 		Agent:              agentHandler,
 		Environment:        environmentHandler,
+		Git:                gitHandler,
 		Annotation:         annotationHandler,
 		Conversation:       convHandler,
 		Automation:         automationHandler,
@@ -581,7 +595,7 @@ func New(cfg *config.Config) (*App, error) {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	return &App{server: srv, publisher: publisher, activityConsumer: activityConsumer, notificationConsumer: notificationConsumer, pluginEventConsumer: pluginEventConsumer, environmentConsumer: environmentConsumer, projectExportConsumer: projectExportConsumer, automationConsumer: automationConsumer, taskAutofillConsumer: taskAutofillConsumer, taskAutoAssignConsumer: taskAutoAssignConsumer, agentQueueConsumer: agentQueueConsumer, dueDateScheduler: dueDateScheduler, cronScheduler: cronScheduler, waitScheduler: waitScheduler, log: log}, nil
+	return &App{server: srv, publisher: publisher, activityConsumer: activityConsumer, notificationConsumer: notificationConsumer, pluginEventConsumer: pluginEventConsumer, environmentConsumer: environmentConsumer, projectExportConsumer: projectExportConsumer, automationConsumer: automationConsumer, taskAutofillConsumer: taskAutofillConsumer, taskAutoAssignConsumer: taskAutoAssignConsumer, agentQueueConsumer: agentQueueConsumer, dueDateScheduler: dueDateScheduler, cronScheduler: cronScheduler, waitScheduler: waitScheduler, gitRouter: gitRouter, log: log}, nil
 }
 
 // platformActionsReader lists a user's or agent's effective platform-level
@@ -627,6 +641,9 @@ func (a *App) Run() error {
 	a.dueDateScheduler.Start(context.Background())
 	a.cronScheduler.Start(context.Background())
 	a.waitScheduler.Start(context.Background())
+	gitCtx, stop := context.WithCancel(context.Background())
+	a.stopGitRouter = stop
+	go a.gitRouter.Run(gitCtx, 0)
 	return a.server.ListenAndServe()
 }
 
@@ -645,6 +662,9 @@ func (a *App) Shutdown(ctx context.Context) error {
 	a.dueDateScheduler.Stop()
 	a.cronScheduler.Stop()
 	a.waitScheduler.Stop()
+	if a.stopGitRouter != nil {
+		a.stopGitRouter()
+	}
 	if a.publisher != nil {
 		a.publisher.Close()
 	}

@@ -112,7 +112,9 @@ func (s *GitRepository) UpsertProjectSettings(ctx context.Context, st *gitdom.Pr
 		st.ProjectID.String(), uuidPtrString(st.DefaultResponderAgentID), st.Paused, min)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23503" {
-		return gitdom.ErrNotFound // the project (or the responder agent) does not exist
+		// The service already checked the responder is one of the project's
+		// agents, so a foreign-key miss here means the project does not exist.
+		return gitdom.ErrNotFound
 	}
 	if err != nil {
 		return fmt.Errorf("git repo: upsert project settings: %w", err)

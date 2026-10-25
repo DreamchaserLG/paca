@@ -177,7 +177,8 @@ type WebhookResult struct {
 }
 
 // plausibleWebhookKey reports whether key could be one this instance issued
-// (hex today; letters, digits, "-" and "_" are allowed). The endpoint is public,
+// (hex today, from randomKey in setup.go; letters, digits, "-" and "_" are
+// allowed, so keep this in step with that generator). The endpoint is public,
 // so anything else is turned away before it reaches the database, which would
 // reject a NUL byte as an error instead of a miss.
 func plausibleWebhookKey(key string) bool {

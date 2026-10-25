@@ -474,7 +474,11 @@ func New(deps Deps) http.Handler {
 					r.With(require.Project(iam.ActionGitRead)).Get("/git/runs", deps.Git.ListProjectRuns)
 					r.Route("/git/repositories", func(r chi.Router) {
 						r.With(require.Project(iam.ActionGitRead)).Get("/", deps.Git.ListRepositories)
-						r.With(require.Project(iam.ActionGitWrite)).Post("/", deps.Git.LinkRepository)
+						// Linking makes a repository the shared identity can see usable by
+						// this project, so it also needs the workspace-level action that
+						// governs the identity itself; git:write alone must not reach
+						// repositories another project's installation exposed.
+						r.With(require.Project(iam.ActionGitWrite), require.Global(iam.ActionGitIdentitiesManage)).Post("/", deps.Git.LinkRepository)
 						r.With(require.Project(iam.ActionGitWrite)).Delete("/{repositoryId}", deps.Git.UnlinkRepository)
 						r.With(require.Project(iam.ActionGitRead)).Post("/{repositoryId}/credential/read", deps.Git.ReadCredential)
 						r.With(require.Project(iam.ActionGitWrite)).Post("/{repositoryId}/credential/write", deps.Git.WriteCredential)
@@ -1127,7 +1131,9 @@ func New(deps Deps) http.Handler {
 			// plugin (signature over the body, secret held by the plugin) and
 			// {endpointKey} only selects which identity to verify against.
 			if deps.Git != nil {
-				r.Post("/git/webhooks/{endpointKey}", deps.Git.ReceiveWebhook)
+				// Per client IP, with a budget sized for the platform's few
+				// delivery addresses rather than for a person typing a password.
+				r.With(authLimit(60*deps.AuthRateLimit)).Post("/git/webhooks/{endpointKey}", deps.Git.ReceiveWebhook)
 
 				// The instance's bot identities on Git platforms. A group, not
 				// a /git sub-router, so it sits beside the public webhook route

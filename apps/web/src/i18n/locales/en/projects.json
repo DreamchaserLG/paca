@@ -29,7 +29,8 @@
 			"empty": {
 				"title": "No repositories linked",
 				"description": "Link a repository so this project's agents can read its code, open pull requests and respond to mentions.",
-				"readOnly": "You need Git write access on this project to link repositories."
+				"readOnly": "You need Git write access on this project to link repositories.",
+				"linkNeedsAdmin": "Linking a repository also needs the workspace permission to manage Git identities. Ask an administrator."
 			},
 			"noProviders": "No Git provider is installed. Ask an administrator to install one.",
 			"link": {

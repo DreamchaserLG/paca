@@ -29,7 +29,8 @@
 			"empty": {
 				"title": "Nenhum repositório vinculado",
 				"description": "Vincule um repositório para que os agentes deste projeto leiam o código, abram pull requests e respondam a menções.",
-				"readOnly": "Você precisa de acesso de escrita do Git neste projeto para vincular repositórios."
+				"readOnly": "Você precisa de acesso de escrita do Git neste projeto para vincular repositórios.",
+				"linkNeedsAdmin": "Vincular um repositório também exige a permissão do workspace para gerenciar identidades Git. Peça a um administrador."
 			},
 			"noProviders": "Nenhum provedor Git instalado. Peça a um administrador que instale um.",
 			"link": {

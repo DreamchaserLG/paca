@@ -29,7 +29,8 @@
 			"empty": {
 				"title": "Chưa liên kết kho mã nào",
 				"description": "Liên kết một kho mã để tác nhân của dự án đọc mã, mở pull request và phản hồi các lượt nhắc.",
-				"readOnly": "Bạn cần quyền ghi Git trong dự án này để liên kết kho mã."
+				"readOnly": "Bạn cần quyền ghi Git trong dự án này để liên kết kho mã.",
+				"linkNeedsAdmin": "Liên kết kho mã cũng cần quyền của không gian làm việc để quản lý danh tính Git. Hãy nhờ quản trị viên."
 			},
 			"noProviders": "Chưa cài nhà cung cấp Git nào. Hãy nhờ quản trị viên cài đặt.",
 			"link": {

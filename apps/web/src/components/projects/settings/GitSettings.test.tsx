@@ -27,6 +27,12 @@ vi.mock("@tanstack/react-router", async () => {
 
 // The query options inside git-api call its own helpers, which a module mock
 // cannot replace, so the HTTP client is mocked instead.
+const perms = vi.hoisted(() => ({ manage: true }));
+vi.mock("@/hooks/use-permissions", () => ({
+	usePermissions: () => ({
+		hasPermission: (a: string) => a !== "git.identities:manage" || perms.manage,
+	}),
+}));
 vi.mock("@/lib/api-client", () => ({
 	apiClient: {
 		instance: { get: h.get, post: h.post, delete: h.del, put: h.put },
@@ -113,6 +119,21 @@ describe("GitSettings", () => {
 				};
 			throw new Error(`unexpected GET ${url}`);
 		});
+	});
+
+	it("hides the link form without the workspace permission to manage Git identities", async () => {
+		perms.manage = false;
+		try {
+			renderPanel();
+			expect(
+				await screen.findByText(/manage Git identities/i),
+			).toBeInTheDocument();
+			expect(
+				screen.queryByRole("button", { name: "Link" }),
+			).not.toBeInTheDocument();
+		} finally {
+			perms.manage = true;
+		}
 	});
 
 	it("lists linked repositories", async () => {

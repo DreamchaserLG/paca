@@ -133,6 +133,17 @@ func (s *Service) LinkRepository(ctx context.Context, in LinkInput) (*gitdom.Rep
 		}
 		return nil, err
 	}
+	// The plugin chooses which candidate saw the repository; it must be one we offered.
+	offered := false
+	for _, c := range cands {
+		if c.ID == res.Identity.ID {
+			offered = true
+			break
+		}
+	}
+	if !offered {
+		return nil, fmt.Errorf("git: provider resolved the repository with an identity that was not offered")
+	}
 	ident, err := s.store.FindIdentityByProviderRef(ctx, in.ProviderID, res.Identity.ID)
 	if err != nil {
 		return nil, err
@@ -163,6 +174,19 @@ type WebhookResult struct {
 	Stored   int // new inbox rows (events × linked repositories)
 	Replayed int // rows already seen (redelivery)
 	Unlinked int // events for repositories no project linked
+}
+
+// CheckWebhookEndpoint reports whether key names a webhook endpoint that can
+// receive deliveries, so the public handler can refuse before reading a body.
+func (s *Service) CheckWebhookEndpoint(ctx context.Context, key string) error {
+	ep, err := s.store.FindWebhookEndpoint(ctx, key)
+	if err != nil {
+		return err
+	}
+	if ep.IdentityID == nil {
+		return gitdom.ErrNotFound
+	}
+	return nil
 }
 
 // HandleWebhook verifies a delivery through the provider and stores its events
@@ -331,6 +355,7 @@ func (s *Service) MintCredential(ctx context.Context, in MintInput) (gitprovider
 	}
 	key := credKey{identity: ident.ID, repo: repo.ID, access: in.Access}
 	if c, ok := s.cached(key); ok {
+		s.audit(ctx, repo, in.AgentID, "credential.mint", string(in.Access)+" (cached)", nil)
 		return c, nil
 	}
 	prov, err := s.providers.Provider(ctx, repo.ProviderID)

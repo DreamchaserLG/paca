@@ -112,6 +112,8 @@ func (f *fakeGitSvc) MintCredential(_ context.Context, in gitsvc.MintInput) (git
 	f.mint = in
 	return f.cred, f.err
 }
+func (f *fakeGitSvc) CheckWebhookEndpoint(context.Context, string) error { return nil }
+
 func (f *fakeGitSvc) HandleWebhook(_ context.Context, k string, d gitsvc.Delivery) (*gitsvc.WebhookResult, error) {
 	f.key, f.delivery = k, d
 	if f.err != nil {

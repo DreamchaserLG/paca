@@ -500,8 +500,12 @@ func TestMintCredential_CachesBriefly(t *testing.T) {
 	if pr.lastMint.Target.Repo.FullPath != "acme/web" || pr.lastMint.Target.Identity.ID != "shared-app" {
 		t.Fatalf("target = %+v", pr.lastMint.Target)
 	}
-	if len(st.log) != 3 || !st.log[0].OK || st.log[0].Tool != "credential.mint" {
+	// Every issue is audited, including the one served from the cache.
+	if len(st.log) != 4 || !st.log[0].OK || st.log[0].Tool != "credential.mint" {
 		t.Fatalf("audit = %+v", st.log)
+	}
+	if st.log[0].Detail != "read" || st.log[1].Detail != "read (cached)" {
+		t.Fatalf("audit details = %q, %q", st.log[0].Detail, st.log[1].Detail)
 	}
 }
 
@@ -661,5 +665,35 @@ func TestHandleWebhook_AFailedCacheUpdateDoesNotMakeTheRetryAReplay(t *testing.T
 	res, err := svc.HandleWebhook(ctx, "k", Delivery{Method: "POST"})
 	if err != nil || res.Stored != 1 || res.Replayed != 0 || len(fs.crs) != 1 {
 		t.Fatalf("the redelivery must be processed, not dropped: %+v %v crs=%d", res, err, len(fs.crs))
+	}
+}
+
+func TestLinkRepository_RejectsAnIdentityThatWasNotOffered(t *testing.T) {
+	svc, st, pr := setup(t)
+	st.addIdentity("bot", "app-1")
+	pr.resolve = func(gitprovider.ResolveRepoRequest) (gitprovider.ResolvedRepository, error) {
+		return gitprovider.ResolvedRepository{
+			Repository: gitprovider.Repository{Ref: gitprovider.RepoRef{Host: "git.example", FullPath: "acme/web"}},
+			Identity:   gitprovider.IdentityRef{ID: "someone-elses-app"},
+		}, nil
+	}
+	if _, err := svc.LinkRepository(context.Background(), LinkInput{ProjectID: uuid.New(), ProviderID: "p", PathOrURL: "acme/web"}); err == nil {
+		t.Fatal("an identity the provider was not offered must be rejected")
+	}
+}
+
+func TestCheckWebhookEndpoint(t *testing.T) {
+	svc, st, _ := setup(t)
+	ident := st.addIdentity("bot", "app-1")
+	st.endpoints["ready"] = &gitdom.WebhookEndpoint{Key: "ready", ProviderID: "p", IdentityID: &ident.ID}
+	st.endpoints["pending"] = &gitdom.WebhookEndpoint{Key: "pending", ProviderID: "p"}
+	ctx := context.Background()
+	if err := svc.CheckWebhookEndpoint(ctx, "ready"); err != nil {
+		t.Errorf("ready: %v", err)
+	}
+	for _, k := range []string{"pending", "unknown"} {
+		if err := svc.CheckWebhookEndpoint(ctx, k); !errors.Is(err, gitdom.ErrNotFound) {
+			t.Errorf("%s: %v", k, err)
+		}
 	}
 }

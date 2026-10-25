@@ -29,7 +29,8 @@
 			"empty": {
 				"title": "尚未关联仓库",
 				"description": "关联仓库后，本项目的智能体即可读取代码、创建拉取请求并回复提及。",
-				"readOnly": "需要本项目的 Git 写入权限才能关联仓库。"
+				"readOnly": "需要本项目的 Git 写入权限才能关联仓库。",
+				"linkNeedsAdmin": "关联仓库还需要管理 Git 身份的工作区权限。请联系管理员。"
 			},
 			"noProviders": "尚未安装 Git 提供方。请联系管理员安装。",
 			"link": {

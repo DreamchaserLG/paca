@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { usePermissions } from "@/hooks/use-permissions";
 import { listAgents } from "@/lib/agent-api";
 import {
 	beginGitAccess,
@@ -141,6 +142,9 @@ function Repositories({
 	linked: GitRepository[];
 }) {
 	const { t } = useTranslation("projects");
+	const { hasPermission } = usePermissions();
+	// Linking also needs the workspace-level action that governs the identity.
+	const canLink = canWrite && hasPermission("git.identities:manage");
 	const queryClient = useQueryClient();
 	const [input, setInput] = useState("");
 	const [providerId, setProviderId] = useState("");
@@ -224,7 +228,7 @@ function Repositories({
 
 	const owner = repoOwnerOf(input);
 	const showForm =
-		canWrite && providers.length > 0 && (formOpen || linked.length === 0);
+		canLink && providers.length > 0 && (formOpen || linked.length === 0);
 
 	const form = showForm ? (
 		<form
@@ -352,7 +356,7 @@ function Repositories({
 			title={t("project.git.repositories.title")}
 			description={t("project.git.repositories.description")}
 			action={
-				canWrite && providers.length > 0 && linked.length > 0 && !formOpen ? (
+				canLink && providers.length > 0 && linked.length > 0 && !formOpen ? (
 					<Button
 						type="button"
 						size="sm"
@@ -372,9 +376,11 @@ function Repositories({
 					description={
 						providers.length === 0
 							? t("project.git.noProviders")
-							: canWrite
+							: canLink
 								? t("project.git.empty.description")
-								: t("project.git.empty.readOnly")
+								: canWrite
+									? t("project.git.empty.linkNeedsAdmin")
+									: t("project.git.empty.readOnly")
 					}
 				>
 					{providers.length === 0 ? (

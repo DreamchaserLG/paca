@@ -30,6 +30,7 @@ type GitService interface {
 	ListRepositories(ctx context.Context, projectID uuid.UUID) ([]*gitdom.Repository, error)
 	UnlinkRepository(ctx context.Context, projectID, repositoryID uuid.UUID) error
 	MintCredential(ctx context.Context, in gitsvc.MintInput) (gitprovider.Credential, error)
+	CheckWebhookEndpoint(ctx context.Context, key string) error
 	HandleWebhook(ctx context.Context, endpointKey string, d gitsvc.Delivery) (*gitsvc.WebhookResult, error)
 
 	ListProviders(ctx context.Context) ([]gitprovider.Info, error)
@@ -219,6 +220,11 @@ func (h *GitHandler) credential(w http.ResponseWriter, r *http.Request, access g
 // provider plugin authenticates the delivery (signature) and the endpoint key
 // only says which identity's secret to verify against.
 func (h *GitHandler) ReceiveWebhook(w http.ResponseWriter, r *http.Request) {
+	// Refuse unknown endpoints before buffering up to maxGitWebhookBody.
+	if err := h.svc.CheckWebhookEndpoint(r.Context(), chi.URLParam(r, "endpointKey")); err != nil {
+		h.fail(w, r, err)
+		return
+	}
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxGitWebhookBody))
 	if err != nil {
 		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "webhook body is unreadable or too large"))

@@ -29,7 +29,8 @@
 			"empty": {
 				"title": "Aucun dépôt lié",
 				"description": "Liez un dépôt pour que les agents de ce projet puissent lire son code, ouvrir des pull requests et répondre aux mentions.",
-				"readOnly": "Vous avez besoin de l'accès en écriture Git sur ce projet pour lier des dépôts."
+				"readOnly": "Vous avez besoin de l'accès en écriture Git sur ce projet pour lier des dépôts.",
+				"linkNeedsAdmin": "Lier un dépôt nécessite aussi l'autorisation d'espace de travail pour gérer les identités Git. Demandez à un administrateur."
 			},
 			"noProviders": "Aucun fournisseur Git n'est installé. Demandez à un administrateur d'en installer un.",
 			"link": {

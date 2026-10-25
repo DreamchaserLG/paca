@@ -53,9 +53,11 @@ func speaksOurSPI(v string) bool {
 // shapes could be decoded into accepted but wrong results.
 func (p *PluginProviders) verify(ctx context.Context, name, version string) error {
 	p.mu.Lock()
-	ok := p.verified[name] == version
+	// A plugin with an empty version is "verified at version empty", not
+	// "never verified": the map's zero value must not pass for a match.
+	v, seen := p.verified[name]
 	p.mu.Unlock()
-	if ok {
+	if seen && v == version {
 		return nil
 	}
 	info, err := gitprovider.NewClient(p.doer, name).Describe(ctx)

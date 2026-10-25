@@ -59,17 +59,15 @@ export function fence(text: string, label: string): string {
 }
 
 /**
- * Makes text unable to contain either fence marker. One replacement pass is
- * not enough: replacing "<<<UNTRUSTED" can leave a new marker behind
- * ("<<<<UNTRUSTED" becomes "<<<UNTRUSTED"), so it repeats until none is left;
- * every pass shortens the text, so it ends.
+ * Makes text unable to contain either fence marker. Replacing just the marker
+ * is not enough ("<<<<UNTRUSTED" would become "<<<UNTRUSTED" again), so a whole
+ * run of brackets next to the word is cut to two, which is no marker whatever
+ * surrounds it. One linear pass: a long run of brackets cannot make it slow.
  */
 export function neutralize(text: string): string {
-	let out = text;
-	while (out.includes(OPEN) || out.includes(CLOSE)) {
-		out = out.split(OPEN).join("<<UNTRUSTED").split(CLOSE).join("UNTRUSTED>>");
-	}
-	return out;
+	return text
+		.replace(/<{3,}UNTRUSTED/g, "<<UNTRUSTED")
+		.replace(/UNTRUSTED>{3,}/g, "UNTRUSTED>>");
 }
 
 /** Fences every untrusted text field in a result, recursively. */

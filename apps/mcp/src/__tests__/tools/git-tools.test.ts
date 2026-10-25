@@ -45,6 +45,15 @@ describe("fence", () => {
 		}
 	});
 
+	it("neutralises a huge run of brackets in linear time", () => {
+		const long = `${"<".repeat(200000)}UNTRUSTED${">".repeat(200000)}`;
+		const start = Date.now();
+		const out = fence(long, "body");
+		expect(Date.now() - start).toBeLessThan(2000);
+		expect(out.split("<<<UNTRUSTED").length - 1).toBe(1);
+		expect(out.split("UNTRUSTED>>>").length - 1).toBe(1);
+	});
+
 	it("fences text fields anywhere in a result and nothing else", () => {
 		const out = fenceFields({
 			number: "7",

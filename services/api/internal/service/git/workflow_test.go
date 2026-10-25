@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -200,6 +201,13 @@ func TestNeutralize_LeavesNoFenceMarkerWhateverIsNestedInIt(t *testing.T) {
 		if strings.Contains(out, fenceOpen) || strings.Contains(out, fenceClose) {
 			t.Errorf("neutralize(%q) = %q still holds a marker", in, out)
 		}
+	}
+	// A long run of brackets must not make it slow (it is one linear pass).
+	start := time.Now()
+	long := strings.Repeat("<", 200000) + "UNTRUSTED" + strings.Repeat(">", 200000)
+	out := neutralize(long)
+	if strings.Contains(out, fenceOpen) || strings.Contains(out, fenceClose) || time.Since(start) > 2*time.Second {
+		t.Errorf("long runs: marker left or too slow (%v)", time.Since(start))
 	}
 	if got := neutralize("plain <<UNTRUSTED text"); got != "plain <<UNTRUSTED text" {
 		t.Errorf("text without a marker must be unchanged: %q", got)

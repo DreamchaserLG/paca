@@ -51,6 +51,30 @@ func TestSPIMajor(t *testing.T) {
 	}
 }
 
+// A plugin installed with an empty version must still be checked: the map's
+// zero value is the empty string.
+func TestPluginProviders_AnEmptyPluginVersionIsStillVerified(t *testing.T) {
+	repo := fakePluginRepo{plugins: []*plugindom.Plugin{{Name: "com.x.git", Version: "", Enabled: true}}}
+	skewed := &spiDoer{version: "gitprovider.v2"}
+	pp := NewPluginProviders(repo, skewed)
+	if _, err := pp.Provider(context.Background(), "com.x.git"); !errors.Is(err, gitdom.ErrProviderUnavailable) {
+		t.Fatalf("a v2 provider with no plugin version must be refused: %v", err)
+	}
+	if skewed.calls != 1 {
+		t.Fatalf("it must have asked the provider: %d describes", skewed.calls)
+	}
+	ok := &spiDoer{version: "gitprovider.v1"}
+	pp = NewPluginProviders(repo, ok)
+	for i := 0; i < 2; i++ {
+		if _, err := pp.Provider(context.Background(), "com.x.git"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if ok.calls != 1 {
+		t.Fatalf("a verified empty version is remembered: %d describes", ok.calls)
+	}
+}
+
 func TestPluginProviders_RefuseAProviderWithAnotherSPIMajor(t *testing.T) {
 	repo := fakePluginRepo{plugins: []*plugindom.Plugin{{Name: "com.x.git", Version: "1.0.0", Enabled: true}}}
 
